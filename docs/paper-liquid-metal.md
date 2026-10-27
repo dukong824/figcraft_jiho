@@ -1,7 +1,7 @@
 # Paper Liquid Metal (local native extension)
 
 This build adds Paper's Apache-2.0 Liquid Metal material as a native effect. Select an image,
-vector or frame and click **+** in **Design → Custom** (**디자인 → 커스텀**). This adds
+vector or frame and choose **Liquid Metal** from **+** in **Design → Custom** (**디자인 → 커스텀**). This adds
 **Liquid Metal** (**리퀴드 메탈**) and opens its settings. Custom is a peer of Fill, Stroke and
 Effects in the right panel. Open existing settings with the effect icon.
 Speed 0 pauses; a negative speed reverses motion.

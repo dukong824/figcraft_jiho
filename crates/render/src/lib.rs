@@ -18,6 +18,7 @@ pub mod image_profile;
 pub mod images;
 pub mod lod;
 pub mod paint;
+pub mod paper_filters;
 pub mod paper_metal;
 pub mod pattern;
 pub mod retained;

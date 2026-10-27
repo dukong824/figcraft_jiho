@@ -781,6 +781,8 @@ pub enum EffectKind {
     Glass(Glass),
     /// Original Paper Liquid Metal material (Apache-2.0).
     PaperLiquidMetal(crate::PaperLiquidMetal),
+    /// The seven original Paper Image Filters.
+    PaperImageFilter(crate::PaperImageFilter),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -797,7 +799,7 @@ fn yes() -> bool {
 
 impl Effect {
     /// Effect types in the order the Design panel lists them: (label, type name).
-    pub const TYPES: [(&str, &str); 8] = [
+    pub const TYPES: [(&str, &str); 15] = [
         ("Drop shadow", "dropShadow"),
         ("Inner shadow", "innerShadow"),
         ("Layer blur", "layerBlur"),
@@ -806,6 +808,13 @@ impl Effect {
         ("Texture", "texture"),
         ("Glass", "glass"),
         ("Paper Liquid Metal", "paperLiquidMetal"),
+        ("Paper Texture", "paperTexture"),
+        ("Fluted Glass", "paperFlutedGlass"),
+        ("Water", "paperWater"),
+        ("Image Dithering", "paperImageDithering"),
+        ("Halftone Dots", "paperHalftoneDots"),
+        ("Halftone CMYK", "paperHalftoneCmyk"),
+        ("Lens Distortion", "paperLensDistortion"),
     ];
 
     fn of(kind: EffectKind) -> Self {
@@ -845,7 +854,11 @@ impl Effect {
             "texture" => Self::texture(),
             "glass" => Self::glass(),
             "paperliquidmetal" | "liquidmetal" => Self::of(EffectKind::PaperLiquidMetal(crate::PaperLiquidMetal::default())),
-            _ => return None,
+            _ => {
+                let key = name.to_ascii_lowercase().replace(['_', ' ', '-'], "");
+                let filter = crate::PaperFilterKind::ALL.into_iter().find(|k| k.type_name().to_ascii_lowercase() == key)?;
+                Self::of(EffectKind::PaperImageFilter(crate::PaperImageFilter::new(filter)))
+            }
         })
     }
 
@@ -859,6 +872,7 @@ impl Effect {
             EffectKind::Texture(_) => "Texture",
             EffectKind::Glass(_) => "Glass",
             EffectKind::PaperLiquidMetal(_) => "Paper Liquid Metal",
+            EffectKind::PaperImageFilter(ref p) => p.filter.label(),
         }
     }
     /// How far outside the node's bounds this effect can paint (a shadow's spread at a sharp

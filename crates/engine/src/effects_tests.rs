@@ -38,15 +38,49 @@ fn effect_add_takes_every_type() {
     s.execute("effect.add", &json!({"ids": [r], "type": "GLASS"})).unwrap();
     let n = s.doc().unwrap().node(r).unwrap();
     let labels: Vec<&str> = n.effects.iter().map(Effect::label).collect();
-    assert_eq!(
-        labels,
-        vec!["Drop shadow", "Inner shadow", "Layer blur", "Background blur", "Noise", "Texture", "Glass", "Paper Liquid Metal", "Glass"]
-    );
+    assert_eq!(labels, Effect::TYPES.iter().map(|(label, _)| *label).chain(["Glass"]).collect::<Vec<_>>());
     let err = s.execute("effect.add", &json!({"ids": [r], "type": "sparkle"})).unwrap_err();
     assert!(err.to_string().contains("sparkle"), "{err}");
     // Undo removes one at a time.
     s.undo().unwrap();
-    assert_eq!(s.doc().unwrap().node(r).unwrap().effects.len(), 8);
+    assert_eq!(s.doc().unwrap().node(r).unwrap().effects.len(), Effect::TYPES.len());
+}
+
+#[test]
+fn paper_image_filters_roundtrip_edits_undo_and_reject_unknown_parameters() {
+    use figcraft_doc::{PaperFilterKind, PaperImageFilter};
+    let mut s = Session::new();
+    let r = rect(&mut s);
+    for filter in PaperFilterKind::ALL {
+        for color in filter.colors() {
+            assert!(color.default.iter().all(|v| (0.0..=1.0).contains(v)), "{} palette", filter.label());
+        }
+        s.execute("effect.add", &json!({"ids":[r], "type":filter.type_name()})).unwrap();
+    }
+    let water: PaperImageFilter = serde_json::from_value(json!({"filter":"water"})).unwrap();
+    assert!(water.animated(), "water's omitted speed uses its own preset default");
+    let mut params = PaperImageFilter::new(PaperFilterKind::HalftoneCmyk);
+    params.set_value("grainSize", 0.8);
+    s.execute("effect.set", &json!({"ids":[r], "index":5, "effect":{"type":"paperImageFilter","filter":params.filter,"params":params.params}}))
+        .unwrap();
+    let reported = crate::inspect::node_json(s.doc().unwrap(), r, 0)["effects"].clone();
+    s.execute("node.set", &json!({"ids":[r], "props":{"effects":reported}})).unwrap();
+    let EffectKind::PaperImageFilter(p) = &s.doc().unwrap().node(r).unwrap().effects[5].kind else { panic!("filter missing") };
+    assert_eq!(p.filter, PaperFilterKind::HalftoneCmyk);
+    assert_eq!(p.value(p.filter.params().iter().find(|p| p.name == "grainSize").unwrap()), 0.8);
+    let effect = s.doc().unwrap().node(r).unwrap().effects[5].clone();
+    let serialized = serde_json::to_vec(s.doc().unwrap()).unwrap();
+    let restored: figcraft_doc::Document = serde_json::from_slice(&serialized).unwrap();
+    assert_eq!(restored.node(r).unwrap().effects[5], effect);
+    s.execute("effect.remove", &json!({"ids":[r], "index":5})).unwrap();
+    s.undo().unwrap();
+    assert_eq!(s.doc().unwrap().node(r).unwrap().effects[5], effect);
+    assert!(
+        s.execute("effect.set", &json!({"ids":[r], "index":5, "effect":{"type":"paperImageFilter","filter":"water","params":{"causticc":0.5}}}))
+            .is_err()
+    );
+    assert!(s.execute("effect.add", &json!({"ids":[r], "type":"paperHeatmap"})).is_err());
+    assert!(s.execute("effect.add", &json!({"ids":[r], "type":"paperMeshGradient"})).is_err());
 }
 
 #[test]

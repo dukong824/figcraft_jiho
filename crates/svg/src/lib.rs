@@ -780,7 +780,7 @@ impl W<'_> {
     /// can't be rendered): it is written as vectors.
     fn raster_whole(&mut self, id: NodeId, n: &Node, id_attr: &str) -> bool {
         let has = |f: &dyn Fn(&EffectKind) -> bool| n.effects.iter().any(|e| e.visible && f(&e.kind));
-        let whole = has(&|k| matches!(k, EffectKind::Texture(_) | EffectKind::PaperLiquidMetal(_)))
+        let whole = has(&|k| matches!(k, EffectKind::Texture(_) | EffectKind::PaperLiquidMetal(_) | EffectKind::PaperImageFilter(_)))
             || has(&|k| matches!(k, EffectKind::LayerBlur(b) if b.is_progressive()))
             || (has(&|k| matches!(k, EffectKind::Noise(_))) && has(&|k| matches!(k, EffectKind::LayerBlur(_))))
             // A group's inner shadows are cast by its layers' pixels, over them.

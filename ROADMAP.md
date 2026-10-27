@@ -4,6 +4,8 @@ Local fork update (2026-10-27): `figcraft_jiho` preserves the official Git ances
 Windows release and upstream-review workflows, and routes update checks to its own Releases.
 Liquid Metal now lives in a Custom section alongside Fill, Stroke and Effects; existing files
 retain their saved material parameters and rendering order without migration.
+The seven Paper Image Filters are also available in Custom; Water animates. No additional
+Logo Animations or Effects shaders are included. See [scope](docs/paper-image-filters.md).
 See [maintenance](docs/jiho-maintenance.md). Existing parity estimates below are unchanged.
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)

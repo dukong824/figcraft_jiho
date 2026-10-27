@@ -22,10 +22,16 @@ pub fn render_image(source: &Pixmap, params: &PaperLiquidMetal, time: f64) -> Re
     gpu::render(source, params, time)
 }
 
+pub(crate) fn effect_animated(e: &figcraft_doc::Effect) -> bool {
+    match &e.kind {
+        EffectKind::PaperLiquidMetal(p) => p.speed.is_finite() && p.speed != 0.0,
+        EffectKind::PaperImageFilter(p) => p.animated(),
+        _ => false,
+    }
+}
+
 pub fn animated(doc: &Document) -> bool {
-    doc.nodes().any(|n| {
-        n.visible && n.effects.iter().any(|e| e.visible && matches!(&e.kind,EffectKind::PaperLiquidMetal(p) if p.speed.is_finite() && p.speed != 0.0))
-    })
+    doc.nodes().any(|n| n.visible && n.effects.iter().any(|e| e.visible && effect_animated(e)))
 }
 
 /// Apply to a stable, uncropped local layer, then transform into the render tile. Panning,
@@ -36,7 +42,7 @@ pub fn apply(ctx: &crate::draw::Ctx<'_, '_>, id: NodeId, layer: &mut Pixmap, loc
         // The canvas sets magnified_image_pixels for its live previews. Bound the shader
         // there; still exports and prototype renders keep the higher working resolution.
         let max_side = if ctx.magnified_image_pixels { 512.0 } else { 1024.0 };
-        if let Some((source, bounds, scale)) = source(ctx.doc, id, effect_index, max_side) {
+        if let Some((source, bounds, scale)) = source(ctx.doc, id, effect_index, max_side, ctx.time) {
             match gpu::render(&source, params, ctx.time) {
                 Ok(output) => {
                     layer.data_mut().fill(0);
@@ -52,7 +58,7 @@ pub fn apply(ctx: &crate::draw::Ctx<'_, '_>, id: NodeId, layer: &mut Pixmap, loc
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn source(doc: &Document, id: NodeId, effect_index: usize, max_side: f64) -> Option<(Pixmap, Rect, f64)> {
+pub(crate) fn source(doc: &Document, id: NodeId, effect_index: usize, max_side: f64, time: f64) -> Option<(Pixmap, Rect, f64)> {
     let mut plain = doc.clone();
     let n = plain.node_mut(id)?;
     n.effects.truncate(effect_index);
@@ -67,7 +73,7 @@ fn source(doc: &Document, id: NodeId, effect_index: usize, max_side: f64) -> Opt
         return None;
     }
     let scale = (max_side / largest).min(2.0);
-    crate::render_node_at(&plain, id, scale, 0.0).map(|pix| (pix, bounds, scale))
+    crate::render_node_at(&plain, id, scale, time).map(|pix| (pix, bounds, scale))
 }
 
 /// The original working resolution is 512 on the shorter side. Keep a bounded allocation

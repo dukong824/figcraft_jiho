@@ -48,3 +48,11 @@ egui's default fonts (compiled into the `egui`/`epaint` crates) keep their own l
 |---|---|---|---|
 | `examples/jiho/silhouette.png` | Original geometry made for this FigCraft fork | MIT OR Apache-2.0 | Synthetic six-lobed silhouette; no third-party artwork |
 | `examples/jiho/Demo.figcraft` | Original demo made for this FigCraft fork | MIT OR Apache-2.0 | Uses the silhouette above and system-rendered text; no font files embedded |
+| `examples/jiho/filter-source.png` | Original procedural landscape made for this FigCraft fork | MIT OR Apache-2.0 | Geometric gradient illustration, generated from original shapes; no third-party photo |
+| `examples/jiho/Image Filters.figcraft` | Original demo made for this FigCraft fork | MIT OR Apache-2.0 | The landscape above with seven Paper filters and system-rendered text; no font files embedded |
+
+## Paper Image Filters
+
+| Path | Author / source | License | Notes |
+|---|---|---|---|
+| `crates/render/src/paper-shaders/noise.png` | Lost Coast Labs, Inc. / [Paper Shaders, commit 1923e9f5](https://github.com/paper-design/shaders/blob/1923e9f536ea079e2a95d23291cbfacfd69d37f6/packages/shaders/src/get-shader-noise-texture.ts) | Apache-2.0 | Original 128 × 128 noise texture decoded unchanged from the source data URL; LICENSE, NOTICE and SHA-256 are beside it |

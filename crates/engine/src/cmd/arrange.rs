@@ -443,7 +443,7 @@ pub fn scale_node(doc: &mut Document, id: NodeId, k: f64) -> Result<()> {
         for e in &mut n.effects {
             match &mut e.kind {
                 // All Paper material settings are dimensionless (frame is time).
-                EffectKind::PaperLiquidMetal(_) => {}
+                EffectKind::PaperLiquidMetal(_) | EffectKind::PaperImageFilter(_) => {}
                 EffectKind::DropShadow(sh) | EffectKind::InnerShadow(sh) => {
                     sh.radius *= k;
                     sh.spread *= k;

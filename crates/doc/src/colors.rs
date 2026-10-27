@@ -27,6 +27,13 @@ impl Effect {
                 f(&mut n.color);
                 f(&mut n.secondary);
             }
+            EffectKind::PaperImageFilter(p) => {
+                for spec in p.filter.colors() {
+                    let mut color = p.color(spec);
+                    f(&mut color);
+                    p.set_color(spec.name, color);
+                }
+            }
             EffectKind::PaperLiquidMetal(p) => {
                 f(&mut p.color_tint);
                 f(&mut p.color_back);

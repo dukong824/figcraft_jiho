@@ -1,5 +1,17 @@
 # Local extension devlog
 
+## 2026-10-27 — M-JIHO-FILTERS: seven Paper Image Filters
+
+Port Paper Texture, Fluted Glass, Water, Image Dithering, Halftone Dots, Halftone CMYK and Lens
+Distortion from the same pinned Apache-2.0 Paper revision. Retain original GLSL formulas, shared
+constants and the noise texture; adapt explicit GPU bindings and framebuffer coordinates.
+Add serialized, bounded parameter catalogs with original defaults, command validation, color
+profile visiting, animation clocks, raster export and unsupported-format warnings. Native source
+uploads recover straight RGB from premultiplied pixels and cache the complete image content.
+Custom's plus now opens a chooser for the existing Liquid Metal and these seven filters. No
+additional Logo Animations or Effects shaders are added. Test GPU compilation, RGB cache
+invalidation, animation/still frames, alpha/orientation, round trips, undo and UI insertion.
+
 ## 2026-10-27 — M-JIHO-CUSTOM: a Custom section for personal materials
 
 Move Liquid Metal into a Custom section alongside Fill, Stroke and Effects. Its plus button

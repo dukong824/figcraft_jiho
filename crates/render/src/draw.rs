@@ -626,7 +626,15 @@ fn draw_layer(ctx: &Ctx, pix: &mut Pixmap, n: &Node, parent_xf: Affine, depth: u
         // Kept apart, the backdrop isn't in the layer yet: the shadows are cast from the content
         // with the layer effects it will get (a copy only when it gets some).
         let layer_fx = n.effects.iter().any(|e| {
-            e.visible && matches!(e.kind, EffectKind::LayerBlur(_) | EffectKind::Noise(_) | EffectKind::Texture(_) | EffectKind::PaperLiquidMetal(_))
+            e.visible
+                && matches!(
+                    e.kind,
+                    EffectKind::LayerBlur(_)
+                        | EffectKind::Noise(_)
+                        | EffectKind::Texture(_)
+                        | EffectKind::PaperLiquidMetal(_)
+                        | EffectKind::PaperImageFilter(_)
+                )
         });
         let content = (casts && layer_fx).then(|| {
             let mut c = layer.clone();
@@ -671,6 +679,7 @@ fn layer_effects(ctx: &Ctx, layer: &mut Pixmap, n: &Node, id: NodeId, lxf: Affin
             EffectKind::Noise(nz) => grain::noise(layer, nz, lxf, id.0 as u32),
             EffectKind::Texture(t) => grain::texture(layer, t, lxf, ctx.scale, id.0 as u32),
             EffectKind::PaperLiquidMetal(p) => crate::paper_metal::apply(ctx, id, layer, lxf, p, index),
+            EffectKind::PaperImageFilter(p) => crate::paper_filters::apply(ctx, id, layer, lxf, p, index),
             _ => {}
         }
     }

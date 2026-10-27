@@ -37,8 +37,10 @@ foreach ($source in $files.Keys) {
     Copy-Item -LiteralPath (Join-Path $BinaryDirectory $source) -Destination (Join-Path $stage $files[$source])
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Demo.figcraft') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Image Filters.figcraft') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'VALIDATION.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-liquid-metal.md') -Destination (Join-Path $stage 'PAPER-LIQUID-METAL.md')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-image-filters.md') -Destination (Join-Path $stage 'PAPER-IMAGE-FILTERS.md')
 $licenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Path $licenses | Out-Null
 foreach ($file in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE')) {
@@ -60,6 +62,10 @@ start "" "%~dp0figcraft_jiho.exe" "%~dp0Demo.figcraft"
 '@ | Set-Content -LiteralPath (Join-Path $stage 'Open Demo.cmd') -Encoding ascii
 @'
 @echo off
+start "" "%~dp0figcraft_jiho.exe" "%~dp0Image Filters.figcraft"
+'@ | Set-Content -LiteralPath (Join-Path $stage 'Open Image Filters.cmd') -Encoding ascii
+@'
+@echo off
 if "%~1"=="" (
   echo Drop an image onto this script to make a 3-second Liquid Metal GIF.
   pause
@@ -72,7 +78,9 @@ pause
 figcraft_jiho — personal FigCraft build
 
 Run figcraft_jiho.exe or Open Demo.cmd.
-Select an image, then click + in Design > Custom to add Liquid Metal and open its settings.
+Open Image Filters.cmd shows all seven filters beside the original image.
+Select an image, then click + in Design > Custom to choose Liquid Metal or one of seven Image Filters.
+Water animates; the other Image Filters are static. All filters have editable controls.
 Transparent PNGs and vectors expose their own silhouette; opaque photographs become rectangular metal.
 Drag an image onto Image to GIF.cmd to export a 3-second, 24fps GIF.
 

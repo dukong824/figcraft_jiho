@@ -14,7 +14,15 @@ pub(super) fn custom(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeI
 }
 
 fn is_custom(effect: &Effect) -> bool {
-    matches!(effect.kind, EffectKind::PaperLiquidMetal(_))
+    matches!(effect.kind, EffectKind::PaperLiquidMetal(_) | EffectKind::PaperImageFilter(_))
+}
+
+fn add_custom(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], ty: &str, index: Option<usize>) {
+    if app.run("effect.add", json!({"ids":ids,"type":ty})).is_some()
+        && let Some(index) = index
+    {
+        ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, index)), true));
+    }
 }
 
 fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId], custom: bool) {
@@ -25,15 +33,24 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
         if custom { vec![(Icon::Plus, tr("Add custom effect"))] } else { vec![(Icon::Styles, tr("Styles")), (Icon::Plus, tr("Add effect"))] };
     let title = if custom { tr("Custom|section") } else { tr("Effects") };
     let (clicked, header) = widgets::section_header_resp(ui, title, &buttons, empty);
-    if let Some(i) = clicked {
-        if custom || i == 1 {
-            let ty = if custom { "paperLiquidMetal" } else { "dropShadow" };
-            if app.run("effect.add", json!({"ids": ids, "type": ty})).is_some()
-                && custom
-                && let Some(list) = &list
-            {
-                ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, list.len())), true));
+    if custom {
+        menu_popup(&header).id(Id::unique("add_custom_material")).open_memory(clicked.map(|_| egui::SetOpenCommand::Toggle)).show(|ui| {
+            if menu_item(ui, tr("Liquid Metal"), "") {
+                add_custom(app, ui, &ids, "paperLiquidMetal", list.as_ref().map(Vec::len));
+                ui.close();
             }
+            ui.separator();
+            ui.label(tr("Image Filters"));
+            for filter in figcraft_doc::PaperFilterKind::ALL {
+                if menu_item(ui, tr(filter.label()), "") {
+                    add_custom(app, ui, &ids, filter.type_name(), list.as_ref().map(Vec::len));
+                    ui.close();
+                }
+            }
+        });
+    } else if let Some(i) = clicked {
+        if i == 1 {
+            app.run("effect.add", json!({"ids":ids,"type":"dropShadow"}));
         } else {
             style_picker::open(app, ui, &ids, StyleSlot::Effect);
         }
@@ -61,14 +78,14 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
                 ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, i)), open));
             }
             let w = ui.available_width() - 56.0;
-            let label = if custom { tr("Liquid Metal") } else { tr(e.label()) };
+            let label = if matches!(e.kind, EffectKind::PaperLiquidMetal(_)) { tr("Liquid Metal") } else { tr(e.label()) };
             let resp = widgets::dropdown(ui, label, w, None);
             menu_popup(&resp).show(|ui| {
                 for (l, ty) in Effect::TYPES {
-                    if (ty == "paperLiquidMetal") != custom {
+                    if Effect::of_type(ty).is_none_or(|e| is_custom(&e) != custom) {
                         continue;
                     }
-                    let l = if custom { "Liquid Metal" } else { l };
+                    let l = if ty == "paperLiquidMetal" { "Liquid Metal" } else { l };
                     if menu_item(ui, tr(l), "")
                         && let Some(ne) = Effect::of_type(ty)
                     {
@@ -307,6 +324,104 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                     set(app, with(&|t| t.clip_to_shape = !tx.clip_to_shape), None);
                 }
             });
+        }
+        EffectKind::PaperImageFilter(p) => {
+            let change = |f: &dyn Fn(&mut figcraft_doc::PaperImageFilter)| {
+                tweaked(e, |kind| {
+                    if let EffectKind::PaperImageFilter(p) = kind {
+                        f(p);
+                    }
+                })
+            };
+            for spec in p.filter.colors() {
+                let color = p.color(spec);
+                row(ui, 32.0, |ui| {
+                    let mut rgba = egui::Color32::from_rgba_unmultiplied(
+                        (color.r * 255.0).round() as u8,
+                        (color.g * 255.0).round() as u8,
+                        (color.b * 255.0).round() as u8,
+                        (color.a * 255.0).round() as u8,
+                    );
+                    let response = ui
+                        .push_id(("paper_color", i, spec.name), |ui| {
+                            egui::color_picker::color_edit_button_srgba(ui, &mut rgba, egui::color_picker::Alpha::OnlyBlend)
+                        })
+                        .inner;
+                    let drag_id = Id::unique(("paper_color_drag", i, spec.name));
+                    if response.changed() {
+                        let [r, g, b, a] = rgba.to_srgba_unmultiplied();
+                        let c = figcraft_color::Color::new(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0, f32::from(a) / 255.0);
+                        let dragging = ui.input(|input| input.pointer.any_down());
+                        ui.data_mut(|d| d.insert_temp(drag_id, dragging));
+                        set(app, change(&|p| p.set_color(spec.name, c)), Some(!dragging));
+                    }
+                    if ui.data(|d| d.get_temp::<bool>(drag_id)).unwrap_or(false) && !ui.input(|input| input.pointer.any_down()) {
+                        let _ = app.session.commit_interaction();
+                        ui.data_mut(|d| d.insert_temp(drag_id, false));
+                    }
+                    ui.label(tr(match spec.name {
+                        "colorBack" => "Background",
+                        "colorFront" => "Foreground",
+                        _ => spec.label,
+                    }));
+                    if let Some(hex) = widgets::text_field(ui, Id::unique(("paper_hex", i, spec.name)), &color.to_hex(), 70.0, "")
+                        && let Some(c) = figcraft_color::Color::from_hex_or_name(&hex)
+                    {
+                        set(app, change(&|p| p.set_color(spec.name, c.with_alpha(color.a))), None);
+                    }
+                });
+            }
+            if p.filter == figcraft_doc::PaperFilterKind::Water {
+                for (name, label, value) in [("speed", "Speed", p.speed), ("frame", "Frame (ms)", p.frame)] {
+                    row(ui, 32.0, |ui| {
+                        let ed = widgets::number_field(
+                            ui,
+                            Id::unique(("paper_filter_time", i, name)),
+                            Lead::Text(tr(label)),
+                            Some(value),
+                            "",
+                            half * 2.0,
+                            0.01,
+                        );
+                        edit(app, ed, &|v| {
+                            change(&|p| if name == "speed" { p.speed = v.clamp(-3.0, 3.0) } else { p.frame = v.clamp(-3.6e6, 3.6e6) })
+                        });
+                    });
+                }
+            }
+            for spec in p.filter.params() {
+                let value = p.value(spec);
+                row(ui, 32.0, |ui| {
+                    if spec.boolean {
+                        if widgets::checkbox(ui, value >= 0.5, tr(spec.label)) {
+                            set(app, change(&|p| p.set_value(spec.name, if value >= 0.5 { 0.0 } else { 1.0 })), None);
+                        }
+                    } else if !spec.options.is_empty() {
+                        ui.label(tr(spec.label));
+                        let selected = spec.options.iter().find(|(_, v)| *v == value).map(|(label, _)| *label).unwrap_or("Custom");
+                        let resp = widgets::dropdown(ui, tr(selected), ui.available_width() - 8.0, None);
+                        menu_popup(&resp).show(|ui| {
+                            for (label, v) in spec.options {
+                                if menu_item(ui, tr(label), "") {
+                                    set(app, change(&|p| p.set_value(spec.name, *v)), None);
+                                    ui.close();
+                                }
+                            }
+                        });
+                    } else {
+                        let ed = widgets::number_field(
+                            ui,
+                            Id::unique(("paper_filter", i, spec.name)),
+                            Lead::Text(tr(spec.label)),
+                            Some(value),
+                            "",
+                            half * 2.0,
+                            spec.step,
+                        );
+                        edit(app, ed, &|v| change(&|p| p.set_value(spec.name, v.clamp(spec.min, spec.max))));
+                    }
+                });
+            }
         }
         EffectKind::PaperLiquidMetal(p) => {
             let with = |f: &dyn Fn(&mut figcraft_doc::PaperLiquidMetal)| {

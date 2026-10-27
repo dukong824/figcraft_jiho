@@ -8,6 +8,7 @@
 
 Releases의 Windows x64 portable ZIP을 풀고 **`figcraft_jiho.exe`**를 실행합니다.
 `Open Demo.cmd`로 금속 효과 데모를 열 수 있습니다.
+`Open Image Filters.cmd`로 이미지 필터 7종과 원본을 비교할 수 있습니다.
 기존 `.figcraft` 작업 파일을 이 앱으로 열어 계속 작업하면 됩니다.
 
 앱을 일정한 폴더에 두고 Windows의 `.figcraft` 연결 프로그램과 바로가기를 이 실행 파일로 설정하세요.
@@ -17,7 +18,8 @@ Releases의 Windows x64 portable ZIP을 풀고 **`figcraft_jiho.exe`**를 실행
 ## 개인 기능
 
 - **Paper Liquid Metal:** Paper가 공개한 GLSL 원본과 알파/Poisson 전처리를 이식한 네이티브 애니메이션 효과.
-- 이미지·벡터·프레임을 선택하고 **디자인 → 커스텀 → +**로 **리퀴드 메탈**을 추가해 색상, 속도, 반사 무늬를 조절합니다.
+- 이미지·벡터·프레임을 선택하고 **디자인 → 커스텀 → + → 리퀴드 메탈**에서 색상, 속도, 반사 무늬를 조절합니다.
+- **이미지 필터 7종:** 종이 질감, 플루티드 글라스, 물결, 이미지 디더링, 하프톤 도트, 하프톤 CMYK, 렌즈 왜곡. **커스텀 → + → 이미지 필터**에서 선택합니다. [기능 안내](docs/paper-image-filters.md)
 - 커스텀은 채우기·선·효과와 같은 계층의 섹션입니다. 기존 파일의 금속 효과도 이곳에 표시됩니다.
 - `Image to GIF.cmd`에 이미지를 끌어 놓으면 3초, 24fps GIF를 만듭니다.
 - 기존 FigCraft 설정과 작업 파일을 기반으로 사용합니다. 새 효과가 포함된 문서는 이 Fork로 여세요.

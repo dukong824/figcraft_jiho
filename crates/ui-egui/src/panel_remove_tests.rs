@@ -168,6 +168,8 @@ fn custom_section_adds_liquid_metal_and_opens_its_settings_as_one_undo_step() {
     let undo = u.app.session.ds().unwrap().history.undo.len();
     let plus = button(&mut u, "Add custom effect");
     click(&mut u, plus);
+    let shapes = flat(&u.frame_output(vec![]).shapes);
+    click(&mut u, text_center(&shapes, "Liquid Metal"));
     let effects = &u.app.session.doc().unwrap().node(r).unwrap().effects;
     assert_eq!(effects.len(), 1);
     assert!(matches!(effects[0].kind, figcraft_doc::EffectKind::PaperLiquidMetal(_)));
@@ -175,6 +177,32 @@ fn custom_section_adds_liquid_metal_and_opens_its_settings_as_one_undo_step() {
     assert!(u.ctx.read_response(grip_id("custom_effects", 0)).is_some());
     assert!(u.ctx.read_response(grip_id("effects", 0)).is_none(), "the material is absent from standard Effects");
     assert_eq!(u.app.session.ds().unwrap().history.undo.len(), undo + 1);
+    u.app.session.undo().unwrap();
+    assert!(u.app.session.doc().unwrap().node(r).unwrap().effects.is_empty());
+}
+
+#[test]
+fn custom_chooser_offers_only_the_existing_metal_and_seven_image_filters() {
+    let mut s = Session::new();
+    let r = id(s.execute("shape.rectangle", &json!({"width":50,"height":50})).unwrap());
+    s.execute("select.set", &json!({"ids":[r]})).unwrap();
+    let mut u = Ui::new(s);
+    u.ctx.enable_accesskit();
+    let plus = button(&mut u, "Add custom effect");
+    click(&mut u, plus);
+    let shapes = flat(&u.frame_output(vec![]).shapes);
+    for filter in figcraft_doc::PaperFilterKind::ALL {
+        let _ = text_center(&shapes, filter.label());
+    }
+    let water = text_center(&shapes, "Water");
+    click(&mut u, water);
+    let effects = &u.app.session.doc().unwrap().node(r).unwrap().effects;
+    assert_eq!(effects.len(), 1);
+    let figcraft_doc::EffectKind::PaperImageFilter(filter) = &effects[0].kind else { panic!("expected image filter") };
+    assert_eq!(filter.filter, figcraft_doc::PaperFilterKind::Water);
+    assert!(filter.animated());
+    assert!(flag(&u, "fx_open", 0));
+    assert!(u.ctx.read_response(grip_id("effects", 0)).is_none());
     u.app.session.undo().unwrap();
     assert!(u.app.session.doc().unwrap().node(r).unwrap().effects.is_empty());
 }

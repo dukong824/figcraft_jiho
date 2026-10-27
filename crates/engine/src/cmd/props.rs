@@ -70,6 +70,9 @@ pub fn effects_from(cmd: &str, v: &Value) -> Result<Vec<Effect>> {
     for (i, given) in v.as_array().into_iter().flatten().enumerate() {
         refuse_ignored_effect_keys(cmd, &format!("effects[{i}]"), given, |v| serde_json::from_value(snake(v)).ok())?;
     }
+    for effect in &effects {
+        validate_paper_filter(cmd, effect)?;
+    }
     Ok(effects)
 }
 
@@ -78,7 +81,15 @@ pub fn effect_from(cmd: &str, p: &Value, key: &str) -> Result<Option<Effect>> {
     let Some(v) = get(p, key) else { return Ok(None) };
     let effect: Effect = serde_json::from_value(v.clone()).map_err(|e| bad(cmd, format!("`{key}`: {e}")))?;
     refuse_ignored_effect_keys(cmd, &format!("`{key}`"), v, |v| serde_json::from_value(v.clone()).ok())?;
+    validate_paper_filter(cmd, &effect)?;
     Ok(Some(effect))
+}
+
+fn validate_paper_filter(cmd: &str, effect: &Effect) -> Result<()> {
+    if let figcraft_doc::EffectKind::PaperImageFilter(p) = &effect.kind {
+        p.validate().map_err(|e| bad(cmd, e))?;
+    }
+    Ok(())
 }
 
 /// Refuse the keys of effect `given` that `parse` ignores, naming the keys the effect takes. Set to

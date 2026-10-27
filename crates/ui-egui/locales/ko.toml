@@ -1841,6 +1841,15 @@ status = "draft — needs native review"
 "{n} text layers" = { other = "텍스트 레이어 {n}개" }
 "{percent}%" = "{percent}%"
 
+"Image Filters" = "이미지 필터"
+"Paper Texture" = "종이 질감"
+"Fluted Glass" = "플루티드 글라스"
+"Water" = "물결"
+"Image Dithering" = "이미지 디더링"
+"Halftone Dots" = "하프톤 도트"
+"Halftone CMYK" = "하프톤 CMYK"
+"Lens Distortion" = "렌즈 왜곡"
+
 [commands]
 "align.bottom" = "아래쪽 정렬"
 "align.hcenter" = "수평 가운데 정렬"

@@ -218,4 +218,8 @@ in the table. `crates/ui-egui/src/shortcut_keys_tests.rs` drives the keys a look
 
 ## Local Paper extension — 2026-10-27
 
+The Custom section now offers the seven Paper Image Filters, with editable original uniforms,
+palette and sizing controls. Water animates on the native canvas and prototype. Other Paper
+Logo Animations and Effects categories are excluded. See [Image Filters](paper-image-filters.md).
+
 Native-only animated Paper Liquid Metal is available in the Custom section (alongside Fill, Stroke and Effects), saved in `.figcraft`, and rasterized in still SVG/PDF exports. Original Apache-2.0 GLSL and Rust preprocessing port, with bounded working resolution. Web rendering and `.fig` interchange of this material are not implemented. This extension does not change the incumbent parity estimates. See [scope and provenance](paper-liquid-metal.md).

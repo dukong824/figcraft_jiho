@@ -463,6 +463,7 @@ pub fn properties_with(doc: &Document, id: NodeId, fmt: ColorFormat) -> Vec<Sect
             EffectKind::Texture(t) => {
                 prop("Texture", format!("{} {}{}", grain(t.grain()), num(t.radius), if t.clip_to_shape { " clipped" } else { "" }))
             }
+            EffectKind::PaperImageFilter(p) => prop(p.filter.label(), format!("{} parameters", p.filter.params().len())),
             EffectKind::PaperLiquidMetal(p) => prop("Paper Liquid Metal", format!("{} speed, {} repetition", num(p.speed), num(p.repetition))),
             EffectKind::Glass(g) => prop(
                 "Glass",

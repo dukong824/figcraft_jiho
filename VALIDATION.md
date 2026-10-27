@@ -1,5 +1,33 @@
 # Paper Liquid Metal port validation
 
+## Seven Paper Image Filters — 2026-10-27
+
+- Added only Paper's Image Filters category: Paper Texture, Fluted Glass, Water, Image Dithering,
+  Halftone Dots, Halftone CMYK and Lens Distortion. Existing Liquid Metal remains available;
+  no other Logo Animations or Effects shaders were added.
+- Original GLSL, shared constants, palettes and noise texture are pinned to Paper commit
+  `1923e9f536ea079e2a95d23291cbfacfd69d37f6`, with licenses and source hashes recorded.
+- Native renderer suite: **172 passed, 3 ignored**. New GPU cases compile and render all seven
+  shaders, check RGB cache invalidation, neutral interior orientation/alpha, water animation,
+  paused frames and static-filter determinism. Existing Liquid Metal GPU/panning tests pass.
+- Effect command suite: **8 passed**. The new regression covers all filter aliases, inspect →
+  node.set round trips, native document serialization, undo, unknown parameter rejection and
+  Water's omitted-speed default. Present null speed is rejected so a valid explicit speed 0
+  is not falsely classified as an ignored property by the engine's key checker.
+- Panel suite: **47 passed**, including the custom chooser and insertion with open controls.
+- Native GUI/CLI and GIF-helper builds, Rust formatting, workspace Clippy with warnings denied,
+  dependency layers, attribution, WASM and plugin checks: passed.
+- Native screenshots checked: seven filter results, the Korean Custom add menu and Water
+  controls. Speed 0 was accepted in the final native build. First GPU use initializes the shader
+  pipelines and may delay the first canvas image.
+- The original procedural landscape comparison demo saves, reopens and exports to PNG, SVG and
+  PDF. `Open Image Filters.cmd` opens the packaged demo; licenses and usage notes are included.
+- Full `cargo xtask ci` was attempted: **1,389 passed, 1 failed, 2 ignored** in the engine suite.
+  Only the unchanged board-table row-growth test failed without optional craft-fonts (`122 → 122`).
+  The later gates were run separately; a clean full CI pass is not claimed.
+- `preview-v0.11.2.3` is an optimized-dev Windows GNU Preview; BUILD-INFO.txt records its source
+  commit. The CI-gated release-profile tag workflow remains unchanged.
+
 ## Custom section — 2026-10-27
 
 - Liquid Metal is listed in Design → Custom alongside Fill, Stroke and Effects. Ordinary
