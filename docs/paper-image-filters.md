@@ -18,6 +18,12 @@ New filters open their controls immediately. Existing Liquid Metal remains in Cu
 Logo Animations or Effects shaders have been added. Filter rows can be switched, disabled,
 removed, copied, pasted and reordered through the existing effect commands with undo.
 
+Each continuous numeric control has a slider below its number field. Drag for live changes or
+type an exact value; one drag is one undo step. Sliders use the filter's allowed range and integer
+steps for counts. Choices and on/off controls retain their dropdowns and checkboxes. Frame uses
+a ten-second slider by default and extends to show longer or negative times entered directly.
+Opening the controls does not clamp or round the saved document values.
+
 Water animates on the native canvas and prototype preview. Speed 0 pauses; a negative speed
 reverses motion. Frame is in milliseconds and determines the still export frame. The other six
 filters are static, as in Paper. All exposed uniforms have their original defaults and ranges,

@@ -15,6 +15,7 @@ use crate::theme::{Tokens, regular, semibold};
 use crate::widgets::{self, Edit, FIELD_H, FieldEdit, Lead, PAD};
 use crate::{FigApp, RightTab};
 
+mod custom_controls;
 mod effects;
 mod inspect;
 mod menu;

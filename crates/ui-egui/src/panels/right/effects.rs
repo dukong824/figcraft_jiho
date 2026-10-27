@@ -373,30 +373,28 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
             }
             if p.filter == figcraft_doc::PaperFilterKind::Water {
                 for (name, label, value) in [("speed", "Speed", p.speed), ("frame", "Frame (ms)", p.frame)] {
-                    row(ui, 32.0, |ui| {
-                        let ed = widgets::number_field(
-                            ui,
-                            Id::unique(("paper_filter_time", i, name)),
-                            Lead::Text(tr(label)),
-                            Some(value),
-                            "",
-                            half * 2.0,
-                            0.01,
-                        );
-                        edit(app, ed, &|v| {
-                            change(&|p| if name == "speed" { p.speed = v.clamp(-3.0, 3.0) } else { p.frame = v.clamp(-3.6e6, 3.6e6) })
-                        });
-                    });
+                    let range = if name == "speed" { -3.0..=3.0 } else { -3.6e6..=3.6e6 };
+                    let ed = super::custom_controls::number(
+                        ui,
+                        Id::unique(("paper_filter_time", i, name)),
+                        label,
+                        value,
+                        range,
+                        if name == "frame" { 1.0 } else { 0.01 },
+                    );
+                    edit(app, ed, &|v| change(&|p| if name == "speed" { p.speed = v.clamp(-3.0, 3.0) } else { p.frame = v.clamp(-3.6e6, 3.6e6) }));
                 }
             }
             for spec in p.filter.params() {
                 let value = p.value(spec);
-                row(ui, 32.0, |ui| {
-                    if spec.boolean {
+                if spec.boolean {
+                    row(ui, 32.0, |ui| {
                         if widgets::checkbox(ui, value >= 0.5, tr(spec.label)) {
                             set(app, change(&|p| p.set_value(spec.name, if value >= 0.5 { 0.0 } else { 1.0 })), None);
                         }
-                    } else if !spec.options.is_empty() {
+                    });
+                } else if !spec.options.is_empty() {
+                    row(ui, 32.0, |ui| {
                         ui.label(tr(spec.label));
                         let selected = spec.options.iter().find(|(_, v)| *v == value).map(|(label, _)| *label).unwrap_or("Custom");
                         let resp = widgets::dropdown(ui, tr(selected), ui.available_width() - 8.0, None);
@@ -408,19 +406,18 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                                 }
                             }
                         });
-                    } else {
-                        let ed = widgets::number_field(
-                            ui,
-                            Id::unique(("paper_filter", i, spec.name)),
-                            Lead::Text(tr(spec.label)),
-                            Some(value),
-                            "",
-                            half * 2.0,
-                            spec.step,
-                        );
-                        edit(app, ed, &|v| change(&|p| p.set_value(spec.name, v.clamp(spec.min, spec.max))));
-                    }
-                });
+                    });
+                } else {
+                    let ed = super::custom_controls::number(
+                        ui,
+                        Id::unique(("paper_filter", i, spec.name)),
+                        spec.label,
+                        value,
+                        spec.min..=spec.max,
+                        spec.step,
+                    );
+                    edit(app, ed, &|v| change(&|p| p.set_value(spec.name, v.clamp(spec.min, spec.max))));
+                }
             }
         }
         EffectKind::PaperLiquidMetal(p) => {
@@ -451,27 +448,25 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 ("Frame (ms)", p.frame, -3.6e6, 3.6e6),
             ];
             for (field, (label, value, min, max)) in fields.iter().enumerate() {
-                row(ui, 32.0, |ui| {
-                    let ed =
-                        widgets::number_field(ui, Id::unique(("paper_metal", i, field)), Lead::Text(tr(label)), Some(*value), "", half * 2.0, 0.01);
-                    edit(app, ed, &|v| {
-                        with(&|m| {
-                            let v = v.clamp(*min, *max);
-                            match field {
-                                0 => m.speed = v,
-                                1 => m.repetition = v,
-                                2 => m.softness = v,
-                                3 => m.distortion = v,
-                                4 => m.contour = v,
-                                5 => m.angle = v,
-                                6 => m.shift_red = v,
-                                7 => m.shift_blue = v,
-                                8 => m.scale = v,
-                                9 => m.rotation = v,
-                                _ => m.frame = v,
-                            }
-                        })
-                    });
+                let step = if matches!(field, 5 | 9 | 10) { 1.0 } else { 0.01 };
+                let ed = super::custom_controls::number(ui, Id::unique(("paper_metal", i, field)), label, *value, *min..=*max, step);
+                edit(app, ed, &|v| {
+                    with(&|m| {
+                        let v = v.clamp(*min, *max);
+                        match field {
+                            0 => m.speed = v,
+                            1 => m.repetition = v,
+                            2 => m.softness = v,
+                            3 => m.distortion = v,
+                            4 => m.contour = v,
+                            5 => m.angle = v,
+                            6 => m.shift_red = v,
+                            7 => m.shift_blue = v,
+                            8 => m.scale = v,
+                            9 => m.rotation = v,
+                            _ => m.frame = v,
+                        }
+                    })
                 });
             }
             row(ui, 32.0, |ui| {
@@ -480,19 +475,16 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 }
             });
             if !p.use_image {
-                row(ui, 32.0, |ui| {
-                    const SHAPES: [&str; 5] = ["None", "Circle", "Daisy", "Diamond", "Metaballs"];
-                    let ed = widgets::number_field(
-                        ui,
-                        Id::unique(("paper_shape", i)),
-                        Lead::Text(SHAPES.get(p.shape as usize).copied().unwrap_or("Shape")),
-                        Some(f64::from(p.shape)),
-                        "",
-                        half * 2.0,
-                        1.0,
-                    );
-                    edit(app, ed, &|v| with(&|m| m.shape = v.round().clamp(0.0, 4.0) as u32));
-                });
+                const SHAPES: [&str; 5] = ["None", "Circle", "Daisy", "Diamond", "Metaballs"];
+                let ed = super::custom_controls::number(
+                    ui,
+                    Id::unique(("paper_shape", i)),
+                    SHAPES.get(p.shape as usize).copied().unwrap_or("Shape"),
+                    f64::from(p.shape),
+                    0.0..=4.0,
+                    1.0,
+                );
+                edit(app, ed, &|v| with(&|m| m.shape = v.round().clamp(0.0, 4.0) as u32));
             }
         }
         EffectKind::Glass(g) => {

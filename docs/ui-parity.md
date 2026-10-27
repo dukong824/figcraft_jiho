@@ -218,6 +218,10 @@ in the table. `crates/ui-egui/src/shortcut_keys_tests.rs` drives the keys a look
 
 ## Local Paper extension — 2026-10-27
 
+Liquid Metal and Image Filters now have range sliders alongside direct numeric entry. Dragging
+updates the preview live and commits a single undo step. Native sliders retain keyboard and
+accessibility support. This personal extension does not change the incumbent parity estimates.
+
 The Custom section now offers the seven Paper Image Filters, with editable original uniforms,
 palette and sizing controls. Water animates on the native canvas and prototype. Other Paper
 Logo Animations and Effects categories are excluded. See [Image Filters](paper-image-filters.md).

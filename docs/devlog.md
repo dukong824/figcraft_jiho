@@ -1,5 +1,15 @@
 # Local extension devlog
 
+## 2026-10-27 — M-JIHO-SLIDERS: custom effect parameter sliders
+
+Pair the existing number fields with accessible horizontal sliders for Liquid Metal and all
+seven Image Filters. Preserve direct entry, original ranges, integer steps for counts, dropdowns
+and checkboxes. Frame uses a useful ten-second track that expands for typed long/negative values.
+Route slider edits through effect.set and the existing interaction mechanism so values update
+live and the release frame commits one undo step even when it changes no value. Merely opening
+the controls never normalizes the saved data. Add panel regressions for live/clamped dragging,
+undo and release, typed-value synchronization, integer counts and all eight custom materials.
+
 ## 2026-10-27 — M-JIHO-FILTERS: seven Paper Image Filters
 
 Port Paper Texture, Fluted Glass, Water, Image Dithering, Halftone Dots, Halftone CMYK and Lens

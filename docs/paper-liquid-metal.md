@@ -5,6 +5,9 @@ vector or frame and choose **Liquid Metal** from **+** in **Design → Custom** 
 **Liquid Metal** (**리퀴드 메탈**) and opens its settings. Custom is a peer of Fill, Stroke and
 Effects in the right panel. Open existing settings with the effect icon.
 Speed 0 pauses; a negative speed reverses motion.
+Numeric settings have sliders with live updates, alongside direct number entry. A drag is one
+undo step; the track respects each parameter's range. Frame defaults to a ten-second track,
+which expands to accommodate longer or negative times typed into the field.
 The canvas and prototype preview animate, and `.figcraft` saves the effect parameters.
 
 Existing documents automatically show their Paper material in Custom. The saved effect stack,

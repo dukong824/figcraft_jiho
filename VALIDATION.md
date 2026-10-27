@@ -1,5 +1,27 @@
 # Paper Liquid Metal port validation
 
+## Custom parameter sliders — 2026-10-27
+
+- Continuous numeric settings in Liquid Metal and all seven Image Filters now pair their
+  existing number field with a horizontal slider. Original parameter ranges and integer count
+  steps are respected. Frame uses a ten-second track extended by typed long/negative values.
+  Opening the panel leaves stored values untouched, including values finer than the drag step.
+- New slider integration tests: **3 passed**. They cover live editing, end-stop clamping,
+  interleaved effect indices, a release with no new value committing one undo, direct numeric
+  entry synchronized to the slider, integer sample counts and all eight materials opening
+  without changing their saved parameters or history.
+- Existing panel regression suite: **47 passed**.
+- Actual Korean native UI checked: controls and preview are visible. A pointer drag changed
+  Water speed from `1` to `-1.55`; one undo restored `1`. The test used a separate profile and
+  synthetic demo, and its temporary document changes were discarded.
+- Native GUI/CLI build, formatting, workspace Clippy with warnings denied, layers, assets,
+  WASM and plugin checks: passed. Rendering, serialized schema and shader sources are unchanged.
+- Full `cargo xtask ci` was attempted: engine **1,389 passed, 1 failed, 2 ignored**. Only the
+  unchanged board-table row-growth test failed without optional craft-fonts (`122 → 122`).
+  The UI tests and later gates above were run separately; a clean full CI pass is not claimed.
+- `preview-v0.11.2.4` is the optimized-dev Windows GNU Preview; its exact source commit is
+  recorded in BUILD-INFO.txt.
+
 ## Seven Paper Image Filters — 2026-10-27
 
 - Added only Paper's Image Filters category: Paper Texture, Fluted Glass, Water, Image Dithering,

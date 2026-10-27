@@ -66,6 +66,8 @@ mod corner_individual_tests;
 #[cfg(test)]
 mod cursors_tests;
 #[cfg(test)]
+mod custom_slider_tests;
+#[cfg(test)]
 mod design_paste_tests;
 #[cfg(test)]
 mod dev_mode_tests;
