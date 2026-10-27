@@ -1,5 +1,10 @@
 # FigCraft — instructions for agents
 
+This checkout is the personal fork `dukong824/figcraft_jiho`. Read `docs/jiho-maintenance.md` first.
+`origin` is the personal fork; `upstream` is the official source. Preserve the custom commits and
+release channel. Never push to upstream or restore the official binary updater. The original
+workflows are archived under `.github/upstream-workflows/`; this fork runs `jiho-*.yml` workflows.
+
 FigCraft is a clean-room, open-source, pure-Rust (egui) reimplementation of the Figma design workflow:
 interface design, auto layout, components and variants, styles and variables, prototyping and
 inspection. It runs natively on macOS, Windows, Linux and FreeBSD, and in the browser via WASM.

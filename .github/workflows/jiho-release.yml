@@ -1,0 +1,65 @@
+name: Jiho Windows Release
+
+on:
+  push:
+    tags: ['jiho-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example jiho-v0.11.2.2'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/jiho-ci.yml
+  windows:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CRAFT_FONTS_DIR: ${{ github.workspace }}/.ci/craft-fonts
+      FIGCRAFT_BUILD_SHA: ${{ github.sha }}
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: 37827adc41fd165f9a9234ac40f94dbad353aa69
+          path: .ci/craft-fonts
+      - name: Rust
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: jiho-windows-release
+      - name: Build and package
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          ./packaging/jiho/package.ps1 -Tag $env:RELEASE_TAG
+      - name: Publish a prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^jiho-v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid Jiho release tag' }
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target $env:GITHUB_SHA --repo $env:GITHUB_REPOSITORY --prerelease --title "figcraft_jiho $env:RELEASE_TAG" --notes-file packaging/jiho/RELEASE-NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          $assets = @(Get-ChildItem -LiteralPath dist/jiho -File | Select-Object -ExpandProperty FullName)
+          gh release upload $env:RELEASE_TAG @assets --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }

@@ -1,0 +1,56 @@
+name: Propose Upstream Update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: propose-upstream-update
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge the official source into a review branch
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/storytold/figcraft.git
+          git fetch upstream main --tags
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo 'The official source is already included.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branch="upstream-sync/$(git rev-parse --short=12 upstream/main)"
+          git switch -c "$branch"
+          if ! git merge --no-edit upstream/main; then
+            echo 'The official update conflicts with custom changes. Main was not changed. Resolve the merge locally.' >> "$GITHUB_STEP_SUMMARY"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          git push origin "HEAD:refs/heads/$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+      - name: Open a review request
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq 'length')"
+          if [ "$existing" = '0' ]; then
+            gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --title 'Update the official FigCraft base' --body-file packaging/jiho/UPSTREAM-PR.md
+          fi

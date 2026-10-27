@@ -133,16 +133,16 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
-    // Windows: the update helper is a copy of this program started with `--finish-update`.
-    #[cfg(windows)]
-    if let Some(result) = craft_update::self_update::finish(&craft_update::suite::FIGCRAFT, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
-        std::process::exit(i32::from(result.is_err()));
-    }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // This fork does not accept the official distribution's binary-replacement helper.
+    if args.iter().any(|arg| arg == "--finish-update") {
+        eprintln!("figcraft_jiho updates are available at https://github.com/dukong824/figcraft_jiho/releases");
+        std::process::exit(2);
+    }
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!(
-            "FigCraft {}{}",
+            "figcraft_jiho (FigCraft {}){}",
             env!("CARGO_PKG_VERSION"),
             option_env!("FIGCRAFT_BUILD_SHA").filter(|s| !s.is_empty()).map(|s| format!(" ({s})")).unwrap_or_default()
         );

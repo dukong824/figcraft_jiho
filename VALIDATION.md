@@ -1,5 +1,28 @@
 # Paper Liquid Metal port validation
 
+## figcraft_jiho fork setup — 2026-10-27
+
+The Paper commit was replayed on the actual official Git history, preserving ancestry from
+`43af145a12eacd1e87f5f5e6984c49b7da040288`. This section covers the personal fork setup in
+addition to the original material verification below.
+
+- Native application/CLI build and workspace Clippy with warnings denied: passed.
+- Actionlint 1.7.12 checked all three personal GitHub workflows: passed.
+- Window-management/UI regression tests: 20 passed.
+- PowerShell packaging syntax, dependency layering, asset attribution and WASM/plugin gates: passed.
+- Actual native screenshot: the metal demo renders, and the update dialog links to
+  `dukong824/figcraft_jiho/releases`.
+- The official binary-replacement updater is removed from this fork. Downloading and replacing
+  the portable build remains manual; a separately signed in-app updater is not implemented.
+- Full CI was attempted again: engine tests reported 1,388 passed, 1 failed, 2 ignored. The same
+  unchanged board-table row-growth test failed (`122 → 122`) without optional craft-fonts.
+  A clean full CI pass is not claimed. The GitHub CI configuration loads the official pinned
+  craft-fonts input; its remote result must be reviewed before a release-profile tag is shipped.
+- The first `preview-v…` release is an experimental optimized-dev Windows GNU build; subsequent
+  `jiho-v…` tag workflows require CI before packaging a Windows MSVC release-profile build.
+
+## Original Paper material verification
+
 Verified on Windows x64, 2026-10-27, using portable Rust 1.99.1 GNU.
 
 | Check | Result |

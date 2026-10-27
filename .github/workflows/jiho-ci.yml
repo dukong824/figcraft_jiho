@@ -1,0 +1,44 @@
+name: Jiho CI
+
+on:
+  push:
+    branches: [main, 'upstream-sync/**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jiho-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CRAFT_FONTS_DIR: ${{ github.workspace }}/.ci/craft-fonts
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load the upstream's permitted fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: 37827adc41fd165f9a9234ac40f94dbad353aa69
+          path: .ci/craft-fonts
+      - name: Rust tools
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup component add rustfmt clippy
+          rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: jiho-windows
+      - name: Full quality gates
+        shell: pwsh
+        run: cargo xtask ci
