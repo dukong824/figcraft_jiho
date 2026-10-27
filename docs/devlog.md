@@ -2,6 +2,9 @@
 
 ## 2026-10-27 — M-JIHO: personal fork and release maintenance
 
+Follow-up: explicitly dispatch branch CI for bot-created update PRs, which GitHub may otherwise
+leave awaiting approval, and reuse an existing update branch on repeat runs.
+
 Replay the Paper feature on the real official Git history. Archive the inherited workflows,
 add Windows CI/release and manually triggered upstream-review workflows, and document the merge
 and release process. The title and version output identify figcraft_jiho. Update checks now open

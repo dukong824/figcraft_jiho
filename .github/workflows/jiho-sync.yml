@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: propose-upstream-update
@@ -33,6 +34,11 @@ jobs:
             exit 0
           fi
           branch="upstream-sync/$(git rev-parse --short=12 upstream/main)"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git switch -c "$branch"
           if ! git merge --no-edit upstream/main; then
             echo 'The official update conflicts with custom changes. Main was not changed. Resolve the merge locally.' >> "$GITHUB_STEP_SUMMARY"
@@ -54,3 +60,5 @@ jobs:
           if [ "$existing" = '0' ]; then
             gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --title 'Update the official FigCraft base' --body-file packaging/jiho/UPSTREAM-PR.md
           fi
+          # Bot-created PR checks may await approval; explicitly dispatch this trusted branch's CI.
+          gh workflow run jiho-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
