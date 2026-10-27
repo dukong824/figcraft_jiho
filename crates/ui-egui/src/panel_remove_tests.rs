@@ -159,6 +159,56 @@ fn adding_a_fill_or_stroke_opens_the_color_picker() {
 }
 
 #[test]
+fn custom_section_adds_liquid_metal_and_opens_its_settings_as_one_undo_step() {
+    let mut s = Session::new();
+    let r = id(s.execute("shape.rectangle", &json!({"width": 50, "height": 50})).unwrap());
+    s.execute("select.set", &json!({"ids": [r]})).unwrap();
+    let mut u = Ui::new(s);
+    u.ctx.enable_accesskit();
+    let undo = u.app.session.ds().unwrap().history.undo.len();
+    let plus = button(&mut u, "Add custom effect");
+    click(&mut u, plus);
+    let effects = &u.app.session.doc().unwrap().node(r).unwrap().effects;
+    assert_eq!(effects.len(), 1);
+    assert!(matches!(effects[0].kind, figcraft_doc::EffectKind::PaperLiquidMetal(_)));
+    assert!(flag(&u, "fx_open", 0), "a newly added custom material opens immediately");
+    assert!(u.ctx.read_response(grip_id("custom_effects", 0)).is_some());
+    assert!(u.ctx.read_response(grip_id("effects", 0)).is_none(), "the material is absent from standard Effects");
+    assert_eq!(u.app.session.ds().unwrap().history.undo.len(), undo + 1);
+    u.app.session.undo().unwrap();
+    assert!(u.app.session.doc().unwrap().node(r).unwrap().effects.is_empty());
+}
+
+#[test]
+fn custom_section_removes_the_real_effect_index_and_preserves_other_effects() {
+    let mut s = Session::new();
+    let r = id(s.execute("shape.rectangle", &json!({"width": 50, "height": 50})).unwrap());
+    for effect in [
+        json!({"type":"dropShadow", "radius":7}),
+        json!({"type":"paperLiquidMetal", "speed":0, "contour":0.2}),
+        json!({"type":"layerBlur", "radius":9}),
+        json!({"type":"paperLiquidMetal", "speed":0, "contour":0.8}),
+    ] {
+        s.execute("effect.add", &json!({"ids":[r], "effect":effect})).unwrap();
+    }
+    s.execute("select.set", &json!({"ids":[r]})).unwrap();
+    let original = s.doc().unwrap().node(r).unwrap().effects.clone();
+    let mut u = Ui::new(s);
+    u.ctx.enable_accesskit();
+    assert_eq!(u.app.session.doc().unwrap().node(r).unwrap().effects, original, "opening the split UI never migrates the stack");
+    assert!(u.ctx.read_response(grip_id("effects", 2)).is_none());
+    u.ctx.data_mut(|d| d.insert_temp(Id::unique(("fx_open", 3usize)), true));
+    u.app.ui.picker = Some(PickerTarget::Effect { ids: vec![r], index: 3, secondary: false });
+    let rm = remove_button(&mut u, "custom_effects", 0);
+    click(&mut u, rm);
+    assert_eq!(u.app.session.doc().unwrap().node(r).unwrap().effects, [original[0].clone(), original[2].clone(), original[3].clone()]);
+    assert!(flag(&u, "fx_open", 2));
+    assert_eq!(u.app.ui.picker, Some(PickerTarget::Effect { ids: vec![r], index: 2, secondary: false }));
+    u.app.session.undo().unwrap();
+    assert_eq!(u.app.session.doc().unwrap().node(r).unwrap().effects, original);
+}
+
+#[test]
 fn an_empty_sections_header_adds_its_item_but_a_full_one_only_adds_from_the_plus() {
     let mut s = Session::new();
     let r = id(s.execute("shape.rectangle", &json!({"x": 0, "y": 0, "width": 50, "height": 50})).unwrap());

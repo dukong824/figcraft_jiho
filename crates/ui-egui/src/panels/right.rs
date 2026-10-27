@@ -22,7 +22,7 @@ mod paints;
 mod stroke;
 
 pub(crate) use effects::effect_open;
-use effects::{effects, grids};
+use effects::{custom, effects, grids};
 use inspect::inspect;
 pub(crate) use inspect::{inspect_section, prop_row};
 #[cfg(test)]
@@ -280,6 +280,10 @@ fn design(app: &mut FigApp, ui: &mut Ui) {
     paints(app, ui, &doc, &sel, false);
     widgets::separator(ui);
     effects(app, ui, &doc, &sel);
+    widgets::separator(ui);
+    // The two sections share one persisted stack: an edit above may have shifted its indices.
+    let custom_doc = app.session.ds().map(|ds| ds.text_preview.clone().unwrap_or_else(|| ds.doc.clone())).unwrap_or_else(|_| doc.clone());
+    custom(app, ui, &custom_doc, &sel);
     widgets::separator(ui);
     crate::selection_colors::section(app, ui, &doc, &sel);
     if sel.iter().all(|i| doc.node(*i).is_some_and(|n| n.kind.is_frame_like())) {

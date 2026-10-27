@@ -1,5 +1,15 @@
 # Local extension devlog
 
+## 2026-10-27 — M-JIHO-CUSTOM: a Custom section for personal materials
+
+Move Liquid Metal into a Custom section alongside Fill, Stroke and Effects. Its plus button
+adds the material and opens its controls; ordinary effect menus no longer offer it. Keep the
+serialized stack and command API unchanged so existing files retain their parameters and order.
+Map each filtered row back to its persisted index for edit, removal, reordering and picker state.
+Refresh the document snapshot between sections after an ordinary effect changes its stack.
+Add UI regressions for insertion with undo, interleaved removal with picker state, and reordering.
+Update the bundled demo and usage instructions. Verification is recorded in `VALIDATION.md`.
+
 ## 2026-10-27 — M-JIHO: personal fork and release maintenance
 
 Follow-up: explicitly dispatch branch CI for bot-created update PRs, which GitHub may otherwise

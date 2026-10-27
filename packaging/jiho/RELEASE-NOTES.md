@@ -1,6 +1,6 @@
 figcraft_jiho is a personal Windows build of FigCraft with the original Paper Liquid Metal shader.
 
-- Native animated material, editable in the Effects panel.
+- Native animated material, editable in Design > Custom alongside Fill, Stroke and Effects.
 - Transparent images, vectors and frames; 24fps GIF export helper.
 - Updates open this fork's GitHub Releases page. Official installers cannot overwrite it through this build's updater.
 - Windows x64 portable package; close the app before replacing its files.

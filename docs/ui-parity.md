@@ -218,4 +218,4 @@ in the table. `crates/ui-egui/src/shortcut_keys_tests.rs` drives the keys a look
 
 ## Local Paper extension — 2026-10-27
 
-Native-only animated Paper Liquid Metal is available in the Effects panel, saved in `.figcraft`, and rasterized in still SVG/PDF exports. Original Apache-2.0 GLSL and Rust preprocessing port, with bounded working resolution. Web rendering and `.fig` interchange of this material are not implemented. This extension does not change the incumbent parity estimates. See [scope and provenance](paper-liquid-metal.md).
+Native-only animated Paper Liquid Metal is available in the Custom section (alongside Fill, Stroke and Effects), saved in `.figcraft`, and rasterized in still SVG/PDF exports. Original Apache-2.0 GLSL and Rust preprocessing port, with bounded working resolution. Web rendering and `.fig` interchange of this material are not implemented. This extension does not change the incumbent parity estimates. See [scope and provenance](paper-liquid-metal.md).

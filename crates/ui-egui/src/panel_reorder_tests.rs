@@ -73,6 +73,29 @@ fn escape_cancels_a_row_drag() {
     assert_eq!(u.app.session.ds().unwrap().selection, [r], "the Escape only cancels the drag");
 }
 
+#[test]
+fn custom_section_drag_uses_global_indices_in_an_interleaved_stack() {
+    let (mut u, r) = setup();
+    for effect in [
+        json!({"type":"dropShadow"}),
+        json!({"type":"paperLiquidMetal", "speed":0, "contour":0.2}),
+        json!({"type":"layerBlur", "radius":9}),
+        json!({"type":"paperLiquidMetal", "speed":0, "contour":0.8}),
+    ] {
+        u.app.session.execute("effect.add", &json!({"ids":[r],"effect":effect})).unwrap();
+    }
+    for _ in 0..3 {
+        u.frame(vec![]);
+    }
+    // The ordinary list has slots 0 and 1, corresponding to persisted indices 0 and 2.
+    let (a, b) = (grip(&u, "effects", 0).unwrap(), grip(&u, "effects", 1).unwrap());
+    drag(&mut u, a, b - egui::vec2(0.0, 12.0));
+    u.button(b - egui::vec2(0.0, 12.0), false);
+    let kinds: Vec<&str> = u.app.session.doc().unwrap().node(r).unwrap().effects.iter().map(|e| e.label()).collect();
+    assert_eq!(kinds, ["Paper Liquid Metal", "Layer blur", "Drop shadow", "Paper Liquid Metal"]);
+    assert!(u.app.ui.last_error.is_none(), "{:?}", u.app.ui.last_error);
+}
+
 /// Asserts effect and layout-grid rows reorder by drag, while a mixed fill list exposes no
 /// drag handle.
 #[test]

@@ -72,7 +72,7 @@ pause
 figcraft_jiho — personal FigCraft build
 
 Run figcraft_jiho.exe or Open Demo.cmd.
-Select an image, add an Effect, choose Paper Liquid Metal, and open its settings.
+Select an image, then click + in Design > Custom to add Liquid Metal and open its settings.
 Transparent PNGs and vectors expose their own silhouette; opaque photographs become rectangular metal.
 Drag an image onto Image to GIF.cmd to export a 3-second, 24fps GIF.
 

@@ -2,6 +2,8 @@
 
 Local fork update (2026-10-27): `figcraft_jiho` preserves the official Git ancestry, adds personal
 Windows release and upstream-review workflows, and routes update checks to its own Releases.
+Liquid Metal now lives in a Custom section alongside Fill, Stroke and Effects; existing files
+retain their saved material parameters and rendering order without migration.
 See [maintenance](docs/jiho-maintenance.md). Existing parity estimates below are unchanged.
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)
@@ -536,4 +538,4 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Local Paper extension — 2026-10-27
 
-Native-only animated Paper Liquid Metal is available in the Effects panel, saved in `.figcraft`, and rasterized in still SVG/PDF exports. Original Apache-2.0 GLSL and Rust preprocessing port, with bounded working resolution. Web rendering and `.fig` interchange of this material are not implemented. This extension does not change the incumbent parity estimates. See [scope and provenance](docs/paper-liquid-metal.md).
+Native-only animated Paper Liquid Metal is available in the Custom section (alongside Fill, Stroke and Effects), saved in `.figcraft`, and rasterized in still SVG/PDF exports. Original Apache-2.0 GLSL and Rust preprocessing port, with bounded working resolution. Web rendering and `.fig` interchange of this material are not implemented. This extension does not change the incumbent parity estimates. See [scope and provenance](docs/paper-liquid-metal.md).

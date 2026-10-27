@@ -4,28 +4,56 @@ use super::*;
 /// Draw the effect list with add/style/type/toggle/remove/reorder, open settings, and keep an
 /// open picker and settings flags aligned when rows move or are removed.
 pub(super) fn effects(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
+    effect_section(app, ui, doc, sel, false);
+}
+
+/// Personal materials have their own section, alongside Fill, Stroke and Effects. Their
+/// persisted effect indices stay unchanged so old documents, bindings and pickers still work.
+pub(super) fn custom(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
+    effect_section(app, ui, doc, sel, true);
+}
+
+fn is_custom(effect: &Effect) -> bool {
+    matches!(effect.kind, EffectKind::PaperLiquidMetal(_))
+}
+
+fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId], custom: bool) {
     let ids = sel.to_vec();
     let list = common(doc, sel, |n| n.effects.clone());
-    let empty = list.as_ref().is_none_or(|l| l.is_empty());
-    let (clicked, header) = widgets::section_header_resp(ui, tr("Effects"), &[(Icon::Styles, tr("Styles")), (Icon::Plus, tr("Add effect"))], empty);
+    let empty = list.as_ref().is_none_or(|l| !l.iter().any(|e| is_custom(e) == custom));
+    let buttons =
+        if custom { vec![(Icon::Plus, tr("Add custom effect"))] } else { vec![(Icon::Styles, tr("Styles")), (Icon::Plus, tr("Add effect"))] };
+    let title = if custom { tr("Custom|section") } else { tr("Effects") };
+    let (clicked, header) = widgets::section_header_resp(ui, title, &buttons, empty);
     if let Some(i) = clicked {
-        if i == 1 {
-            app.run("effect.add", json!({"ids": ids, "type": "dropShadow"}));
+        if custom || i == 1 {
+            let ty = if custom { "paperLiquidMetal" } else { "dropShadow" };
+            if app.run("effect.add", json!({"ids": ids, "type": ty})).is_some()
+                && custom
+                && let Some(list) = &list
+            {
+                ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, list.len())), true));
+            }
         } else {
             style_picker::open(app, ui, &ids, StyleSlot::Effect);
         }
     }
+    let can_paste = app.session.clipboard.effect.as_ref().is_some_and(|e| is_custom(e) == custom);
     context_popup(&header).show(|ui| {
-        if app.session.clipboard.effect.is_some() && menu_item(ui, tr("Paste effect"), "") {
+        if can_paste && menu_item(ui, tr("Paste effect"), "") {
             app.run("effect.paste", json!({"ids": ids}));
             ui.close();
         }
     });
-    style_picker::chip(app, ui, doc, &ids, StyleSlot::Effect);
+    if !custom {
+        style_picker::chip(app, ui, doc, &ids, StyleSlot::Effect);
+    }
     let Some(list) = list else { return };
-    let mut drag = ListDrag::new(ui, "effects");
+    let indices: Vec<usize> = list.iter().enumerate().filter(|(_, e)| is_custom(e) == custom).map(|(i, _)| i).collect();
+    let mut drag = ListDrag::new(ui, if custom { "custom_effects" } else { "effects" });
     let mut removed = None;
-    for (i, e) in list.iter().enumerate().rev() {
+    for (slot, &i) in indices.iter().enumerate().rev() {
+        let Some(e) = list.get(i) else { continue };
         let mut open = effect_open(ui.ctx(), i);
         let header = row_rect(ui, 32.0, |ui| {
             if icons::button(ui, Icon::Effects, 24.0, open, tr("Effect settings")).clicked() {
@@ -33,9 +61,14 @@ pub(super) fn effects(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[Node
                 ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, i)), open));
             }
             let w = ui.available_width() - 56.0;
-            let resp = widgets::dropdown(ui, tr(e.label()), w, None);
+            let label = if custom { tr("Liquid Metal") } else { tr(e.label()) };
+            let resp = widgets::dropdown(ui, label, w, None);
             menu_popup(&resp).show(|ui| {
                 for (l, ty) in Effect::TYPES {
+                    if (ty == "paperLiquidMetal") != custom {
+                        continue;
+                    }
+                    let l = if custom { "Liquid Metal" } else { l };
                     if menu_item(ui, tr(l), "")
                         && let Some(ne) = Effect::of_type(ty)
                     {
@@ -55,7 +88,6 @@ pub(super) fn effects(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[Node
                 removed = Some(i);
             }
         });
-        let can_paste = app.session.clipboard.effect.is_some();
         row_context_menu(ui, header, Id::unique(("effect_menu", i))).show(|ui| {
             if menu_item(ui, tr("Copy effect"), "") {
                 app.run("effect.copy", json!({"ids": ids, "index": i}));
@@ -69,10 +101,12 @@ pub(super) fn effects(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[Node
         if open {
             effect_settings(app, ui, &ids, i, e);
         }
-        drag.row(ui, i, header, header.with_max_y(ui.cursor().min.y.max(header.max.y)), || tr(e.label()).to_string());
+        drag.row(ui, slot, header, header.with_max_y(ui.cursor().min.y.max(header.max.y)), || tr(e.label()).to_string());
     }
-    if let Some((from, to)) = drag.finish(ui) {
-        app.run("effect.move", json!({"ids": ids, "from": from, "to": to}));
+    if let Some((from, to)) = drag.finish(ui)
+        && let (Some(&from), Some(&to)) = (indices.get(from), indices.get(to))
+        && app.run("effect.move", json!({"ids": ids, "from": from, "to": to})).is_some()
+    {
         move_flags(ui, FX_OPEN, list.len(), from, to);
         if let Some(crate::colorpicker::PickerTarget::Effect { index, .. }) = &mut app.ui.picker {
             *index = moved_index(*index, from, to);

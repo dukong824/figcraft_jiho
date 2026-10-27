@@ -1,5 +1,25 @@
 # Paper Liquid Metal port validation
 
+## Custom section — 2026-10-27
+
+- Liquid Metal is listed in Design → Custom alongside Fill, Stroke and Effects. Ordinary
+  Effects type menus no longer offer it. The Custom plus button adds it with settings open.
+- Existing serialized effect stacks are retained without migration; mixed selections keep the
+  original conservative edit behavior. Rendering, parameters and command names are unchanged.
+- Panel regression suite: **46 passed**, including three new cases for adding with one undo
+  step, deleting an interleaved custom effect while remapping the picker/settings indices, and
+  reordering ordinary effects across persisted custom indices.
+- Native GUI/CLI build, workspace Clippy with warnings denied, formatting, dependency layers,
+  asset attribution, WASM compilation and plugin checks: passed.
+- Native Korean UI screenshots checked: 채우기, 선, 효과, 커스텀 are peer sections, the material
+  is labelled 리퀴드 메탈, and its settings open under Custom while the canvas animates.
+  The bundled demo now points to Custom and was saved through the CLI command API.
+- `cargo xtask ci` was attempted: the unchanged engine board-table row-growth test still fails
+  without optional craft-fonts (1,388 passed, 1 failed, 2 ignored, measured `122 → 122`).
+  The remaining gates above were run separately. A clean full CI pass is not claimed.
+- `preview-v0.11.2.2` uses the optimized-dev Windows GNU profile, with the actual source commit
+  recorded in BUILD-INFO.txt. It is an unsigned Preview, separate from CI-gated release tags.
+
 ## figcraft_jiho fork setup — 2026-10-27
 
 The Paper commit was replayed on the actual official Git history, preserving ancestry from

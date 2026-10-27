@@ -1,9 +1,14 @@
 # Paper Liquid Metal (local native extension)
 
 This build adds Paper's Apache-2.0 Liquid Metal material as a native effect. Select an image,
-vector or frame, add an effect in the Design panel and change its type to **Paper Liquid Metal**.
-Open its settings with the effect icon. Speed 0 pauses; a negative speed reverses motion.
+vector or frame and click **+** in **Design → Custom** (**디자인 → 커스텀**). This adds
+**Liquid Metal** (**리퀴드 메탈**) and opens its settings. Custom is a peer of Fill, Stroke and
+Effects in the right panel. Open existing settings with the effect icon.
+Speed 0 pauses; a negative speed reverses motion.
 The canvas and prototype preview animate, and `.figcraft` saves the effect parameters.
+
+Existing documents automatically show their Paper material in Custom. The saved effect stack,
+parameters, rendering order and command API are unchanged; no file migration is needed.
 
 The original GLSL rendering formulas are stored in `crates/render/src/paper-shaders/`, with
 LICENSE, NOTICE, commit and hashes. The WebGPU host changes resource declarations and the
