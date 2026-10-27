@@ -54,6 +54,7 @@ fn frame_outlines_and_slices_draw_when_shown() {
 /// A job a few hundred milliseconds of rendering big.
 fn big_job(doc: &Arc<figcraft_doc::Document>, page: figcraft_doc::NodeId, scale: f64) -> crate::render_worker::Job {
     crate::render_worker::Job {
+        time: 0.0,
         doc: doc.clone(),
         page,
         view: figcraft_render::View { origin: (0.0, 0.0), scale, width: 2400, height: 2400 },

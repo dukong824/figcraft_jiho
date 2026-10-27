@@ -28,6 +28,7 @@ pub const PREVIEW_AFTER_MS: f64 = 12.0;
 
 #[derive(Clone)]
 pub struct Job {
+    pub time: f64,
     pub doc: Arc<Document>,
     pub page: NodeId,
     pub view: View,
@@ -97,6 +98,7 @@ fn run(job: &Job, view: &View, retained: &mut Retained, coarse: bool) -> Option<
     let t0 = Instant::now();
     // The canvas is a preview: what's too small to see in detail at this zoom is approximated.
     let opts = figcraft_render::Options {
+        time: job.time,
         outline_mode: job.outline,
         outline: job.outline_extras,
         outlined: job.outlined.clone(),

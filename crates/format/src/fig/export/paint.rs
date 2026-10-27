@@ -233,6 +233,10 @@ impl<'d> Exporter<'d> {
                 self.warn("glass effects keep only their frost");
                 f.extend([("type", e("GLASS")), ("radius", fl(g.frost))]);
             }
+            EffectKind::PaperLiquidMetal(_) => {
+                self.warn("Paper Liquid Metal requires the native .figcraft format; this effect is omitted from .fig export");
+                f.extend([("type", e("FOREGROUND_BLUR")), ("radius", fl(0.0)), ("visible", b(false))]);
+            }
         }
         o(f)
     }

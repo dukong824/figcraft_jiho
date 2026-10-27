@@ -779,6 +779,8 @@ pub enum EffectKind {
     Texture(Texture),
     /// The backdrop through curved glass.
     Glass(Glass),
+    /// Original Paper Liquid Metal material (Apache-2.0).
+    PaperLiquidMetal(crate::PaperLiquidMetal),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -795,7 +797,7 @@ fn yes() -> bool {
 
 impl Effect {
     /// Effect types in the order the Design panel lists them: (label, type name).
-    pub const TYPES: [(&str, &str); 7] = [
+    pub const TYPES: [(&str, &str); 8] = [
         ("Drop shadow", "dropShadow"),
         ("Inner shadow", "innerShadow"),
         ("Layer blur", "layerBlur"),
@@ -803,6 +805,7 @@ impl Effect {
         ("Noise", "noise"),
         ("Texture", "texture"),
         ("Glass", "glass"),
+        ("Paper Liquid Metal", "paperLiquidMetal"),
     ];
 
     fn of(kind: EffectKind) -> Self {
@@ -841,6 +844,7 @@ impl Effect {
             "noise" => Self::noise(),
             "texture" => Self::texture(),
             "glass" => Self::glass(),
+            "paperliquidmetal" | "liquidmetal" => Self::of(EffectKind::PaperLiquidMetal(crate::PaperLiquidMetal::default())),
             _ => return None,
         })
     }
@@ -854,6 +858,7 @@ impl Effect {
             EffectKind::Noise(_) => "Noise",
             EffectKind::Texture(_) => "Texture",
             EffectKind::Glass(_) => "Glass",
+            EffectKind::PaperLiquidMetal(_) => "Paper Liquid Metal",
         }
     }
     /// How far outside the node's bounds this effect can paint (a shadow's spread at a sharp
@@ -889,6 +894,8 @@ impl Effect {
             (EffectKind::DropShadow(s) | EffectKind::InnerShadow(s), false) => Some(s.color),
             (EffectKind::Noise(n), false) => Some(n.color),
             (EffectKind::Noise(n), true) => Some(n.secondary),
+            (EffectKind::PaperLiquidMetal(p), false) => Some(p.color_tint),
+            (EffectKind::PaperLiquidMetal(p), true) => Some(p.color_back),
             _ => None,
         }
     }
@@ -898,6 +905,8 @@ impl Effect {
             (EffectKind::DropShadow(s) | EffectKind::InnerShadow(s), false) => Some(&mut s.color),
             (EffectKind::Noise(n), false) => Some(&mut n.color),
             (EffectKind::Noise(n), true) => Some(&mut n.secondary),
+            (EffectKind::PaperLiquidMetal(p), false) => Some(&mut p.color_tint),
+            (EffectKind::PaperLiquidMetal(p), true) => Some(&mut p.color_back),
             _ => None,
         }
     }

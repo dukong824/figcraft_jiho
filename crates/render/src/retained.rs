@@ -39,6 +39,7 @@ const MAX_MARGIN_PX: f64 = 1024.0;
 
 /// What a retained image was rendered from.
 struct Frame {
+    time: u64,
     doc: Arc<Document>,
     page: NodeId,
     outline: bool,
@@ -163,6 +164,7 @@ impl Retained {
             && last.solo == opts.solo
             && last.background == opts.background
             && last.dots == opts.dots
+            && last.time == opts.time.to_bits()
             && last.scale == snapped.scale.to_bits()
             && last.pix.width() == snapped.width
             && last.pix.height() == snapped.height
@@ -198,6 +200,7 @@ impl Retained {
     ) -> &Frame {
         let (view, px, fonts) = at;
         self.last.insert(Frame {
+            time: opts.time.to_bits(),
             doc: doc.clone(),
             page,
             outline: opts.outline_mode,

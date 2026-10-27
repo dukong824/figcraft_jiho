@@ -442,6 +442,8 @@ pub fn scale_node(doc: &mut Document, id: NodeId, k: f64) -> Result<()> {
         n.corners.radii = n.corners.radii.map(|r| r * k);
         for e in &mut n.effects {
             match &mut e.kind {
+                // All Paper material settings are dimensionless (frame is time).
+                EffectKind::PaperLiquidMetal(_) => {}
                 EffectKind::DropShadow(sh) | EffectKind::InnerShadow(sh) => {
                     sh.radius *= k;
                     sh.spread *= k;

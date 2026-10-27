@@ -251,7 +251,10 @@ impl<'a> Exporter<'a> {
         // content (nothing in a soft mask is seen).
         let back =
             if !as_mask && self.masking == 0 && self.tiling == 0 && figcraft_render::backdrop::has_effects(n) { self.backdrop(id) } else { None };
-        if fx.iter().any(|k| matches!(k, EffectKind::LayerBlur { .. } | EffectKind::Noise(_) | EffectKind::Texture(_))) {
+        if fx
+            .iter()
+            .any(|k| matches!(k, EffectKind::LayerBlur { .. } | EffectKind::Noise(_) | EffectKind::Texture(_) | EffectKind::PaperLiquidMetal(_)))
+        {
             // Effects that change every pixel: the renderer draws the whole node.
             if let Some(b) = &back {
                 self.place_raster(s, b, op, n.blend);

@@ -67,6 +67,7 @@ fn view_at(c: (f64, f64), scale: f64, w: u32, h: u32) -> View {
 
 fn job(doc: &Arc<Document>, page: NodeId, uid: u64, view: View) -> Job {
     Job {
+        time: 0.0,
         doc: doc.clone(),
         page,
         view,

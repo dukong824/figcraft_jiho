@@ -1,8 +1,8 @@
 //! The FigCraft renderer.
 //!
 //! [`render_view`] draws a page region at any zoom into a premultiplied RGBA pixmap (the canvas);
-//! [`render_node`] rasterises one node for export at a scale. Everything is CPU (tiny-skia) so it
-//! runs identically on desktop, in tests and in the browser.
+//! [`render_node`] rasterises one node for export at a scale. The base renderer is CPU (tiny-skia);
+//! the optional native Paper Liquid Metal material uses WebGPU.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod backdrop;
@@ -18,6 +18,7 @@ pub mod image_profile;
 pub mod images;
 pub mod lod;
 pub mod paint;
+pub mod paper_metal;
 pub mod pattern;
 pub mod retained;
 pub mod shadow;
@@ -66,6 +67,8 @@ pub struct Outline {
 
 #[derive(Clone, Debug, Default)]
 pub struct Options {
+    /// Deterministic animation time in seconds; zero for ordinary still exports.
+    pub time: f64,
     /// Fill the background (None = transparent, e.g. export without page colour).
     pub background: Option<Color>,
     pub outline_mode: bool,
@@ -127,6 +130,7 @@ pub fn render_view(doc: &Document, page: NodeId, view: &View, opts: &Options) ->
         let threads = rayon::current_num_threads().clamp(1, 16) as u32;
         let bands = threads.min(view.height / 96).max(1);
         if bands > 1
+            && !paper_metal::animated(doc)
             && view.width.saturating_mul(view.height) > 300_000
             && let Some(p) = render_bands(doc, page, view, opts, bands)
         {
@@ -211,7 +215,7 @@ fn render_one(doc: &Document, page: NodeId, view: &View, opts: &Options) -> Opti
         lod,
         magnified_image_pixels: opts.magnified_image_pixels,
         under: None,
-        time: 0.0,
+        time: if opts.time.is_finite() { opts.time } else { 0.0 },
         bounds: &bounds,
     };
     let xf = view.transform();

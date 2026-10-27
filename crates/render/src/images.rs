@@ -308,6 +308,14 @@ pub fn frame_at(hash: &str, data: Option<&ImageData>, filters: &ImageFilters, pr
 pub fn animation_clock(doc: &Document, root: NodeId, t: f64) -> Option<(u64, f64)> {
     let mut clock: Option<(u64, f64)> = None;
     for n in doc.subtree(root).into_iter().filter_map(|id| doc.node(id)).filter(|n| n.visible) {
+        if n.effects
+            .iter()
+            .any(|e| e.visible && matches!(&e.kind,figcraft_doc::EffectKind::PaperLiquidMetal(p) if p.speed.is_finite() && p.speed != 0.0))
+        {
+            let frame = if t.is_finite() { (t.max(0.0) * 30.0).floor() as u64 } else { 0 };
+            let (key, next) = clock.unwrap_or((0, f64::INFINITY));
+            clock = Some((key.wrapping_mul(31).wrapping_add(frame.wrapping_add(1)), next.min(1.0 / 30.0)));
+        }
         for p in n.fills.iter().chain(&n.strokes).filter(|p| p.visible) {
             if let PaintKind::Image(img) = &p.kind
                 && let Some(a) = animation(&img.image, doc.images.get(&img.image), &img.filters, doc.color_profile)

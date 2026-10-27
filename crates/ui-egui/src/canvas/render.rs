@@ -16,6 +16,7 @@ pub(super) struct JobKey {
     fonts: u64,
     proof: bool,
     dots: Option<figcraft_render::Dots>,
+    time: u64,
 }
 
 /// Whether a finished render goes on screen: an image of the file and page shown (`shown`), and
@@ -46,7 +47,14 @@ fn covers(outer: &figcraft_render::View, inner: &figcraft_render::View) -> bool 
     o.x0 <= i.x0 + eps && o.y0 <= i.y0 + eps && o.x1 >= i.x1 - eps && o.y1 >= i.y1 - eps
 }
 
-pub(super) fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32, max_texture_side: u32, dots: Option<figcraft_render::Dots>) {
+pub(super) fn request_render(
+    app: &mut FigApp,
+    worker: &mut Worker,
+    ppp: f32,
+    max_texture_side: u32,
+    dots: Option<figcraft_render::Dots>,
+    ctx: &egui::Context,
+) {
     let Ok(ds) = app.session.ds() else { return };
     let rect = app.canvas.rect;
     let (mut ox, mut oy) = ds.view.origin();
@@ -61,6 +69,12 @@ pub(super) fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32, ma
     };
     // The edited text is drawn live (an IME composition included); the caret is an overlay.
     let doc = app.preedit_view().map(|p| p.doc.clone()).unwrap_or_else(|| ds.doc.clone());
+    let time = if figcraft_render::paper_metal::animated(&doc) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        (ctx.input(|i| i.time) * 30.0).floor() / 30.0
+    } else {
+        0.0
+    };
     let outlined = if ds.view.outlines_selection { ds.selection.clone() } else { vec![] };
     let proof = ds.view.proof_srgb && !doc.color_profile.is_srgb();
     let outline_extras = figcraft_render::Outline { hidden: ds.view.outline_hidden, bounds: ds.view.outline_bounds, light: false };
@@ -86,6 +100,7 @@ pub(super) fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32, ma
         fonts: figcraft_text::layout_generation(),
         proof,
         dots,
+        time: time.to_bits(),
     };
     if let Some(previous) = &app.canvas.submitted {
         let previous_origin = (previous.origin.0 as f64 / 1000.0, previous.origin.1 as f64 / 1000.0);
@@ -100,6 +115,7 @@ pub(super) fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32, ma
     }
     let job = Job {
         doc,
+        time,
         page: ds.page,
         view: figcraft_render::View { origin: requested, scale, width: size.0, height: size.1 },
         outline: ds.view.outlines,

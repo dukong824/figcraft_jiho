@@ -227,6 +227,7 @@ fn a_finished_background_render_wakes_the_ui() {
     let ds = s.ds().unwrap();
     let mut worker = crate::render_worker::Worker::new(ctx.clone());
     worker.submit(crate::render_worker::Job {
+        time: 0.0,
         doc: ds.doc.clone(),
         page: ds.page,
         view: figcraft_render::View { origin: (0.0, 0.0), scale: 1.0, width: 120, height: 120 },

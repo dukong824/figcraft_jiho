@@ -27,6 +27,10 @@ impl Effect {
                 f(&mut n.color);
                 f(&mut n.secondary);
             }
+            EffectKind::PaperLiquidMetal(p) => {
+                f(&mut p.color_tint);
+                f(&mut p.color_back);
+            }
             EffectKind::LayerBlur { .. } | EffectKind::BackgroundBlur { .. } | EffectKind::Texture(_) | EffectKind::Glass(_) => {}
         }
     }

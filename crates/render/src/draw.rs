@@ -625,8 +625,9 @@ fn draw_layer(ctx: &Ctx, pix: &mut Pixmap, n: &Node, parent_xf: Affine, depth: u
     {
         // Kept apart, the backdrop isn't in the layer yet: the shadows are cast from the content
         // with the layer effects it will get (a copy only when it gets some).
-        let layer_fx =
-            n.effects.iter().any(|e| e.visible && matches!(e.kind, EffectKind::LayerBlur(_) | EffectKind::Noise(_) | EffectKind::Texture(_)));
+        let layer_fx = n.effects.iter().any(|e| {
+            e.visible && matches!(e.kind, EffectKind::LayerBlur(_) | EffectKind::Noise(_) | EffectKind::Texture(_) | EffectKind::PaperLiquidMetal(_))
+        });
         let content = (casts && layer_fx).then(|| {
             let mut c = layer.clone();
             layer_effects(ctx, &mut c, n, id, lxf);
@@ -664,11 +665,12 @@ fn backdrop_layer(ctx: &Ctx, pix: &Pixmap, n: &Node, sh: &shadow::Outline, at: (
 
 /// Node `n`'s layer blur, noise and texture on its `layer`, in list order.
 fn layer_effects(ctx: &Ctx, layer: &mut Pixmap, n: &Node, id: NodeId, lxf: Affine) {
-    for e in n.effects.iter().filter(|e| e.visible) {
+    for (index, e) in n.effects.iter().enumerate().filter(|(_, e)| e.visible) {
         match &e.kind {
             EffectKind::LayerBlur(b) => blur::apply(layer, b, (n.width, n.height), lxf, ctx.scale),
             EffectKind::Noise(nz) => grain::noise(layer, nz, lxf, id.0 as u32),
             EffectKind::Texture(t) => grain::texture(layer, t, lxf, ctx.scale, id.0 as u32),
+            EffectKind::PaperLiquidMetal(p) => crate::paper_metal::apply(ctx, id, layer, lxf, p, index),
             _ => {}
         }
     }

@@ -274,6 +274,78 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 }
             });
         }
+        EffectKind::PaperLiquidMetal(p) => {
+            let with = |f: &dyn Fn(&mut figcraft_doc::PaperLiquidMetal)| {
+                tweaked(e, |k| {
+                    if let EffectKind::PaperLiquidMetal(p) = k {
+                        f(p)
+                    }
+                })
+            };
+            row(ui, 32.0, |ui| {
+                fx_color(app, ui, ids, i, e, false, &edit_color);
+            });
+            row(ui, 32.0, |ui| {
+                fx_color(app, ui, ids, i, e, true, &edit_color);
+            });
+            let fields = [
+                ("Speed", p.speed, -3.0, 3.0),
+                ("Repetition", p.repetition, 1.0, 10.0),
+                ("Softness", p.softness, 0.0, 1.0),
+                ("Distortion", p.distortion, 0.0, 1.0),
+                ("Contour", p.contour, 0.0, 1.0),
+                ("Angle", p.angle, 0.0, 360.0),
+                ("Red shift", p.shift_red, -1.0, 1.0),
+                ("Blue shift", p.shift_blue, -1.0, 1.0),
+                ("Scale", p.scale, 0.1, 4.0),
+                ("Rotation", p.rotation, 0.0, 360.0),
+                ("Frame (ms)", p.frame, -3.6e6, 3.6e6),
+            ];
+            for (field, (label, value, min, max)) in fields.iter().enumerate() {
+                row(ui, 32.0, |ui| {
+                    let ed =
+                        widgets::number_field(ui, Id::unique(("paper_metal", i, field)), Lead::Text(tr(label)), Some(*value), "", half * 2.0, 0.01);
+                    edit(app, ed, &|v| {
+                        with(&|m| {
+                            let v = v.clamp(*min, *max);
+                            match field {
+                                0 => m.speed = v,
+                                1 => m.repetition = v,
+                                2 => m.softness = v,
+                                3 => m.distortion = v,
+                                4 => m.contour = v,
+                                5 => m.angle = v,
+                                6 => m.shift_red = v,
+                                7 => m.shift_blue = v,
+                                8 => m.scale = v,
+                                9 => m.rotation = v,
+                                _ => m.frame = v,
+                            }
+                        })
+                    });
+                });
+            }
+            row(ui, 32.0, |ui| {
+                if widgets::checkbox(ui, p.use_image, tr("Use layer alpha")) {
+                    set(app, with(&|m| m.use_image = !p.use_image), None);
+                }
+            });
+            if !p.use_image {
+                row(ui, 32.0, |ui| {
+                    const SHAPES: [&str; 5] = ["None", "Circle", "Daisy", "Diamond", "Metaballs"];
+                    let ed = widgets::number_field(
+                        ui,
+                        Id::unique(("paper_shape", i)),
+                        Lead::Text(SHAPES.get(p.shape as usize).copied().unwrap_or("Shape")),
+                        Some(f64::from(p.shape)),
+                        "",
+                        half * 2.0,
+                        1.0,
+                    );
+                    edit(app, ed, &|v| with(&|m| m.shape = v.round().clamp(0.0, 4.0) as u32));
+                });
+            }
+        }
         EffectKind::Glass(g) => {
             let with = |f: &dyn Fn(&mut Glass)| {
                 tweaked(e, |k| {
