@@ -2,6 +2,14 @@
 
 나만의 FigCraft Windows 빌드. 공식 FigCraft의 Git 이력을 유지하면서 개인 기능을 추가하는 공개 Fork입니다.
 
+## Purpose video maker
+
+이 저장소에는 채널별 영상 프로젝트를 관리하고 FigCraft 디자인을 영상 제작에 연결하는
+**Purpose video maker**가 포함됩니다. 별도 실행 파일 `purpose-video-maker`를 빌드하거나
+`figcraft --video-maker`로 실행합니다. 라이브러리, 블록형 대본, FigCraft 디자인,
+영상·오디오 타임라인, 자막, MP4 내보내기와 Codex 보조 패널을 제공합니다.
+설치와 사용법, 현재 편집 범위는 [영상 제작 안내](docs/video-maker.md)에 있습니다.
+
 **[Windows 빌드 다운로드](https://github.com/dukong824/figcraft_jiho/releases)** · [공식 FigCraft](https://github.com/storytold/figcraft) · [유지보수 안내](docs/jiho-maintenance.md)
 
 ## 사용하기

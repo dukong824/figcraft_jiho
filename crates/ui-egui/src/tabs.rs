@@ -105,23 +105,25 @@ pub fn tab_bar(app: &mut FigApp, ui: &mut Ui) {
         let rect = ui.max_rect();
         let buttons_w = if app.ui.title_bar == TitleBar::Custom { window_buttons(app, ui, rect) } else { 0.0 };
         let mut x = rect.min.x + if app.ui.title_bar == TitleBar::Inset { 76.0 } else { 8.0 };
-        // Home.
-        let hr = Rect::from_min_size(pos2(x, rect.min.y), vec2(44.0, HEIGHT));
-        let hresp = ui.interact(hr, ui.scope_id().with("home"), Sense::click()).tip(tr("Home"));
-        let home_active = (app.ui.home || !app.has_files()) && app.ui.present.is_none();
-        crate::a11y::tab(&hresp, tr("Home"), home_active);
-        if home_active {
-            ui.painter().rect_filled(hr, CornerRadius::ZERO, t.tab_active);
-        } else if hresp.hovered() {
-            ui.painter().rect_filled(hr, CornerRadius::ZERO, t.hover);
+        if !app.ui.video_maker {
+            // The host supplies channel/video navigation in video-maker mode.
+            let hr = Rect::from_min_size(pos2(x, rect.min.y), vec2(44.0, HEIGHT));
+            let hresp = ui.interact(hr, ui.scope_id().with("home"), Sense::click()).tip(tr("Home"));
+            let home_active = (app.ui.home || !app.has_files()) && app.ui.present.is_none();
+            crate::a11y::tab(&hresp, tr("Home"), home_active);
+            if home_active {
+                ui.painter().rect_filled(hr, CornerRadius::ZERO, t.tab_active);
+            } else if hresp.hovered() {
+                ui.painter().rect_filled(hr, CornerRadius::ZERO, t.hover);
+            }
+            icons::paint(ui.painter(), Rect::from_center_size(hr.center(), vec2(16.0, 16.0)), Icon::Home, t.icon);
+            if hresp.clicked() {
+                pause_present(app);
+                app.ui.home = true;
+            }
+            x += 44.0;
+            ui.painter().line_segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], Stroke::new(1.0, t.border));
         }
-        icons::paint(ui.painter(), Rect::from_center_size(hr.center(), vec2(16.0, 16.0)), Icon::Home, t.icon);
-        if hresp.clicked() {
-            pause_present(app);
-            app.ui.home = true;
-        }
-        x += 44.0;
-        ui.painter().line_segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], Stroke::new(1.0, t.border));
         let document_tabs: Vec<usize> = app.session.docs.iter().enumerate().filter_map(|(i, d)| app.shows(d.uid).then_some(i)).collect();
         let now = ui.input(|input| input.time);
         let motion_id = ui.scope_id().with("tab_motion");

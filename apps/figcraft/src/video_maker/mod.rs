@@ -1,0 +1,352 @@
+//! Purpose video maker: a local channel/video workspace around the FigCraft editor.
+mod media;
+mod model;
+mod ui;
+
+use crate::services;
+use figcraft_engine::Session;
+use figcraft_ui_egui::FigApp;
+use model::{Asset, BlockKind, Clip, ScriptBlock, Section, Store, Video};
+use serde_json::json;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
+
+pub struct VideoMaker {
+    store: Store,
+    section: Section,
+    search: String,
+    message: String,
+    fonts_ready: bool,
+    design_loaded: Option<u64>,
+    selected_clip: Option<u64>,
+    preview_at: f64,
+    preview_clip: Option<u64>,
+    preview: Option<egui::TextureHandle>,
+    prompt: String,
+    ai_response: String,
+    ai_job: Option<Receiver<Result<String, String>>>,
+    export_job: Option<Receiver<Result<PathBuf, String>>>,
+}
+
+impl VideoMaker {
+    pub fn section_is_design(&self) -> bool {
+        self.section == Section::Design
+    }
+    pub fn new() -> Result<Self, String> {
+        let root = std::env::var_os("PURPOSE_PROJECTS_DIR")
+            .map(PathBuf::from)
+            .or_else(|| services::config_dir().map(|p| p.join("Purpose video maker")))
+            .ok_or("프로젝트 폴더를 결정할 수 없습니다")?;
+        Self::at(root)
+    }
+
+    fn at(root: PathBuf) -> Result<Self, String> {
+        let mut store = Store::load(root)?;
+        if store.data.channels.is_empty() {
+            let channel = store.data.add_channel();
+            let _ = store.data.add_video(channel);
+            store.save()?;
+        }
+        Ok(Self {
+            store,
+            section: Section::Script,
+            search: String::new(),
+            message: String::new(),
+            fonts_ready: false,
+            design_loaded: None,
+            selected_clip: None,
+            preview_at: 0.0,
+            preview_clip: None,
+            preview: None,
+            prompt: String::new(),
+            ai_response: String::new(),
+            ai_job: None,
+            export_job: None,
+        })
+    }
+
+    pub fn title(&self) -> String {
+        self.store.data.selected().map_or_else(|| "Purpose video maker".into(), |(_, v)| format!("{} — Purpose video maker", v.name))
+    }
+
+    fn save(&mut self) {
+        if let Err(e) = self.store.save() {
+            self.message = format!("저장 실패: {e}");
+        }
+    }
+
+    fn video(&self) -> Option<&Video> {
+        self.store.data.selected().map(|(_, v)| v)
+    }
+
+    fn video_id(&self) -> Option<u64> {
+        self.store.data.selected_video
+    }
+
+    fn import_path(&mut self, source: &Path) -> Result<(), String> {
+        let video_id = self.video_id().ok_or("영상을 먼저 선택하세요")?;
+        if !source.is_file() {
+            return Err("파일이 없습니다".into());
+        }
+        let (kind, duration, has_audio) = media::probe(source)?;
+        let id = self.store.data.id();
+        let extension = source.extension().and_then(|e| e.to_str()).unwrap_or("bin");
+        let extension: String = extension.chars().filter(|c| c.is_ascii_alphanumeric()).take(10).collect();
+        let file = format!("{id}.{}", if extension.is_empty() { "bin" } else { &extension });
+        let dir = self.store.video_dir(video_id).join("assets");
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        fs::copy(source, dir.join(&file)).map_err(|e| e.to_string())?;
+        let asset = Asset { id, name: model::file_name(source), file, kind, duration, has_audio };
+        if let Some(video) = self.store.data.selected_mut() {
+            video.assets.push(asset);
+            self.save();
+        }
+        Ok(())
+    }
+
+    fn add_to_script(&mut self, id: u64) {
+        if let Some(video) = self.store.data.selected_mut() {
+            video.script.push(ScriptBlock { kind: BlockKind::Asset(id), text: String::new() });
+            self.section = Section::Script;
+            self.save();
+        }
+    }
+
+    fn add_to_timeline(&mut self, id: u64) {
+        let Some(asset) = self.video().and_then(|v| v.asset(id)).cloned() else { return };
+        if !asset.kind.can_edit() {
+            self.message = "디자인 파일은 디자인 탭에서 PNG로 내보낸 뒤 추가하세요".into();
+            return;
+        }
+        let clip_id = self.store.data.id();
+        if let Some(video) = self.store.data.selected_mut() {
+            let audio_track = asset.kind == model::AssetKind::Audio;
+            let start = if audio_track { video.duration() } else { 0.0 };
+            video.clips.push(Clip { id: clip_id, asset_id: id, trim_start: 0.0, trim_end: asset.duration, start, volume: 1.0, audio_track });
+            self.selected_clip = Some(clip_id);
+            self.preview_clip = None;
+            self.section = Section::Edit;
+            self.save();
+        }
+    }
+
+    pub fn ensure_design(&mut self, fig: &mut FigApp) {
+        let Some(id) = self.video_id() else { return };
+        if fig.session.docs.is_empty() {
+            self.design_loaded = None;
+        }
+        fig.ui.home = false;
+        if self.design_loaded == Some(id) {
+            return;
+        }
+        if self.design_loaded.is_some()
+            && let Err(e) = fig.session.execute("file.save", &json!({}))
+        {
+            self.message = format!("이전 디자인 저장 실패: {e}");
+            return;
+        }
+        let path = self.store.design_path(id);
+        if !path.exists() {
+            if let Err(e) = fs::create_dir_all(self.store.video_dir(id)) {
+                self.message = format!("디자인 폴더 생성 실패: {e}");
+                return;
+            }
+            let mut initial = Session::new();
+            if let Err(e) = initial.execute("file.saveAs", &json!({"path": path})) {
+                self.message = format!("디자인 생성 실패: {e}");
+                return;
+            }
+        }
+        if let Err(e) = fig.session.execute("file.open", &json!({"path": path})) {
+            self.message = format!("디자인 열기 실패: {e}");
+            return;
+        }
+        fig.ui.home = false;
+        self.design_loaded = Some(id);
+    }
+
+    pub fn export_design(&mut self, fig: &mut FigApp) {
+        let Some(id) = self.video_id() else { return };
+        self.ensure_design(fig);
+        if self.design_loaded != Some(id) {
+            return;
+        }
+        if let Err(e) = fig.session.execute("file.save", &json!({})) {
+            self.message = format!("디자인 저장 실패: {e}");
+            return;
+        }
+        let asset_id = self.store.data.id();
+        let file = format!("design-{asset_id}.png");
+        let dir = self.store.video_dir(id).join("assets");
+        if let Err(e) = fs::create_dir_all(&dir) {
+            self.message = e.to_string();
+            return;
+        }
+        let path = dir.join(&file);
+        match fig.session.execute("file.export", &json!({"format": "png", "path": path, "scale": 1.0})) {
+            Ok(_) => {
+                if let Some(video) = self.store.data.selected_mut() {
+                    video.assets.push(Asset {
+                        id: asset_id,
+                        name: format!("{} 디자인", video.name),
+                        file,
+                        kind: model::AssetKind::Image,
+                        duration: 5.0,
+                        has_audio: false,
+                    });
+                    self.save();
+                    self.message = "디자인 PNG를 라이브러리에 저장했습니다".into();
+                }
+            }
+            Err(e) => self.message = format!("디자인 내보내기 실패: {e}"),
+        }
+    }
+
+    fn start_export(&mut self) {
+        if self.export_job.is_some() {
+            return;
+        }
+        let Some(video) = self.video().cloned() else { return };
+        let dir = self.store.video_dir(video.id);
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(media::export(&video, &dir));
+        });
+        self.export_job = Some(rx);
+        self.message = "MP4를 내보내는 중입니다…".into();
+    }
+
+    fn poll_jobs(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &self.export_job {
+            match rx.try_recv() {
+                Ok(Ok(path)) => {
+                    self.message = format!("내보내기 완료: {}", path.display());
+                    self.export_job = None;
+                }
+                Ok(Err(e)) => {
+                    self.message = e;
+                    self.export_job = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.message = "내보내기 작업이 종료되었습니다".into();
+                    self.export_job = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
+            }
+        }
+        if let Some(rx) = &self.ai_job {
+            match rx.try_recv() {
+                Ok(Ok(text)) => {
+                    self.ai_response = text;
+                    self.ai_job = None;
+                }
+                Ok(Err(e)) => {
+                    self.ai_response = format!("Codex 오류: {e}");
+                    self.ai_job = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.ai_response = "Codex 작업이 종료되었습니다".into();
+                    self.ai_job = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
+            }
+        }
+    }
+
+    fn ask_codex(&mut self, request: String) {
+        if self.ai_job.is_some() || request.trim().is_empty() {
+            return;
+        }
+        let Some(video) = self.video().cloned() else { return };
+        let root = self.store.video_dir(video.id);
+        let script = video.script.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n");
+        let assets = video.assets.iter().map(|a| format!("{} ({}, {:.1}s)", a.name, a.kind.label(), a.duration)).collect::<Vec<_>>().join("\n");
+        let clips = video
+            .clips
+            .iter()
+            .map(|c| {
+                format!(
+                    "{}: {:.1}s–{:.1}s, volume {:.0}%",
+                    video.asset(c.asset_id).map_or("missing", |a| a.name.as_str()),
+                    c.trim_start,
+                    c.trim_end,
+                    c.volume * 100.0
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let prompt = format!(
+            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n타임라인:\n{}\n요청: {}",
+            video.name, script, assets, clips, request
+        );
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(run_codex(&root, &prompt));
+        });
+        self.ai_response.clear();
+        self.ai_job = Some(rx);
+        self.prompt.clear();
+    }
+}
+
+fn run_codex(root: &Path, prompt: &str) -> Result<String, String> {
+    fs::create_dir_all(root).map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
+    let output_path = std::env::temp_dir().join(format!("purpose-codex-{}-{stamp}.txt", std::process::id()));
+    let mut child = Command::new("codex")
+        .args(["exec", "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--output-last-message"])
+        .arg(&output_path)
+        .arg("-C")
+        .arg(root)
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Codex CLI를 실행할 수 없습니다. 설치와 ChatGPT 로그인을 확인하세요: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
+    }
+    let result = child.wait_with_output().map_err(|e| e.to_string())?;
+    let answer = fs::read_to_string(&output_path).unwrap_or_default();
+    let _ = fs::remove_file(&output_path);
+    if !result.status.success() {
+        return Err(String::from_utf8_lossy(&result.stderr).chars().take(2000).collect());
+    }
+    if answer.trim().is_empty() {
+        return Err("Codex가 빈 응답을 보냈습니다".into());
+    }
+    Ok(answer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imported_asset_is_shared_by_script_and_timeline_after_reopen() {
+        if Command::new("ffprobe").arg("-version").output().is_err() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("purpose-project-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("sample.png");
+        image::RgbaImage::from_pixel(24, 24, image::Rgba([40, 80, 160, 255])).save(&source).unwrap();
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        maker.import_path(&source).unwrap();
+        let id = maker.video().unwrap().assets[0].id;
+        maker.add_to_script(id);
+        maker.add_to_timeline(id);
+        let store = Store::load(root.clone()).unwrap();
+        let (_, video) = store.data.selected().unwrap();
+        assert_eq!(video.assets[0].kind, model::AssetKind::Image);
+        assert!(store.asset_path(video.id, &video.assets[0]).is_file());
+        assert!(video.script.iter().any(|b| matches!(b.kind, BlockKind::Asset(found) if found == id)));
+        assert_eq!(video.clips[0].asset_id, id);
+        let _ = fs::remove_dir_all(root);
+    }
+}

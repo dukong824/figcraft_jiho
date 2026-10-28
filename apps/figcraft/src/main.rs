@@ -30,6 +30,7 @@ mod graphics;
 mod recovery;
 mod services;
 mod startup;
+mod video_maker;
 
 #[cfg(all(test, target_os = "macos"))]
 mod apple_events_tests;
@@ -62,6 +63,7 @@ struct App {
     title: String,
     /// Shared with the services, which write the copies after a panic.
     recovery: recovery::Shared,
+    video_maker: Option<video_maker::VideoMaker>,
     /// Documents and quit requests from Finder, the Dock and Open With.
     #[cfg(target_os = "macos")]
     apple_events: fmv_macos_events::Inbox,
@@ -78,7 +80,7 @@ impl eframe::App for App {
                 *slot = Some(ctx.clone());
             }
         }
-        let title = with_app(|fig| {
+        let design_title = with_app(|fig| {
             control_server::drain_queue(&self.queue, &mut fig.control_queue);
             // Phase-safe background work: control queues, autosave/recovery deadlines, live polling.
             // It runs on logic-only callbacks too, so it never reads UI input.
@@ -91,6 +93,7 @@ impl eframe::App for App {
             fig.title()
         });
         // Window title follows the document.
+        let title = self.video_maker.as_ref().map(video_maker::VideoMaker::title).or(design_title);
         if let Some(title) = title
             && title != self.title
         {
@@ -119,10 +122,38 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        services::parented(frame, || with_app(|fig| figcraft_ui_egui::windows::guard(fig, &ctx, |fig| fig.ui(ui))));
+        services::parented(frame, || {
+            if let Some(maker) = &mut self.video_maker {
+                let leaving_design = maker.section_is_design();
+                let export = maker.ui(ui);
+                if leaving_design && !maker.section_is_design() {
+                    with_app(|fig| {
+                        let _ = fig.session.execute("file.save", &json!({}));
+                    });
+                }
+                if maker.section_is_design() {
+                    with_app(|fig| {
+                        figcraft_ui_egui::windows::guard(fig, &ctx, |fig| {
+                            maker.ensure_design(fig);
+                            if export {
+                                maker.export_design(fig);
+                            }
+                            fig.ui(ui);
+                        })
+                    });
+                }
+            } else {
+                with_app(|fig| figcraft_ui_egui::windows::guard(fig, &ctx, |fig| fig.ui(ui)));
+            }
+        });
     }
 
     fn on_exit(&mut self) {
+        if self.video_maker.is_some() {
+            with_app(|fig| {
+                let _ = fig.session.execute("file.save", &json!({}));
+            });
+        }
         // With the app out of reach (busy), its recovery copies stay for the next start.
         let copies = recovery::lock(&self.recovery).take();
         with_app(|fig| services::shutdown(fig, services::config_dir().as_deref(), copies));
@@ -136,6 +167,10 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let purpose_binary = std::env::args_os()
+        .next()
+        .and_then(|p| std::path::PathBuf::from(p).file_stem().map(|s| s.to_string_lossy().to_string()))
+        .is_some_and(|name| name == "purpose-video-maker");
     // This fork does not accept the official distribution's binary-replacement helper.
     if args.iter().any(|arg| arg == "--finish-update") {
         eprintln!("figcraft_jiho updates are available at https://github.com/dukong824/figcraft_jiho/releases");
@@ -143,16 +178,20 @@ fn main() -> eframe::Result {
     }
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!(
-            "figcraft_jiho (FigCraft {}){}",
+            "{} (FigCraft {}){}",
+            if purpose_binary { "purpose-video-maker" } else { "figcraft_jiho" },
             env!("CARGO_PKG_VERSION"),
             option_env!("FIGCRAFT_BUILD_SHA").filter(|s| !s.is_empty()).map(|s| format!(" ({s})")).unwrap_or_default()
         );
         return Ok(());
     }
-    let args = args::parse(&args);
+    let mut args = args::parse(&args);
+    if purpose_binary {
+        args.video_maker = true;
+    }
     if let Some(flag) = args.unknown.first() {
         eprintln!(
-            "FigCraft: unknown option {flag}\nUsage: figcraft [--control PORT] [--automation-read-root DIR]... [--automation-write-root DIR]... [FILE | figcraft://join?...]..."
+            "FigCraft: unknown option {flag}\nUsage: figcraft [--video-maker] [--control PORT] [--automation-read-root DIR]... [--automation-write-root DIR]... [FILE | figcraft://join?...]..."
         );
         std::process::exit(2);
     }
@@ -217,13 +256,17 @@ fn main() -> eframe::Result {
     session.live.links = figcraft_collab_net::links::system();
     session.invite_links_startup();
     let first_run = svc.prefs.is_none() && args.join.is_none();
-    if session.docs.is_empty() && opens_new_file(first_run, session.prefs.start_on_home, port.is_some()) {
+    if !args.video_maker && session.docs.is_empty() && opens_new_file(first_run, session.prefs.start_on_home, port.is_some()) {
         let _ = session.execute("file.new", &json!({}));
     }
     // The interface language from the first frame on, and for the message when the window can't
     // open (no frame then).
     figcraft_ui_egui::i18n::set(&session.prefs.language, figcraft_ui_egui::Services::system_language(&svc).as_deref());
     let mut fig = FigApp::new(session, Box::new(svc));
+    if args.video_maker {
+        fig.session.prefs.language = "ko".into();
+        fig.ui.video_maker = true;
+    }
     fig.set_startup_update_check(true);
     fig.automation_roots = roots;
     fig.ui.home = false;
@@ -234,6 +277,17 @@ fn main() -> eframe::Result {
         figcraft_ui_egui::live::open_invite(&mut fig, link);
     }
     let queue: Arc<Mutex<Vec<ControlRequest>>> = Arc::new(Mutex::new(Vec::new()));
+    let video_maker = if args.video_maker {
+        match video_maker::VideoMaker::new() {
+            Ok(maker) => Some(maker),
+            Err(e) => {
+                eprintln!("Purpose video maker: {e}");
+                std::process::exit(2);
+            }
+        }
+    } else {
+        None
+    };
     if let Some(p) = port {
         control_server::start(p, queue.clone(), ctx_slot.clone());
     }
@@ -241,8 +295,8 @@ fn main() -> eframe::Result {
     // The app id is the Wayland app_id and the X11 window class on Linux: the desktop entry's name
     // and StartupWMClass (FreeBSD's package matches the binary's name instead).
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("FigCraft")
-        .with_app_id("ai.storyteller.figcraft")
+        .with_title(if args.video_maker { "Purpose video maker" } else { "FigCraft" })
+        .with_app_id(if args.video_maker { "ai.storyteller.purpose-video-maker" } else { "ai.storyteller.figcraft" })
         .with_inner_size([1440.0, 900.0])
         .with_min_inner_size([800.0, 500.0])
         .with_drag_and_drop(true);
@@ -268,7 +322,7 @@ fn main() -> eframe::Result {
     #[cfg(target_os = "macos")]
     let apple_events = &apple_events;
     let result = eframe::run_native(
-        "FigCraft",
+        if args.video_maker { "Purpose video maker" } else { "FigCraft" },
         options,
         Box::new(move |cc| {
             with_app(|fig| fig.services.set_egui_context(&cc.egui_ctx));
@@ -277,6 +331,7 @@ fn main() -> eframe::Result {
                 ctx_slot,
                 title: String::new(),
                 recovery,
+                video_maker,
                 #[cfg(target_os = "macos")]
                 apple_events: apple_events.connect(&cc.egui_ctx),
             }))

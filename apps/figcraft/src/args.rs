@@ -1,4 +1,4 @@
-//! The command line: `figcraft [--control <port>] [--automation-read-root <dir>]…
+//! The command line: `figcraft [--video-maker] [--control <port>] [--automation-read-root <dir>]…
 //! [--automation-write-root <dir>]… [files…] [figcraft://join?…]`. An invite link
 //! (what the system passes when a `figcraft://` link is opened) joins that session once the window
 //! is up; everything else that isn't a flag is a file to open, as a path or a `file://` URL (the
@@ -11,6 +11,8 @@
 pub struct Args {
     /// `--control <port>` (or `--control=<port>`): the JSON-lines control server.
     pub control: Option<u16>,
+    /// Open the channel/video production workspace around the FigCraft editor.
+    pub video_maker: bool,
     pub files: Vec<String>,
     /// The last invite link given.
     pub join: Option<String>,
@@ -73,6 +75,8 @@ pub fn parse(args: &[String]) -> Args {
             roots.push(inline.or_else(|| it.next().cloned()).unwrap_or_default());
         } else if flag == "--control" {
             out.control = inline.or_else(|| it.next().cloned()).and_then(|p| p.parse().ok());
+        } else if a == "--video-maker" {
+            out.video_maker = true;
         } else if is_invite(a) {
             out.join = Some(a.clone());
         } else if let Some(path) = file_url_path(a) {

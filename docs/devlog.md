@@ -1,5 +1,19 @@
 # Local extension devlog
 
+## 2026-10-28 — M-PURPOSE-VIDEO: video production workspace
+
+Add a second desktop entry point for channel and video projects, keeping FigCraft's design
+editor while hiding its Home entry in this mode. Copy local media into each video's library;
+link it to block-based scripts and an editable video/audio timeline. Save project state locally,
+export selected designs as library PNGs, and render trimmed video, mixed audio and subtitles
+through FFmpeg. Add a read-only Codex CLI task pane whose response needs a user action before
+entering the script. The first version offers clip order, trim, volume and caption timing;
+continuous in-app playback and transition effects remain outside this milestone.
+Verification: 64 desktop tests, Clippy and format checks, Linux GUI screenshots, a design-to-library
+PNG, and an MP4 checked for H.264 video, AAC audio and a subtitle stream. Cloud Codex execution
+was blocked by the instance's rejected ChatGPT authentication token; the CLI path awaits a valid
+user login on a target machine.
+
 ## 2026-10-28 — M-JIHO-PAPIERWERK: outward paper border from .5
 
 Re-establish the v0.11.2.5 source tree (273bdf51) without rewriting published history,

@@ -383,6 +383,8 @@ pub struct UiState {
     /// An opacity digit just typed and when (a second one soon after makes an exact percentage).
     pub opacity_digit: Option<(u32, f64)>,
     pub home: bool,
+    /// The video maker supplies its own project navigation instead of FigCraft Home.
+    pub video_maker: bool,
     /// The home screen's section, and the Templates search and filter.
     pub home_view: home::Home,
     /// How the window's title bar is drawn (the desktop app sets it when it opens the window).
@@ -567,6 +569,7 @@ impl Default for UiState {
             shortcuts_query: String::new(),
             opacity_digit: None,
             home: false,
+            video_maker: false,
             home_view: home::Home::default(),
             title_bar: TitleBar::Native,
             icon_gallery: false,

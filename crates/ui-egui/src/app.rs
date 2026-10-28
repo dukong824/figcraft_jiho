@@ -194,6 +194,9 @@ impl FigApp {
     /// One frame of the window drawing now.
     pub(crate) fn frame(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        if self.ui.video_maker {
+            self.ui.home = false;
+        }
         // Bind this input batch before controls or pointer input can replace its composing
         // target/caret. Outgoing IME receipts run after mutation and cannot authorize it.
         let ime_input = shortcuts::ImeInputBaseline::capture(self);

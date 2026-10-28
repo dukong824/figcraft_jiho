@@ -17,6 +17,14 @@ fn files_and_the_control_port() {
 }
 
 #[test]
+fn video_maker_flag_opens_the_production_workspace() {
+    let a = parse(&args(&["--video-maker", "--control", "7979"]));
+    assert!(a.video_maker);
+    assert_eq!(a.control, Some(7979));
+    assert!(a.unknown.is_empty());
+}
+
+#[test]
 fn the_control_port_accepts_the_equals_form() {
     let a = parse(&args(&["--control=7980", "a.figcraft"]));
     assert_eq!(a, Args { control: Some(7980), files: args(&["a.figcraft"]), ..Args::default() });
