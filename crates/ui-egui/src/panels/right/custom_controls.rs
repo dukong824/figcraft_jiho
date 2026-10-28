@@ -11,7 +11,7 @@ pub(super) fn number(ui: &mut Ui, id: Id, label: &str, value: f64, range: std::o
     block(ui, 20.0, 0.0, |ui| {
         // Frame keeps a useful ten-second track; typing longer/negative times extends it.
         // Never clamp a saved value merely because the panel was opened.
-        let range = if label == "Frame (ms)" { value.min(0.0)..=value.max(10_000.0) } else { range };
+        let range = if label.split('|').next() == Some("Frame (ms)") { value.min(0.0)..=value.max(10_000.0) } else { range };
         let mut next = value;
         let response = ui
             .push_id(id.with("slider"), |ui| {

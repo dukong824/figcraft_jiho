@@ -38,9 +38,11 @@ pub use library::*;
 pub use node::*;
 pub use paper_filters::{PaperFilterKind, PaperImageFilter};
 pub use paper_metal::PaperLiquidMetal;
+mod torn_paper;
 pub use props::*;
 pub use styles::*;
 pub use text::*;
+pub use torn_paper::TornPaper;
 pub use vector::*;
 pub use vector_faces::Face;
 

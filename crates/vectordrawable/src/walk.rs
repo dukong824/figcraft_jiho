@@ -159,6 +159,7 @@ impl<'a> Walker<'a> {
                 EffectKind::Glass(_) => Warn::Glass,
                 EffectKind::PaperLiquidMetal(_) => Warn::PaperLiquidMetal,
                 EffectKind::PaperImageFilter(_) => Warn::PaperImageFilter,
+                EffectKind::TornPaper(_) => Warn::TornPaper,
             };
             self.note(w, n);
         }

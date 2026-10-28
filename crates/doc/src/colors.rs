@@ -38,6 +38,7 @@ impl Effect {
                 f(&mut p.color_tint);
                 f(&mut p.color_back);
             }
+            EffectKind::TornPaper(p) => f(&mut p.color),
             EffectKind::LayerBlur { .. } | EffectKind::BackgroundBlur { .. } | EffectKind::Texture(_) | EffectKind::Glass(_) => {}
         }
     }

@@ -783,6 +783,8 @@ pub enum EffectKind {
     PaperLiquidMetal(crate::PaperLiquidMetal),
     /// The seven original Paper Image Filters.
     PaperImageFilter(crate::PaperImageFilter),
+    /// Original torn silhouette with a fibrous paper cross-section.
+    TornPaper(crate::TornPaper),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -799,7 +801,7 @@ fn yes() -> bool {
 
 impl Effect {
     /// Effect types in the order the Design panel lists them: (label, type name).
-    pub const TYPES: [(&str, &str); 15] = [
+    pub const TYPES: [(&str, &str); 16] = [
         ("Drop shadow", "dropShadow"),
         ("Inner shadow", "innerShadow"),
         ("Layer blur", "layerBlur"),
@@ -815,6 +817,7 @@ impl Effect {
         ("Halftone Dots", "paperHalftoneDots"),
         ("Halftone CMYK", "paperHalftoneCmyk"),
         ("Lens Distortion", "paperLensDistortion"),
+        ("Torn Paper", "tornPaper"),
     ];
 
     fn of(kind: EffectKind) -> Self {
@@ -853,6 +856,7 @@ impl Effect {
             "noise" => Self::noise(),
             "texture" => Self::texture(),
             "glass" => Self::glass(),
+            "tornpaper" => Self::of(EffectKind::TornPaper(crate::TornPaper::default())),
             "paperliquidmetal" | "liquidmetal" => Self::of(EffectKind::PaperLiquidMetal(crate::PaperLiquidMetal::default())),
             _ => {
                 let key = name.to_ascii_lowercase().replace(['_', ' ', '-'], "");
@@ -873,6 +877,7 @@ impl Effect {
             EffectKind::Glass(_) => "Glass",
             EffectKind::PaperLiquidMetal(_) => "Paper Liquid Metal",
             EffectKind::PaperImageFilter(ref p) => p.filter.label(),
+            EffectKind::TornPaper(_) => "Torn Paper",
         }
     }
     /// How far outside the node's bounds this effect can paint (a shadow's spread at a sharp
@@ -908,6 +913,7 @@ impl Effect {
             (EffectKind::DropShadow(s) | EffectKind::InnerShadow(s), false) => Some(s.color),
             (EffectKind::Noise(n), false) => Some(n.color),
             (EffectKind::Noise(n), true) => Some(n.secondary),
+            (EffectKind::TornPaper(p), false) => Some(p.color),
             (EffectKind::PaperLiquidMetal(p), false) => Some(p.color_tint),
             (EffectKind::PaperLiquidMetal(p), true) => Some(p.color_back),
             _ => None,
@@ -919,6 +925,7 @@ impl Effect {
             (EffectKind::DropShadow(s) | EffectKind::InnerShadow(s), false) => Some(&mut s.color),
             (EffectKind::Noise(n), false) => Some(&mut n.color),
             (EffectKind::Noise(n), true) => Some(&mut n.secondary),
+            (EffectKind::TornPaper(p), false) => Some(&mut p.color),
             (EffectKind::PaperLiquidMetal(p), false) => Some(&mut p.color_tint),
             (EffectKind::PaperLiquidMetal(p), true) => Some(&mut p.color_back),
             _ => None,

@@ -72,7 +72,9 @@ struct Sensitive {
 /// Grain effects (noise, texture) work on their layer's pixels, which end where a render cuts the
 /// layer (texture scatters pixels from across the cut): grainy layers are redrawn whole.
 fn sensitive(doc: &Document) -> Sensitive {
-    let noisy = doc.nodes().filter(|n| n.effects.iter().any(|e| e.visible && matches!(e.kind, EffectKind::Noise(_) | EffectKind::Texture(_))));
+    let noisy = doc.nodes().filter(|n| {
+        n.effects.iter().any(|e| e.visible && matches!(e.kind, EffectKind::Noise(_) | EffectKind::Texture(_) | EffectKind::TornPaper(_)))
+    });
     let pattern_sources = doc
         .nodes()
         .flat_map(|n| n.fills.iter().chain(&n.strokes))

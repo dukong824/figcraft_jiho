@@ -1,5 +1,17 @@
 # Local extension devlog
 
+## 2026-10-28 — M-JIHO-TORN: Korean custom controls and torn paper
+
+Translate every custom parameter, option and color with context-specific Korean terminology,
+including RGB shifts, optical caustics, animation time offsets and CMYK dot gain. Keep saved
+keys/ranges and original Paper shader sources unchanged. Replace the fallback metal-shape number
+with a named dropdown. Add an original serialized Torn Paper effect: compact alpha-distance
+erosion with local seeded noise, fine fibers and an exposed paper cross-section. Preserve the
+interior and export size, follow painted alpha (including translucent fills), keep partial/rotated/
+scaled views consistent, and cast shadows from the torn pixels. Add native CPU/WASM rendering,
+command round trips, scaling/undo, SVG/PDF raster output and explicit warnings for formats without
+this effect. Verification and known environment failures are recorded in `VALIDATION.md`.
+
 ## 2026-10-28 — M-JIHO-BIREFNET: local background removal
 
 Add official MIT BiRefNet general ONNX inference to the Windows Custom section through native

@@ -237,6 +237,10 @@ impl<'d> Exporter<'d> {
                 self.warn("Paper Image Filters require the native .figcraft format; this effect is omitted from .fig export");
                 f.extend([("type", e("FOREGROUND_BLUR")), ("radius", fl(0.0)), ("visible", b(false))]);
             }
+            EffectKind::TornPaper(_) => {
+                self.warn("Torn Paper requires the native .figcraft format; this effect is omitted from .fig export");
+                f.extend([("type", e("FOREGROUND_BLUR")), ("radius", fl(0.0)), ("visible", b(false))]);
+            }
             EffectKind::PaperLiquidMetal(_) => {
                 self.warn("Paper Liquid Metal requires the native .figcraft format; this effect is omitted from .fig export");
                 f.extend([("type", e("FOREGROUND_BLUR")), ("radius", fl(0.0)), ("visible", b(false))]);

@@ -451,7 +451,8 @@ pub(crate) fn bounds_within<'a>(
 /// How far (document units) effects that read outside a node's paint bounds reach: blurs, glass,
 /// drop shadows and texture. Culling and partial renders keep this much margin.
 pub fn effect_margin(n: &Node) -> f64 {
-    n.effects
+    let ordinary = n
+        .effects
         .iter()
         .filter(|e| e.visible)
         .map(|e| match &e.kind {
@@ -465,7 +466,17 @@ pub fn effect_margin(n: &Node) -> f64 {
             _ => 0.0,
         })
         .filter(|m| m.is_finite())
-        .fold(0.0, f64::max)
+        .fold(0.0, f64::max);
+    // Sequential alpha erosion reads farther inward than the other effects' sampling margin.
+    ordinary
+        + n.effects
+            .iter()
+            .filter(|e| e.visible)
+            .map(|e| match &e.kind {
+                EffectKind::TornPaper(p) if p.sanitized().depth > 0.0 => p.sanitized().depth + 4.0,
+                _ => 0.0,
+            })
+            .sum::<f64>()
 }
 
 /// Everything node `id` can paint, in page coordinates: its paint bounds (glyphs of overflowing
@@ -535,9 +546,19 @@ fn draw_layer(ctx: &Ctx, pix: &mut Pixmap, n: &Node, parent_xf: Affine, depth: u
     let (pw, ph) = (pix.width(), pix.height());
     let local = bounds_within(ctx.doc, n, 0, ctx.lod.then_some(ctx.scale), Some(ctx.bounds)).0;
     let dev = device_rect(xf, local);
+    // A transparent sampling rim seeds the silhouette field even for an opaque rectangle.
+    // This is a working surface only: the effect does not enlarge exported paint bounds.
+    let dev = if crate::torn_paper::active(n) { dev.inflate(1.0, 1.0) } else { dev };
     // Effects that read outside (blur) need a margin when culling. Absurd effects (a spread or
     // blur of millions of pixels) keep a sane layer: what lies further off reads as empty.
-    let blur_margin = (effect_margin(n) * ctx.scale).min(MAX_EFFECT_MARGIN_PX);
+    let sample_scale = if crate::torn_paper::active(n) {
+        let m = xf.as_coeffs();
+        // Include object/ancestor scaling and shear, not just the canvas zoom.
+        ctx.scale.max(m[0].hypot(m[1]).hypot(m[2].hypot(m[3])))
+    } else {
+        ctx.scale
+    };
+    let blur_margin = (effect_margin(n) * sample_scale).min(MAX_EFFECT_MARGIN_PX);
     let view = Rect::new(0.0, 0.0, f64::from(pw), f64::from(ph)).inflate(blur_margin, blur_margin);
     if dev.intersect(view).is_zero_area() && !(dev.width() == 0.0 || dev.height() == 0.0) {
         return;
@@ -634,6 +655,7 @@ fn draw_layer(ctx: &Ctx, pix: &mut Pixmap, n: &Node, parent_xf: Affine, depth: u
                         | EffectKind::Texture(_)
                         | EffectKind::PaperLiquidMetal(_)
                         | EffectKind::PaperImageFilter(_)
+                        | EffectKind::TornPaper(_)
                 )
         });
         let content = (casts && layer_fx).then(|| {
@@ -680,6 +702,7 @@ fn layer_effects(ctx: &Ctx, layer: &mut Pixmap, n: &Node, id: NodeId, lxf: Affin
             EffectKind::Texture(t) => grain::texture(layer, t, lxf, ctx.scale, id.0 as u32),
             EffectKind::PaperLiquidMetal(p) => crate::paper_metal::apply(ctx, id, layer, lxf, p, index),
             EffectKind::PaperImageFilter(p) => crate::paper_filters::apply(ctx, id, layer, lxf, p, index),
+            EffectKind::TornPaper(p) => crate::torn_paper::apply(layer, p, lxf),
             _ => {}
         }
     }

@@ -168,7 +168,7 @@ fn drop_shadows(n: &Node) -> impl Iterator<Item = &Shadow> {
 /// pixels past the paints) or no shadow hides.
 pub fn hiding_cover(doc: &Document, n: &Node) -> Option<Vec<Outline>> {
     let moved = n.effects.iter().any(|e| matches!(e.kind, EffectKind::LayerBlur(_) | EffectKind::Texture(_)) && e.reach() > 0.0);
-    if moved || !drop_shadows(n).any(|s| !s.show_behind) {
+    if moved || crate::torn_paper::active(n) || !drop_shadows(n).any(|s| !s.show_behind) {
         return None;
     }
     cover(doc, n)
@@ -177,7 +177,7 @@ pub fn hiding_cover(doc: &Document, n: &Node) -> Option<Vec<Outline>> {
 impl<'a> Caster<'a> {
     /// What casts node `n`'s drop shadows from its `layer` (local → pixels through `xf`).
     pub fn new(doc: &Document, n: &Node, layer: &'a Pixmap, xf: Affine, scale: f64) -> Self {
-        let silhouette = if drop_shadows(n).any(|s| s.spread != 0.0) { silhouette(doc, n) } else { None };
+        let silhouette = if !crate::torn_paper::active(n) && drop_shadows(n).any(|s| s.spread != 0.0) { silhouette(doc, n) } else { None };
         let cover = hiding_cover(doc, n).and_then(|c| spread_alpha(&c, 0.0, xf, layer.width(), layer.height()));
         Caster { layer, xf, scale, silhouette, cover }
     }

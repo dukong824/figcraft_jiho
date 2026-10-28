@@ -259,6 +259,7 @@ impl<'a> Exporter<'a> {
                     | EffectKind::Texture(_)
                     | EffectKind::PaperLiquidMetal(_)
                     | EffectKind::PaperImageFilter(_)
+                    | EffectKind::TornPaper(_)
             )
         }) {
             // Effects that change every pixel: the renderer draws the whole node.

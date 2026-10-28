@@ -42,6 +42,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'VALIDATION.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-liquid-metal.md') -Destination (Join-Path $stage 'PAPER-LIQUID-METAL.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-image-filters.md') -Destination (Join-Path $stage 'PAPER-IMAGE-FILTERS.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/birefnet-background-removal.md') -Destination (Join-Path $stage 'BACKGROUND-REMOVAL.md')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/custom-effects-ko-torn-paper.md') -Destination (Join-Path $stage 'CUSTOM-EFFECTS-KO-TORN-PAPER.md')
 $licenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Path $licenses | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/birefnet') -Destination (Join-Path $licenses 'BiRefNet') -Recurse
@@ -80,6 +81,8 @@ pause
 figcraft_jiho — personal FigCraft build
 
 Run figcraft_jiho.exe or Open Demo.cmd.
+Custom parameter names/options are localized in Korean. Custom > + > Torn Paper adds editable torn edges.
+See CUSTOM-EFFECTS-KO-TORN-PAPER.md for the Korean terminology and edge controls.
 Select one image > Design > Custom > Remove background (BiRefNet).
 First use downloads approximately 710 MB (+973 MB if CPU fallback is needed); then works offline.
 Original resolution and source image are preserved. See BACKGROUND-REMOVAL.md.

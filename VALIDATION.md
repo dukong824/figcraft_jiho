@@ -1,5 +1,32 @@
 # FigCraft Jiho build validation
 
+## Korean custom controls and torn paper — 2026-10-28
+
+- Liquid Metal and all seven Image Filters have contextual Korean parameter, option and color
+  names. Red/blue channel shifts, CMYK dot gain, lighting direction and animation time offsets
+  are named for their actual calculations. Saved keys, values and original Paper GLSL are unchanged.
+  A coverage regression visits every parameter, option and color. All **21** catalog tests pass.
+- Added original CPU/WASM Torn Paper in Custom, with depth, spacing, irregularity, fibers, exposed
+  paper width/color and deterministic seed. Sliders use engine commands. The operation erodes the
+  painted alpha inward, preserves deep interior pixels and export dimensions, and follows layer
+  coordinates. Effect visibility/removal restores the original. Shadows follow the cut silhouette.
+- Torn render regressions: **5 passed**, covering alpha/RGB invariants, translucent paint,
+  deterministic seeds, zero-depth/hidden equivalence, shadows, rotation/scale and clipped-view
+  consistency. Engine add/set/native round trip/scale/undo regression passes.
+- Full native renderer: **177 passed, 3 ignored**. Full UI: **824 passed, 1 ignored**, including
+  translation coverage and existing slider/undo tests. Native window screenshots checked with
+  the original procedural landscape. Actual `.figcraft`, SVG and PDF exports succeeded; SVG/PDF
+  preserve the effect as an embedded raster. `.fig`/Android exports explicitly warn and omit it.
+- `cargo xtask ci` was attempted: formatting and workspace Clippy with warnings denied passed;
+  engine **1,392 passed, 1 failed, 2 ignored**. The same unchanged optional-font board-table
+  row-growth test fails (`122 → 122`). A clean full CI result is not claimed. The separate GNU
+  pathops exact-equality baseline failure remains documented in the preceding feature report.
+- Dependency layers, attribution, WASM and all four plugin checks/builds passed separately after
+  CI stopped. Workspace doctests and native GUI/CLI/GIF-helper builds passed. BiRefNet and the
+  Paper shader sources are unchanged.
+- `preview-v0.11.2.6` is the optimized-dev Windows GNU Preview; BUILD-INFO.txt records its commit.
+  Usage and terminology: `docs/custom-effects-ko-torn-paper.md`.
+
 ## Local BiRefNet background removal — 2026-10-28
 
 - Added Windows Custom → Remove background (BiRefNet), with progress/cancel, original restoration,
