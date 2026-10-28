@@ -293,6 +293,10 @@ pub fn paint_images<'a>(paints: impl IntoIterator<Item = &'a Paint>, out: &mut B
     for p in paints {
         if let PaintKind::Image(img) = &p.kind {
             out.insert(img.image.clone());
+            if let Some(bg) = &img.background_removal {
+                out.insert(bg.original.clone());
+                out.insert(bg.mask.clone());
+            }
         }
     }
 }

@@ -33,6 +33,10 @@ env_logger = { version = "0.11", default-features = false, features = ["auto-col
 # The system's reduce-motion setting (UISettings.AnimationsEnabled), interface language
 # (GlobalizationPreferences.Languages) and controllers for prototypes (Gaming.Input.Gamepad).
 [target.'cfg(windows)'.dependencies]
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic", "directml"] }
+ureq = { version = "3.5", default-features = false, features = ["rustls", "platform-verifier"] }
+sha2 = { workspace = true }
+zip = { workspace = true }
 craft-update = { workspace = true }
 windows = { version = "0.62", default-features = false, features = ["UI_ViewManagement", "System_UserProfile", "Foundation_Collections", "Gaming_Input"] }
 

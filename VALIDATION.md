@@ -1,4 +1,41 @@
-# Paper Liquid Metal port validation
+# FigCraft Jiho build validation
+
+## Local BiRefNet background removal — 2026-10-28
+
+- Added Windows Custom → Remove background (BiRefNet), with progress/cancel, original restoration,
+  captured document/paint guards and one undo step. Source bytes, full-size soft mask and lossless
+  cutout are retained in `.figcraft`; crop, filters and existing Paper materials stay attached.
+- Engine regressions: **2 passed** (round trip/restore/undo, image references, unchanged source,
+  stale-source rejection, dimensions and corrupt input rollback). Async UI regressions: **2 passed**
+  (selection changes keep the captured image; switching documents cancels late completion).
+  Existing panel tests **47 passed** and custom slider tests **3 passed**.
+- Real inference used NASA's public-domain Eileen Collins portrait via scikit-image, kept only
+  in local test work. Actual FP32 CPU and FP16 DirectML masks were generated. Original size and
+  every decoded RGB byte were preserved, including transparent pixels; masks have soft alpha.
+- RTX 5050 Laptop GPU (8 GB), same native pipeline: **19.9 s cold / 2.6 s warm** on a 512 × 512
+  photo, including preprocessing and PNG encoding. Timings are examples, not a performance promise.
+  A 20-second idle cache returns model memory. GPU fusion was disabled after real testing found
+  fused execution exceeded memory/time limits; the same 1024-pixel model now runs successfully.
+- The actual native Rust HTTP path downloaded and SHA-256-verified the 17.9 MB ONNX runtime package.
+  Both model variants and runtime archives use pinned sizes and SHA-256; licence texts are included.
+- `cargo xtask ci` was attempted: engine **1,391 passed, 1 failed, 2 ignored**. The only failure
+  remains the pre-existing optional-font board-table row-growth case (`122 → 122`); it is unrelated
+  to this feature. A clean full CI result is not claimed.
+- A broader workspace run excluding that row-growth case reached a separate unchanged pathops
+  exact-equality failure: `measures_paths_by_length`, `0.0` versus `-1.8501900455444168e-15` at a
+  closed-circle endpoint. It also fails alone in this GNU environment; geometry code is unchanged.
+  This second observed failure is reported, not hidden by a code or tolerance change.
+- Final workspace Clippy with warnings denied, layer and asset checks, WASM and all four plugin
+  checks/builds passed. Native renderer: **172 passed, 3 ignored**. Whole-UI testing also caught
+  missing English catalog keys for Custom/Paper and BiRefNet; those keys were added.
+  Final full UI suite: **823 passed, 1 ignored**; the 21 catalog tests also passed separately.
+- Actual Korean Windows UI was inspected before processing, during progress and after completion.
+  The portrait renders with a transparent background and the original-background restoration
+  control. The saved native test document contains the original, cutout and mask references.
+- Model input is 1024 × 1024, resized back to original dimensions. This preserves accepted 8-bit
+  source RGB/resolution, not a guarantee of perfect segmentation at every hair or transparent edge.
+  GIF/APNG/animated WebP and higher bit depths are explicitly rejected. See
+  `docs/birefnet-background-removal.md` for supported input, licences and deployment requirements.
 
 ## Custom parameter sliders — 2026-10-27
 

@@ -1,5 +1,19 @@
 # Local extension devlog
 
+## 2026-10-28 — M-JIHO-BIREFNET: local background removal
+
+Add official MIT BiRefNet general ONNX inference to the Windows Custom section through native
+platform services. Download pinned, SHA-256-verified weights and ONNX/DirectML runtimes on first
+use; no photo upload or Python dependency. Run on a worker with progress, cancellation and stale
+document/paint guards. Preserve original RGB, alpha multiplication, ICC profile and image dimensions;
+retain the encoded original and soft mask alongside the cutout in `.figcraft`, with one-step undo
+and original restoration. Rendering and exchange exports consume the ordinary resulting PNG, so
+existing Paper materials keep working. Include model/runtime licences and document supported bit
+depth, memory bounds, first-use download and mask-resolution limitations. Verification is recorded
+in `VALIDATION.md`.
+Complete the Custom/Paper/BiRefNet English keys and enumerate Paper filter labels in the dynamic
+catalog checks; remove four obsolete official-updater English entries for the fork's release channel.
+
 ## 2026-10-27 — M-JIHO-SLIDERS: custom effect parameter sliders
 
 Pair the existing number fields with accessible horizontal sliders for Liquid Metal and all

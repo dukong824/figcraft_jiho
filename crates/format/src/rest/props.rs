@@ -200,6 +200,7 @@ fn image(cx: &mut Ctx, p: &Value) -> ImagePaint {
         cx.warn("image filters use FigCraft's approximate renderer");
     }
     ImagePaint {
+        background_removal: None,
         image: cx.image_key(text(p, "imageRef").unwrap_or("")),
         scale_mode,
         scale: num(p, "scalingFactor").filter(|s| *s > 0.0).map_or(1.0, |s| s.min(1e3)),

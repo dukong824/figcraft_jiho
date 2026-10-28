@@ -468,6 +468,16 @@ pub struct ImagePaint {
     pub crop: Option<[f64; 6]>,
     #[serde(default)]
     pub filters: ImageFilters,
+    /// Reversible local cutout: original encoded pixels and the full-size soft alpha mask.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_removal: Option<ImageBackgroundRemoval>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ImageBackgroundRemoval {
+    pub original: String,
+    pub mask: String,
+    pub model: String,
 }
 
 impl ImagePaint {
@@ -665,6 +675,7 @@ impl Paint {
                 rotation: 0,
                 crop: None,
                 filters: ImageFilters::default(),
+                background_removal: None,
             }),
             opacity: 1.0,
             visible: true,

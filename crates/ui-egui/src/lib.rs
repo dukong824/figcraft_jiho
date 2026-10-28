@@ -6,6 +6,9 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod a11y;
+mod background_removal;
+#[cfg(test)]
+mod background_removal_tests;
 pub mod bidi;
 pub mod canvas;
 pub mod cjk;
@@ -286,7 +289,10 @@ mod state;
 pub(crate) use clock::repaint_in;
 pub use clock::{AUTO_SAVE_SECS, AUTOSAVE_SECS, FrameClock, ToastClock};
 pub(crate) use open::{drop_overlay, dropped_bytes, is_document, opens};
-pub use services::{ContentsFuture, DialogFuture, NoServices, ReadFuture, Services, browser_can_read, egui_copy_png, egui_copy_text, unreadable};
+pub use services::{
+    BackgroundEvent, BackgroundJob, BackgroundResult, ContentsFuture, DialogFuture, NoServices, ReadFuture, Services, browser_can_read,
+    egui_copy_png, egui_copy_text, unreadable,
+};
 use services::{DialogDone, PickFuture, Picked, RepaintWaker};
 pub use state::{
     AutoSaveEncoding, CANVAS_MIN, LEFT_PANEL, LeftTab, MobilePanel, NARROW_WIDTH, PANEL_DEFAULT, RIGHT_PANEL, RightTab, TitleBar, fit_panels,
@@ -680,6 +686,7 @@ pub struct FigApp {
     waiting: Vec<(String, Done)>,
     /// Native dialogs complete asynchronously so their modal event loop never re-enters winit.
     pending_dialog: Option<PendingDialog>,
+    background_removal: Option<background_removal::Pending>,
     /// The latest UI context schedules the first poll and wakes the app when a dialog completes.
     ui_context: Option<egui::Context>,
     /// The automation roots the app was started with: every frame and control request runs

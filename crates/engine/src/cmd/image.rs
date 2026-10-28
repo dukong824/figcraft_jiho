@@ -11,6 +11,24 @@ use crate::{Result, Session, bad, spec};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         spec!(
+            "image.removeBackground",
+            "Remove background (BiRefNet)",
+            "{} requests local BiRefNet processing for the selected image; native UI only",
+            false,
+            |s, _| {
+                s.request_ui("image.removeBackground", json!({}));
+                ok()
+            }
+        ),
+        spec!(
+            "image.background.apply",
+            "Remove background",
+            "{id, index, source, image, mask} full-size PNGs as base64; rejects changed source paints",
+            true,
+            background_apply
+        ),
+        spec!("image.background.restore", "Restore image background", "{id, index} restores the original image bytes", true, background_restore),
+        spec!(
             "image.adjust",
             "Adjust image",
             "{ids?, target? (fill|stroke, default fill), index? (default every image paint), preset? (vivid|muted|warm|cool|blackAndWhite|fade|reset, or the name of a preset saved in the file), filters? ({exposure, contrast, saturation, temperature, tint, highlights, shadows}: each -1..1, applied over the preset)}  sets the adjustments of the layers' image paints; returns {changed}",
@@ -39,6 +57,62 @@ pub fn specs() -> Vec<CommandSpec> {
             Ok(json!({"builtIn": built_in, "saved": s.doc()?.image_presets}))
         }),
     ]
+}
+
+fn background_apply(s: &mut Session, p: &Value) -> Result<Value> {
+    use base64::Engine as _;
+    let cmd = "image.background.apply";
+    let id = req_id(cmd, p, "id")?;
+    let index = req_index(cmd, p, "index")?;
+    let source = req_string(cmd, p, "source")?;
+    let doc = s.doc()?;
+    let Some(paint) = doc.get(id)?.fills.get(index) else { return Err(bad(cmd, "image fill missing")) };
+    let PaintKind::Image(img) = &paint.kind else { return Err(bad(cmd, "select an image fill")) };
+    if img.image != source || img.background_removal.is_some() {
+        return Err(bad(cmd, "the source image changed; run background removal again"));
+    }
+    let original = doc.images.get(&source).ok_or_else(|| bad(cmd, "source pixels missing"))?;
+    let size = (original.width, original.height);
+    let decode = |key| -> Result<Vec<u8>> {
+        let encoded = req_string(cmd, p, key)?;
+        if encoded.len() > 180_000_000 {
+            return Err(bad(cmd, "cutout exceeds 128 MB"));
+        }
+        let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|e| bad(cmd, e.to_string()))?;
+        if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+            return Err(bad(cmd, "cutout must be PNG"));
+        }
+        Ok(bytes)
+    };
+    let image = decode("image")?;
+    let mask = decode("mask")?;
+    let doc = s.doc_mut()?;
+    let (image_hash, w, h) = figcraft_format::add_image(doc, image).map_err(|e| bad(cmd, e.to_string()))?;
+    let (mask_hash, mw, mh) = figcraft_format::add_image(doc, mask).map_err(|e| bad(cmd, e.to_string()))?;
+    if (w, h) != size || (mw, mh) != size {
+        return Err(bad(cmd, "cutout and mask must keep the source resolution"));
+    }
+    let n = doc.get_mut(id)?;
+    if let Some(PaintKind::Image(img)) = n.fills.get_mut(index).map(|p| &mut p.kind) {
+        img.image = image_hash;
+        img.background_removal =
+            Some(figcraft_color::ImageBackgroundRemoval { original: source, mask: mask_hash, model: "BiRefNet-general-epoch_244".into() });
+    }
+    n.styles.fill = None;
+    ok()
+}
+
+fn background_restore(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "image.background.restore";
+    let id = req_id(cmd, p, "id")?;
+    let index = req_index(cmd, p, "index")?;
+    let doc = s.doc_mut()?;
+    let n = doc.get_mut(id)?;
+    let Some(PaintKind::Image(img)) = n.fills.get_mut(index).map(|p| &mut p.kind) else { return Err(bad(cmd, "image fill missing")) };
+    let bg = img.background_removal.take().ok_or_else(|| bad(cmd, "background was not removed"))?;
+    img.image = bg.original;
+    n.styles.fill = None;
+    ok()
 }
 
 /// The longest name a saved preset may have.

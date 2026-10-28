@@ -394,6 +394,10 @@ pub(crate) fn remembering(last: Arc<Mutex<Option<PathBuf>>>, pick: DialogFuture,
 }
 
 impl Services for Desktop {
+    fn remove_background(&mut self, bytes: Arc<Vec<u8>>) -> Result<figcraft_ui_egui::BackgroundJob, String> {
+        let dir = self.dir.clone().ok_or("No application data folder for the BiRefNet cache")?.join("birefnet");
+        crate::background_removal::start(bytes, dir, self.egui_ctx.clone())
+    }
     fn pick_open(&mut self, title: &str, exts: &[&str]) -> DialogFuture {
         let pick = picked(self.dialog_in_last_folder(title).add_filter("Supported files", exts).pick_file());
         remembering(self.last_folder.clone(), pick, false)

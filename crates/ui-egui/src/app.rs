@@ -38,6 +38,7 @@ impl FigApp {
             window_requests: Vec::new(),
             waiting: Vec::new(),
             pending_dialog: None,
+            background_removal: None,
             ui_context: None,
             automation_roots: None,
             control_input_doc: None,

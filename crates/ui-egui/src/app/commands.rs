@@ -117,6 +117,7 @@ impl FigApp {
         let reqs = std::mem::take(&mut self.session.ui_requests);
         for r in reqs {
             match r.kind.as_str() {
+                "image.removeBackground" => self.start_background_removal(),
                 "dialog.about" => {
                     self.ui.about = true;
                     self.ui.about_tab = dialogs::AboutTab::About;
@@ -277,6 +278,7 @@ impl FigApp {
         self.autosave_tick(ctx, now);
         self.auto_save_tick(ctx, now);
         updates_ui::tick(self, ctx);
+        crate::background_removal::tick(self);
         self.logic_ticked = true;
     }
 }

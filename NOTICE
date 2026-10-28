@@ -72,3 +72,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Paper Liquid Metal extension
 Includes Paper Shaders, Copyright Lost Coast Labs, Inc., under Apache-2.0.
 See crates/render/src/paper-shaders/LICENSE, NOTICE and UPSTREAM.md.
+
+BiRefNet background removal
+Uses the official MIT-licensed BiRefNet general model by Peng Zheng and contributors.
+Inference uses ort (MIT OR Apache-2.0) and ONNX Runtime (MIT). On Windows, DirectML
+uses the Microsoft DirectML binary licence. Complete model/runtime notices are in
+third-party/birefnet; pinned sources and SHA-256 values are documented in
+docs/birefnet-background-removal.md. Model/runtime binaries are downloaded on demand.

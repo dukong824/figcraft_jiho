@@ -2,6 +2,10 @@ use super::*;
 
 /// Platform services the app crate provides (file dialogs, clipboard, URLs).
 pub trait Services {
+    /// Native local inference; the browser does not download or run an unsupported runtime.
+    fn remove_background(&mut self, _bytes: Arc<Vec<u8>>) -> Result<BackgroundJob, String> {
+        Err("BiRefNet background removal is available in the Windows desktop build.".into())
+    }
     fn pick_open(&mut self, _title: &str, _exts: &[&str]) -> DialogFuture {
         Box::pin(std::future::ready(None))
     }
@@ -67,6 +71,28 @@ pub trait Services {
     /// player asks every frame while its prototype has gamepad triggers.
     fn gamepad_held(&mut self) -> u32 {
         0
+    }
+}
+
+pub struct BackgroundResult {
+    pub png: Vec<u8>,
+    pub mask: Vec<u8>,
+    pub backend: String,
+}
+
+pub enum BackgroundEvent {
+    Progress(String),
+    Finished(Result<BackgroundResult, String>),
+}
+
+pub struct BackgroundJob {
+    pub events: std::sync::mpsc::Receiver<BackgroundEvent>,
+    pub cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Drop for BackgroundJob {
+    fn drop(&mut self) {
+        self.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

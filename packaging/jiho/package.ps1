@@ -41,8 +41,10 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Image Filters.figcraf
 Copy-Item -LiteralPath (Join-Path $repoRoot 'VALIDATION.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-liquid-metal.md') -Destination (Join-Path $stage 'PAPER-LIQUID-METAL.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-image-filters.md') -Destination (Join-Path $stage 'PAPER-IMAGE-FILTERS.md')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/birefnet-background-removal.md') -Destination (Join-Path $stage 'BACKGROUND-REMOVAL.md')
 $licenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Path $licenses | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/birefnet') -Destination (Join-Path $licenses 'BiRefNet') -Recurse
 foreach ($file in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $licenses
 }
@@ -78,6 +80,9 @@ pause
 figcraft_jiho — personal FigCraft build
 
 Run figcraft_jiho.exe or Open Demo.cmd.
+Select one image > Design > Custom > Remove background (BiRefNet).
+First use downloads approximately 710 MB (+973 MB if CPU fallback is needed); then works offline.
+Original resolution and source image are preserved. See BACKGROUND-REMOVAL.md.
 Open Image Filters.cmd shows all seven filters beside the original image.
 Select an image, then click + in Design > Custom to choose Liquid Metal or one of seven Image Filters.
 Water animates; the other Image Filters are static. All filters have editable controls.

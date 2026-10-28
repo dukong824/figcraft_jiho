@@ -23,6 +23,7 @@ compile_error!("Windows GNU builds must set windows_slim_errors to keep UI Autom
 #[cfg(target_os = "macos")]
 mod apple_events;
 mod args;
+mod background_removal;
 mod control_server;
 mod gamepad;
 mod graphics;

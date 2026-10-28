@@ -35,6 +35,11 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
     let (clicked, header) = widgets::section_header_resp(ui, title, &buttons, empty);
     if custom {
         menu_popup(&header).id(Id::unique("add_custom_material")).open_memory(clicked.map(|_| egui::SetOpenCommand::Toggle)).show(|ui| {
+            if menu_item(ui, tr("Remove background (BiRefNet)"), "") {
+                app.run("image.removeBackground", json!({}));
+                ui.close();
+            }
+            ui.separator();
             if menu_item(ui, tr("Liquid Metal"), "") {
                 add_custom(app, ui, &ids, "paperLiquidMetal", list.as_ref().map(Vec::len));
                 ui.close();
@@ -64,6 +69,11 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
     });
     if !custom {
         style_picker::chip(app, ui, doc, &ids, StyleSlot::Effect);
+    }
+    if custom {
+        egui::Frame::new().inner_margin(egui::Margin::symmetric(PAD as i8, 4)).show(ui, |ui| {
+            background_controls(app, ui, doc, sel);
+        });
     }
     let Some(list) = list else { return };
     let indices: Vec<usize> = list.iter().enumerate().filter(|(_, e)| is_custom(e) == custom).map(|(i, _)| i).collect();
@@ -139,6 +149,44 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
             }
         }
     }
+}
+
+fn background_controls(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
+    if let Some(pending) = &app.background_removal {
+        let status = pending.status.clone();
+        ui.horizontal_wrapped(|ui| {
+            ui.spinner();
+            ui.label(status);
+        });
+        if ui.button(tr("Cancel")).clicked() {
+            app.background_removal = None;
+        }
+        return;
+    }
+    let Some(&id) = sel.first().filter(|_| sel.len() == 1) else { return };
+    let Some((index, img)) = doc.node(id).and_then(|n| {
+        n.fills.iter().enumerate().find_map(|(i, p)| match &p.kind {
+            figcraft_doc::color::PaintKind::Image(img) if p.visible => Some((i, img)),
+            _ => None,
+        })
+    }) else {
+        return;
+    };
+    ui.vertical(|ui| {
+        ui.label(tr("Auto background removal"));
+        if img.background_removal.is_some() {
+            ui.small("BiRefNet · Original resolution");
+            if ui.button(tr("Restore original background")).clicked() {
+                app.run("image.background.restore", json!({"id":id,"index":index}));
+            }
+        } else {
+            if ui.add(egui::Button::new(tr("Remove background (BiRefNet)")).frame(true).min_size(vec2(ui.available_width(), 28.0))).clicked() {
+                app.run("image.removeBackground", json!({}));
+            }
+            ui.small(tr("Local processing · Free · Commercial use"));
+            ui.small(tr("First use: ~710 MB. CPU fallback: +973 MB. Photos stay on this PC."));
+        }
+    });
 }
 
 /// Salt of the flags that keep effect rows' settings open.

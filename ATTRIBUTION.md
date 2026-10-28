@@ -56,3 +56,12 @@ egui's default fonts (compiled into the `egui`/`epaint` crates) keep their own l
 | Path | Author / source | License | Notes |
 |---|---|---|---|
 | `crates/render/src/paper-shaders/noise.png` | Lost Coast Labs, Inc. / [Paper Shaders, commit 1923e9f5](https://github.com/paper-design/shaders/blob/1923e9f536ea079e2a95d23291cbfacfd69d37f6/packages/shaders/src/get-shader-noise-texture.ts) | Apache-2.0 | Original 128 × 128 noise texture decoded unchanged from the source data URL; LICENSE, NOTICE and SHA-256 are beside it |
+
+## BiRefNet (downloaded on demand)
+
+| Asset / path | Author / source | License | Notes |
+|---|---|---|---|
+| `BiRefNet-general-epoch_244.onnx` (application cache, not in Git) | ZhengPeng / [official BiRefNet v1](https://github.com/ZhengPeng7/BiRefNet/releases/tag/v1) | MIT | Official general-purpose model; fixed SHA-256 in `docs/birefnet-background-removal.md`; notice in `third-party/birefnet/LICENSE` |
+| `BiRefNet-general-fp16.onnx` (application cache) | ZhengPeng, ONNX Community / [fixed model revision](https://huggingface.co/onnx-community/BiRefNet-ONNX/tree/534d3c82d3bb8b2f0867db6dfbc3a525b8e42f67) | MIT | FP16 conversion of the same model; fixed SHA-256; no reduction of inference dimensions |
+| ONNX Runtime 1.22.0 native DLLs (application cache) | Microsoft / official NuGet | MIT + third-party notices | Complete notices in `third-party/birefnet` |
+| DirectML 1.15.4 native DLL (application cache) | Microsoft / official NuGet | Microsoft DirectML binary licence | Windows only; complete terms in `third-party/birefnet/DirectML-LICENSE.txt` |
