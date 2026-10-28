@@ -1,0 +1,67 @@
+name: Purpose video maker Windows package
+
+on:
+  push:
+    branches: ['purpose-video-maker/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: purpose-video-maker-windows
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer and portable ZIP
+        shell: pwsh
+        run: ./packaging/purpose-video-maker/package.ps1
+      - name: Smoke test bundled media tools and installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dist = 'dist/purpose-video-maker'
+          $stage = Join-Path $dist 'Purpose-video-maker-0.1.0-windows-x64'
+          $ffmpeg = Join-Path $stage 'ffmpeg/bin/ffmpeg.exe'
+          $ffprobe = Join-Path $stage 'ffmpeg/bin/ffprobe.exe'
+          $sample = Join-Path $env:RUNNER_TEMP 'purpose-sample.mp4'
+          & $ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=blue:s=1280x720:r=30 -t 1 -c:v libopenh264 -b:v 5M -pix_fmt yuv420p -y $sample
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled H.264 encoder failed' }
+          $codec = (& $ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $sample).Trim()
+          if ($codec -ne 'h264') { throw "Unexpected codec: $codec" }
+          $portable = Join-Path $env:RUNNER_TEMP 'purpose-portable'
+          Expand-Archive -LiteralPath (Join-Path $dist 'Purpose-video-maker-0.1.0-windows-x64-portable.zip') -DestinationPath $portable
+          & (Join-Path $portable 'Purpose-video-maker-0.1.0-windows-x64/purpose-video-maker.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'Portable application failed' }
+          $setup = Join-Path $dist 'Purpose-video-maker-0.1.0-windows-x64-setup.exe'
+          $installed = Join-Path $env:RUNNER_TEMP 'purpose-installed'
+          $process = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installed") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          & (Join-Path $installed 'purpose-video-maker.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'Installed application failed' }
+          if (-not (Test-Path -LiteralPath (Join-Path $installed 'ffmpeg/bin/ffmpeg.exe'))) { throw 'Installed FFmpeg missing' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: purpose-video-maker-windows-x64
+          path: |
+            dist/purpose-video-maker/*-setup.exe
+            dist/purpose-video-maker/*-portable.zip
+            dist/purpose-video-maker/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

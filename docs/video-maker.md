@@ -29,7 +29,8 @@ cargo run --locked -p figcraft --bin figcraft -- --video-maker
    자막의 시작·끝과 내용을 조정한 뒤 MP4로 내보냅니다. 내보낸 파일과 SRT는
    해당 영상의 `exports` 폴더에 저장됩니다.
 
-FFmpeg의 `ffmpeg`, `ffprobe`, `ffplay` 명령이 PATH에 있어야 합니다. `ffplay`는
+소스 실행 시 FFmpeg의 `ffmpeg`, `ffprobe`, `ffplay` 명령이 PATH에 있어야 합니다.
+Windows 배포본에는 세 도구가 포함되며, 실행 파일 옆 `ffmpeg/bin`에서 자동으로 찾습니다. `ffplay`는
 소스 재생에만 필요합니다. 타임라인은 현재 영상 클립을 순서대로 잇고 오디오를
 섞습니다. 앱 내부 미리보기는 선택한 클립의 정지 프레임이며, 소리와 움직임은
 **소스 재생**을 누르면 별도 `ffplay` 창에서 확인할 수 있습니다. 자막은 MP4의
@@ -49,4 +50,7 @@ Codex 사용 가능 여부와 한도는 사용자의 구독·계정 상태를 �
 이 버전은 로컬 영상 제작의 첫 번째 완결된 흐름입니다. 클립을 끌어놓는 다중
 비디오 트랙, 전환 효과, 키프레임, 앱 안의 연속 재생·오디오 모니터링, 하드웨어
 인코딩은 아직 없습니다. 영상은 1280×720, 30fps H.264/AAC MP4로 내보냅니다.
-기존 FigCraft의 Windows 배포 ZIP에는 새 실행 파일과 FFmpeg를 묶는 작업이 별도로 필요합니다.
+Windows x64 설치 파일과 포터블 ZIP은 `packaging/purpose-video-maker/package.ps1`로
+빌드합니다. 설치는 사용자 계정 아래에만 적용되며, 프로젝트 데이터는 설치 폴더 밖에
+저장됩니다. CI의 `Purpose video maker Windows package` 작업은 설치 후 실행 및
+포함된 FFmpeg의 H.264 인코딩까지 확인합니다. 설치 파일은 코드 서명되지 않았습니다.

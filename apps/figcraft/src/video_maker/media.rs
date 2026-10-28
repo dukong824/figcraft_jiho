@@ -5,8 +5,22 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn ffmpeg() -> String {
-    std::env::var("PURPOSE_FFMPEG").unwrap_or_else(|_| "ffmpeg".into())
+pub fn tool(name: &str) -> PathBuf {
+    if name == "ffmpeg"
+        && let Some(path) = std::env::var_os("PURPOSE_FFMPEG")
+    {
+        return path.into();
+    }
+    let filename = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(directory) = exe.parent()
+    {
+        let bundled = directory.join("ffmpeg").join("bin").join(&filename);
+        if bundled.is_file() {
+            return bundled;
+        }
+    }
+    filename.into()
 }
 
 pub fn probe(path: &Path) -> Result<(AssetKind, f64, bool), String> {
@@ -14,7 +28,7 @@ pub fn probe(path: &Path) -> Result<(AssetKind, f64, bool), String> {
     if extension == "figcraft" {
         return Ok((AssetKind::Design, 0.0, false));
     }
-    let output = Command::new("ffprobe")
+    let output = Command::new(tool("ffprobe"))
         .args(["-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json"])
         .arg(path)
         .output()
@@ -38,7 +52,7 @@ pub fn probe(path: &Path) -> Result<(AssetKind, f64, bool), String> {
 }
 
 pub fn preview_png(path: &Path, seconds: f64) -> Result<Vec<u8>, String> {
-    let output = Command::new(ffmpeg())
+    let output = Command::new(tool("ffmpeg"))
         .args(["-v", "error", "-nostdin", "-ss"])
         .arg(format!("{:.3}", seconds.max(0.0)))
         .arg("-i")
@@ -61,6 +75,23 @@ pub fn srt_time(n: f64) -> String {
     format!("{:02}:{:02}:{:02},{:03}", ms / 3_600_000, ms / 60_000 % 60, ms / 1000 % 60, ms % 1000)
 }
 
+fn h264_encoder() -> Result<&'static str, String> {
+    let output =
+        Command::new(tool("ffmpeg")).args(["-hide_banner", "-encoders"]).output().map_err(|e| format!("ffmpeg를 실행할 수 없습니다: {e}"))?;
+    if !output.status.success() {
+        return Err("FFmpeg 인코더 목록을 읽을 수 없습니다".into());
+    }
+    let names: Vec<_> =
+        String::from_utf8_lossy(&output.stdout).lines().filter_map(|line| line.split_whitespace().nth(1).map(str::to_owned)).collect();
+    if names.iter().any(|name| name == "libopenh264") {
+        Ok("libopenh264")
+    } else if names.iter().any(|name| name == "libx264") {
+        Ok("libx264")
+    } else {
+        Err("H.264 인코더(libopenh264 또는 libx264)가 FFmpeg에 없습니다".into())
+    }
+}
+
 pub fn export(video: &Video, video_dir: &Path) -> Result<PathBuf, String> {
     let visual: Vec<&Clip> = video.clips.iter().filter(|c| !c.audio_track).collect();
     if visual.is_empty() {
@@ -77,7 +108,7 @@ pub fn export(video: &Video, video_dir: &Path) -> Result<PathBuf, String> {
     let name = format!("{}-{}", if safe.is_empty() { "video" } else { &safe }, stamp);
     let output_path = exports.join(format!("{name}.mp4"));
     let partial_path = exports.join(format!("{name}.partial.mp4"));
-    let mut command = Command::new(ffmpeg());
+    let mut command = Command::new(tool("ffmpeg"));
     command.args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y"]);
     let mut filters = Vec::new();
     let mut video_labels = Vec::new();
@@ -152,7 +183,7 @@ pub fn export(video: &Video, video_dir: &Path) -> Result<PathBuf, String> {
     if !video.captions.is_empty() && video.captions.iter().any(|c| !c.text.trim().is_empty() && c.end > c.start) {
         command.args(["-map", &format!("{input_index}:s:0"), "-c:s", "mov_text"]);
     }
-    command.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-movflags", "+faststart", "-t"]);
+    command.args(["-c:v", h264_encoder()?, "-b:v", "5M", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-movflags", "+faststart", "-t"]);
     command.arg(seconds(duration)).arg(&partial_path).stdout(Stdio::null());
     let result = command.output().map_err(|e| format!("ffmpeg를 실행할 수 없습니다: {e}"))?;
     if !result.status.success() {

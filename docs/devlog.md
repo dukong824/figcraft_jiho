@@ -1,5 +1,12 @@
 # Local extension devlog
 
+## 2026-10-28 — M-PURPOSE-VIDEO: Windows distribution
+
+Add a per-user Inno Setup installer and portable Windows x64 ZIP for Purpose video maker.
+Package a checksum-pinned LGPL FFmpeg build, make the app resolve bundled media tools, and
+select its OpenH264 encoder when available. Windows CI builds both packages and verifies
+the installer, installed executable, and bundled H.264 encoding.
+
 ## 2026-10-28 — M-PURPOSE-VIDEO: video production workspace
 
 Add a second desktop entry point for channel and video projects, keeping FigCraft's design

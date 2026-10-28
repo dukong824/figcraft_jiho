@@ -392,7 +392,7 @@ impl VideoMaker {
                         && let Some(asset) = video.asset(clip.asset_id)
                     {
                         let path = self.store.asset_path(video.id, asset);
-                        match Command::new("ffplay")
+                        match Command::new(super::media::tool("ffplay"))
                             .args(["-autoexit", "-loglevel", "error", "-ss"])
                             .arg(format!("{:.3}", clip.trim_start))
                             .args(["-t"])
