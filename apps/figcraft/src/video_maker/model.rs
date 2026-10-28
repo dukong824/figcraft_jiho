@@ -103,12 +103,58 @@ pub struct Video {
     pub id: u64,
     pub name: String,
     pub assets: Vec<Asset>,
+    #[serde(default)]
+    pub script_title: String,
+    #[serde(default)]
+    pub script_body: String,
+    #[serde(default)]
+    pub script_assets: Vec<u64>,
+    /// Read only during migration from the original block editor.
+    #[serde(default, skip_serializing)]
     pub script: Vec<ScriptBlock>,
     pub clips: Vec<Clip>,
     pub captions: Vec<Caption>,
 }
 
 impl Video {
+    fn migrate_script(&mut self) {
+        let legacy = std::mem::take(&mut self.script);
+        if self.script_title.is_empty() {
+            self.script_title = legacy
+                .iter()
+                .find(|block| matches!(block.kind, BlockKind::Heading) && !block.text.trim().is_empty())
+                .map_or_else(|| format!("{}의 대본", self.name), |block| block.text.clone());
+        }
+        if self.script_body.is_empty() {
+            let mut title_used = false;
+            let mut paragraphs = Vec::new();
+            for block in legacy {
+                match block.kind {
+                    BlockKind::Heading if !title_used && block.text == self.script_title => title_used = true,
+                    BlockKind::Asset(id) => {
+                        if !self.script_assets.contains(&id) {
+                            self.script_assets.push(id);
+                        }
+                        if !block.text.trim().is_empty() {
+                            paragraphs.push(block.text);
+                        }
+                    }
+                    _ if !block.text.trim().is_empty() => paragraphs.push(block.text),
+                    _ => {}
+                }
+            }
+            self.script_body = paragraphs.join("\n\n");
+        } else {
+            for block in legacy {
+                if let BlockKind::Asset(id) = block.kind
+                    && !self.script_assets.contains(&id)
+                {
+                    self.script_assets.push(id);
+                }
+            }
+        }
+    }
+
     pub fn duration(&self) -> f64 {
         self.clips.iter().filter(|c| !c.audio_track).map(Clip::duration).sum()
     }
@@ -135,7 +181,7 @@ pub struct Workspace {
 
 impl Default for Workspace {
     fn default() -> Self {
-        Self { version: 1, next_id: 1, selected_video: None, channels: Vec::new() }
+        Self { version: 2, next_id: 1, selected_video: None, channels: Vec::new() }
     }
 }
 
@@ -168,10 +214,10 @@ impl Workspace {
             id,
             name: format!("새 영상 {}", channel.videos.len() + 1),
             assets: Vec::new(),
-            script: vec![
-                ScriptBlock { kind: BlockKind::Heading, text: "영상 제목".into() },
-                ScriptBlock { kind: BlockKind::Paragraph, text: String::new() },
-            ],
+            script_title: format!("새 영상 {}의 대본", channel.videos.len() + 1),
+            script_body: String::new(),
+            script_assets: Vec::new(),
+            script: Vec::new(),
             clips: Vec::new(),
             captions: Vec::new(),
         });
@@ -192,13 +238,26 @@ impl Store {
         let path = root.join("workspace.json");
         let backup = root.join("workspace.json.bak");
         let source = if path.exists() { &path } else { &backup };
-        let data = if source.exists() {
+        let mut data: Workspace = if source.exists() {
             let bytes = fs::read(source).map_err(|e| format!("프로젝트 목록을 읽을 수 없습니다: {e}"))?;
             serde_json::from_slice(&bytes).map_err(|e| format!("프로젝트 목록이 손상되었습니다: {e}"))?
         } else {
             Workspace::default()
         };
-        Ok(Self { root, data, writable: true })
+        let migrated = data.version < 2;
+        if migrated {
+            for channel in &mut data.channels {
+                for video in &mut channel.videos {
+                    video.migrate_script();
+                }
+            }
+            data.version = 2;
+        }
+        let store = Self { root, data, writable: true };
+        if migrated {
+            store.save()?;
+        }
+        Ok(store)
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -246,6 +305,7 @@ pub fn file_name(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn videos_are_selected_and_clips_measure_the_timeline() {
@@ -257,5 +317,41 @@ mod tests {
         v.clips.push(Clip { id: 3, asset_id: 4, trim_start: 2.0, trim_end: 7.0, start: 0.0, volume: 1.0, audio_track: false });
         v.clips.push(Clip { id: 5, asset_id: 6, trim_start: 0.0, trim_end: 10.0, start: 0.0, volume: 1.0, audio_track: true });
         assert_eq!(v.duration(), 5.0);
+    }
+
+    #[test]
+    fn old_blocks_become_a_freeform_document_without_losing_asset_references() {
+        let root = std::env::temp_dir().join(format!("purpose-script-migration-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("workspace.json"),
+            serde_json::to_vec(&json!({
+                "version": 1,
+                "next_id": 4,
+                "selected_video": 2,
+                "channels": [{"id": 1, "name": "채널", "videos": [{
+                    "id": 2, "name": "영상", "assets": [{"id": 3, "name": "사진.png", "file": "3.png", "kind": "Image", "duration": 5.0, "has_audio": false}],
+                    "script": [
+                        {"kind": "Heading", "text": "나의 대본"},
+                        {"kind": "Paragraph", "text": "첫 문단"},
+                        {"kind": "Scene", "text": "두 번째 장면"},
+                        {"kind": {"Asset": 3}, "text": "참고 이미지"}
+                    ], "clips": [], "captions": []
+                }]}]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let store = Store::load(root.clone()).unwrap();
+        let (_, video) = store.data.selected().unwrap();
+        assert_eq!(video.script_title, "나의 대본");
+        assert_eq!(video.script_body, "첫 문단\n\n두 번째 장면\n\n참고 이미지");
+        assert_eq!(video.script_assets, [3]);
+        assert!(video.script.is_empty());
+        let saved = fs::read_to_string(root.join("workspace.json")).unwrap();
+        assert!(!saved.contains("\"script\""));
+        assert_eq!(Store::load(root.clone()).unwrap().data.version, 2);
+        let _ = fs::remove_dir_all(root);
     }
 }

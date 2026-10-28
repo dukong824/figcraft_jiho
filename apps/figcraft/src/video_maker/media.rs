@@ -250,6 +250,9 @@ mod tests {
                 Asset { id: 1, name: "frame.png".into(), file: "1.png".into(), kind: AssetKind::Image, duration: 1.0, has_audio: false },
                 Asset { id: 2, name: "tone.wav".into(), file: "2.wav".into(), kind: AssetKind::Audio, duration: 1.0, has_audio: true },
             ],
+            script_title: String::new(),
+            script_body: String::new(),
+            script_assets: Vec::new(),
             script: Vec::new(),
             clips: vec![
                 Clip { id: 3, asset_id: 1, trim_start: 0.0, trim_end: 1.0, start: 0.0, volume: 1.0, audio_track: false },
@@ -294,6 +297,9 @@ mod tests {
                 .into_iter()
                 .map(|id| Asset { id, name: format!("{id}.mp4"), file: format!("{id}.mp4"), kind: AssetKind::Video, duration: 1.0, has_audio: true })
                 .collect(),
+            script_title: String::new(),
+            script_body: String::new(),
+            script_assets: Vec::new(),
             script: Vec::new(),
             clips: [1, 2]
                 .into_iter()

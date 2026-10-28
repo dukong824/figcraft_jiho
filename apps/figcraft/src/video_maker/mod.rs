@@ -2,14 +2,16 @@
 mod media;
 mod model;
 mod navigation;
+mod style;
 mod ui;
 
 use crate::services;
 use figcraft_engine::Session;
 use figcraft_ui_egui::FigApp;
-use model::{Asset, BlockKind, Clip, ScriptBlock, Section, Store, Video};
+use model::{Asset, Clip, Section, Store, Video};
 use navigation::{Route, Tabs};
 use serde_json::json;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -21,6 +23,11 @@ pub struct VideoMaker {
     tabs: Tabs,
     sidebar_open: bool,
     search: String,
+    library_query: String,
+    library_view: LibraryView,
+    thumbnails: HashMap<u64, egui::TextureHandle>,
+    thumbnail_jobs: HashMap<u64, Receiver<Result<egui::ColorImage, String>>>,
+    thumbnail_failed: HashSet<u64>,
     message: String,
     fonts_ready: bool,
     design_loaded: Option<u64>,
@@ -32,6 +39,12 @@ pub struct VideoMaker {
     ai_response: String,
     ai_job: Option<Receiver<Result<String, String>>>,
     export_job: Option<Receiver<Result<PathBuf, String>>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LibraryView {
+    Tiles,
+    List,
 }
 
 impl VideoMaker {
@@ -60,6 +73,11 @@ impl VideoMaker {
             tabs: Tabs::new(initial),
             sidebar_open: true,
             search: String::new(),
+            library_query: String::new(),
+            library_view: LibraryView::Tiles,
+            thumbnails: HashMap::new(),
+            thumbnail_jobs: HashMap::new(),
+            thumbnail_failed: HashSet::new(),
             message: String::new(),
             fonts_ready: false,
             design_loaded: None,
@@ -148,8 +166,11 @@ impl VideoMaker {
 
     fn add_to_script(&mut self, id: u64) {
         let video_id = self.video_id();
-        if let Some(video) = self.store.data.selected_mut() {
-            video.script.push(ScriptBlock { kind: BlockKind::Asset(id), text: String::new() });
+        if let Some(video) = self.store.data.selected_mut()
+            && video.asset(id).is_some()
+            && !video.script_assets.contains(&id)
+        {
+            video.script_assets.push(id);
             self.save();
         }
         if let Some(video_id) = video_id {
@@ -263,6 +284,30 @@ impl VideoMaker {
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
+        let finished: Vec<_> = self
+            .thumbnail_jobs
+            .iter()
+            .filter_map(|(&id, rx)| match rx.try_recv() {
+                Ok(result) => Some((id, result)),
+                Err(mpsc::TryRecvError::Disconnected) => Some((id, Err("미리보기 작업 종료".into()))),
+                Err(mpsc::TryRecvError::Empty) => None,
+            })
+            .collect();
+        for (id, result) in finished {
+            self.thumbnail_jobs.remove(&id);
+            match result {
+                Ok(image) => {
+                    self.thumbnails.insert(id, ctx.load_texture(format!("purpose-asset-{id}"), image, egui::TextureOptions::LINEAR));
+                }
+                Err(_) => {
+                    self.thumbnail_failed.insert(id);
+                }
+            }
+            ctx.request_repaint();
+        }
+        if !self.thumbnail_jobs.is_empty() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
         if let Some(rx) = &self.export_job {
             match rx.try_recv() {
                 Ok(Ok(path)) => {
@@ -305,7 +350,7 @@ impl VideoMaker {
         }
         let Some(video) = self.video().cloned() else { return };
         let root = self.store.video_dir(video.id);
-        let script = video.script.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n");
+        let script = format!("{}\n\n{}", video.script_title, video.script_body);
         let assets = video.assets.iter().map(|a| format!("{} ({}, {:.1}s)", a.name, a.kind.label(), a.duration)).collect::<Vec<_>>().join("\n");
         let clips = video
             .clips
@@ -389,7 +434,7 @@ mod tests {
         let (_, video) = store.data.selected().unwrap();
         assert_eq!(video.assets[0].kind, model::AssetKind::Image);
         assert!(store.asset_path(video.id, &video.assets[0]).is_file());
-        assert!(video.script.iter().any(|b| matches!(b.kind, BlockKind::Asset(found) if found == id)));
+        assert!(video.script_assets.contains(&id));
         assert_eq!(video.clips[0].asset_id, id);
         let _ = fs::remove_dir_all(root);
     }

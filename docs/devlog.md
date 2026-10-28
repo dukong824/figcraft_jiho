@@ -1,5 +1,15 @@
 # Local extension devlog
 
+## 2026-10-28 — M-PURPOSE-VIDEO: desktop layout and freeform script
+
+Rework the video maker shell with a compact browser bar, restrained document typography,
+aligned navigation, muted surfaces and original code-drawn icons. Replace script blocks with
+one editable title and a freeform body; migrate old headings, paragraphs, scenes and asset
+references on load. Add a filename-only library list and a thumbnail tile view with bounded
+background preview generation for images and videos. Restyle the edit preview, timeline and
+controls, and update the Windows package to 0.1.2. Review the script, both library modes and
+the edit tab in a running Linux GUI.
+
 ## 2026-10-28 — M-PURPOSE-VIDEO: browser navigation and window chrome
 
 Give the video workspace session tabs with independent back/forward history, a new-tab chooser,
