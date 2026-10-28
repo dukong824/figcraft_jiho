@@ -743,7 +743,8 @@ impl Node {
 
     /// Maximum distance (in local units) painting can reach outside the node box.
     pub fn paint_reach(&self) -> f64 {
-        let fx = self.effects.iter().map(Effect::reach).fold(0.0, f64::max);
+        let fx = self.effects.iter().filter(|e| !matches!(e.kind, EffectKind::TornPaper(_))).map(Effect::reach).fold(0.0, f64::max)
+            + self.effects.iter().filter(|e| matches!(e.kind, EffectKind::TornPaper(_))).map(Effect::reach).sum::<f64>();
         self.outline_reach() + fx + self.spread_miter_reach()
     }
 
@@ -751,15 +752,34 @@ impl Node {
     /// grown by its strokes and glyphs, then by its effects (see [`Node::grow_by_effects`]).
     pub fn own_paint_bounds(&self, world: Affine) -> figcraft_geom::Rect {
         let o = self.outline_reach();
-        self.grow_by_effects(figcraft_geom::transform_rect_bbox(world, self.local_rect().inflate(o, o)))
+        self.grow_by_effects_at(figcraft_geom::transform_rect_bbox(world, self.local_rect().inflate(o, o)), world)
     }
 
     /// Page-space area `b` grown by what this node's visible effects paint around it: blurs all
     /// round, drop shadows towards their offset (in page units, as the renderer draws them), so a
     /// shadow falling down adds room below and none above.
     pub fn grow_by_effects(&self, b: figcraft_geom::Rect) -> figcraft_geom::Rect {
+        self.grow_by_effects_at(b, Affine::IDENTITY)
+    }
+
+    pub(crate) fn grow_by_effects_at(&self, b: figcraft_geom::Rect, world: Affine) -> figcraft_geom::Rect {
         let miter = self.spread_miter_reach();
+        let m = world.as_coeffs();
+        let paper = self
+            .effects
+            .iter()
+            .filter(|e| e.visible)
+            .filter_map(|e| match &e.kind {
+                EffectKind::TornPaper(p) => Some(p.reach()),
+                _ => None,
+            })
+            .sum::<f64>();
+        // The paper is in local units; include transforms and add room for shadows cast by it.
+        let paper_x = paper * (m[0].abs() + m[2].abs());
+        let paper_y = paper * (m[1].abs() + m[3].abs());
+        let b = if paper_x.is_finite() && paper_y.is_finite() { b.inflate(paper_x, paper_y) } else { b };
         self.effects.iter().filter(|e| e.visible).fold(b, |r, e| match &e.kind {
+            EffectKind::TornPaper(_) => r,
             EffectKind::DropShadow(s) => {
                 let g = s.radius.abs() * 1.5 + s.spread.max(0.0) + miter;
                 let (dx, dy) = s.offset;

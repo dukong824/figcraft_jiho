@@ -1,100 +1,143 @@
 use super::*;
-use figcraft_color::{Color, Paint};
-use figcraft_doc::{Document, Effect, EffectKind, NodeId, NodeKind, TornPaper};
+use figcraft_doc::{Effect, EffectKind, TornPaper};
 
-fn fixture(kind: NodeKind, p: TornPaper) -> (Document, NodeId) {
-    let mut doc = Document::new("torn paper");
-    let page = doc.first_page().unwrap();
-    let id = doc.create(page, kind, "Paper", 40.0, 30.0, 180.0, 130.0).unwrap();
-    let n = doc.get_mut(id).unwrap();
-    n.fills = vec![Paint::solid(Color::from_hex("CC6040").unwrap())];
-    n.effects = vec![Effect { kind: EffectKind::TornPaper(p), visible: true }];
-    (doc, id)
+fn fixture() -> (Document, NodeId) {
+    let mut d = Document::new("Papierwerk");
+    let id = d.create(d.first_page().unwrap(), NodeKind::Rectangle, "Original", 80.0, 70.0, 180.0, 130.0).unwrap();
+    let n = d.get_mut(id).unwrap();
+    n.fills = vec![figcraft_color::Paint::solid(Color::from_hex("CC6040").unwrap())];
+    n.effects = vec![Effect { kind: EffectKind::TornPaper(TornPaper::default()), visible: true }];
+    (d, id)
 }
-
-fn paint(doc: &Document, id: NodeId, origin: (f64, f64), width: u32, height: u32) -> Pixmap {
-    let mut pix = Pixmap::new(width, height).unwrap();
-    render_nodes_into(doc, &[id], &View { origin, scale: 1.0, width, height }, &mut pix);
-    pix
-}
-
 fn pixel(p: &Pixmap, x: u32, y: u32) -> &[u8] {
     let i = ((y * p.width() + x) * 4) as usize;
     &p.data()[i..i + 4]
 }
-
+fn paint(d: &Document, id: NodeId, origin: (f64, f64), width: u32, height: u32) -> Pixmap {
+    let mut p = Pixmap::new(width, height).unwrap();
+    render_nodes_into(d, &[id], &View { origin, scale: 1.0, width, height }, &mut p);
+    p
+}
 #[test]
-fn torn_paper_cuts_a_varied_edge_preserves_interior_and_export_size() {
-    let (doc, id) = fixture(NodeKind::Rectangle, TornPaper::default());
-    let out = render_node(&doc, id, 1.0).unwrap();
-    assert_eq!((out.width(), out.height()), (180, 130));
-    assert_eq!(pixel(&out, 90, 65), [204, 96, 64, 255]);
-    assert!(out.data().chunks_exact(4).any(|p| p[3] == 0));
-    assert!(out.data().chunks_exact(4).any(|p| p[3] > 0 && p[3] < 255));
-    assert!(out.data().chunks_exact(4).any(|p| p[3] == 255 && p[1] > 150), "paper cross-section is visible");
-    let edge: Vec<_> = (20..160).map(|x| (0..30).find(|&y| pixel(&out, x, y)[3] > 127).unwrap()).collect();
-    assert!(edge.iter().max().unwrap() - edge.iter().min().unwrap() >= 2, "torn edge is irregular, not a straight crop");
-    for p in out.data().chunks_exact(4) {
-        assert!(p[..3].iter().all(|&c| c <= p[3]));
+fn papierwerk_grows_outward_and_preserves_every_opaque_source_pixel() {
+    let (d, id) = fixture();
+    let b = export_bounds(&d, id).unwrap();
+    assert!(b.x0 < 80.0 && b.y0 < 70.0 && b.x1 > 260.0 && b.y1 > 200.0);
+    let p = paint(&d, id, (0.0, 0.0), 340, 280);
+    for y in 70..200 {
+        for x in 80..260 {
+            assert_eq!(pixel(&p, x, y), [204, 96, 64, 255]);
+        }
     }
+    assert!(p.data().chunks_exact(4).enumerate().any(|(i, p)| i % 340 < 80 && p[3] > 0));
+    let edge: Vec<_> = (85..255).map(|x| (20..70).find(|&y| pixel(&p, x, y)[3] > 127).unwrap()).collect();
+    assert!(edge.iter().max().unwrap() - edge.iter().min().unwrap() >= 4, "border is ragged");
+    assert!(p.data().chunks_exact(4).any(|p| p[3] > 0 && p[3] < 255));
+    assert!(p.data().chunks_exact(4).all(|p| p[..3].iter().all(|&c| c <= p[3])));
+    assert!(render_node(&d, id, 1.0).unwrap().width() > 180);
 }
-
 #[test]
-fn torn_paper_seed_zero_depth_and_visibility_are_reversible() {
-    let (mut doc, id) = fixture(NodeKind::Rectangle, TornPaper::default());
-    let first = render_node(&doc, id, 1.0).unwrap();
-    assert_eq!(first.data(), render_node(&doc, id, 1.0).unwrap().data());
-    let EffectKind::TornPaper(p) = &mut doc.get_mut(id).unwrap().effects[0].kind else { panic!() };
-    p.seed = 2;
-    assert_ne!(first.data(), render_node(&doc, id, 1.0).unwrap().data());
-    doc.get_mut(id).unwrap().effects[0].visible = false;
-    let clean = render_node(&doc, id, 1.0).unwrap();
-    let effect = &mut doc.get_mut(id).unwrap().effects[0];
-    effect.visible = true;
-    let EffectKind::TornPaper(p) = &mut effect.kind else { panic!() };
-    p.depth = 0.0;
-    assert_eq!(clean.data(), render_node(&doc, id, 1.0).unwrap().data());
-}
-
-#[test]
-fn torn_paper_partial_views_and_rotated_shapes_keep_the_same_pattern() {
-    for transform in [Affine::IDENTITY, Affine::rotate(0.19), Affine::scale(2.0)] {
-        let (mut doc, id) = fixture(NodeKind::Rectangle, TornPaper::default());
-        doc.get_mut(id).unwrap().transform *= transform;
-        let full = paint(&doc, id, (-30.0, -20.0), 340, 260);
-        let part = paint(&doc, id, (75.0, 35.0), 95, 95);
-        for y in 0..95 {
-            for x in 0..95 {
-                for (a, b) in pixel(&full, x + 105, y + 55).iter().zip(pixel(&part, x, y)) {
-                    assert!(a.abs_diff(*b) <= 1, "seam at {x},{y}, transform={transform:?}: {a}/{b}");
+fn papierwerk_partial_views_rotation_and_scaling_do_not_reseed_the_border() {
+    for xf in [Affine::IDENTITY, Affine::rotate(0.19), Affine::scale(2.0)] {
+        let (mut d, id) = fixture();
+        d.get_mut(id).unwrap().transform *= xf;
+        let full = paint(&d, id, (-30.0, -20.0), 500, 420);
+        let part = paint(&d, id, (55.0, 35.0), 120, 120);
+        for y in 0..120 {
+            for x in 0..120 {
+                for (a, b) in pixel(&full, x + 85, y + 55).iter().zip(pixel(&part, x, y)) {
+                    assert!(a.abs_diff(*b) <= 1, "seam {x},{y}: {a}/{b}, {xf:?}");
                 }
             }
         }
     }
 }
-
 #[test]
-fn torn_paper_shadows_follow_the_cut_pixels() {
-    let (mut doc, id) = fixture(NodeKind::Rectangle, TornPaper::default());
-    let mut shadow = Effect::drop_shadow();
-    if let EffectKind::DropShadow(s) = &mut shadow.kind {
-        s.spread = 3.0;
+fn papierwerk_zero_width_visibility_and_seed_are_reversible() {
+    let (mut d, id) = fixture();
+    let first = paint(&d, id, (0.0, 0.0), 340, 280);
+    assert_eq!(first.data(), paint(&d, id, (0.0, 0.0), 340, 280).data());
+    if let EffectKind::TornPaper(p) = &mut d.get_mut(id).unwrap().effects[0].kind {
+        p.seed = 2;
     }
-    doc.get_mut(id).unwrap().effects.push(shadow);
-    let n = doc.get(id).unwrap();
-    assert!(crate::shadow::hiding_cover(&doc, n).is_none(), "an old rectangular outline must not hide the ripped notches");
-    let layer = paint(&doc, id, (0.0, 0.0), 300, 220);
-    let caster = crate::shadow::Caster::new(&doc, n, &layer, Affine::IDENTITY, 1.0);
-    assert!(caster.silhouette.is_none(), "spread uses the new pixels, not the old vector outline");
+    assert_ne!(first.data(), paint(&d, id, (0.0, 0.0), 340, 280).data());
+    d.get_mut(id).unwrap().effects[0].visible = false;
+    let clean = paint(&d, id, (0.0, 0.0), 340, 280);
+    let e = &mut d.get_mut(id).unwrap().effects[0];
+    e.visible = true;
+    if let EffectKind::TornPaper(p) = &mut e.kind {
+        p.width = 0.0;
+    }
+    assert_eq!(clean.data(), paint(&d, id, (0.0, 0.0), 340, 280).data());
+}
+#[test]
+fn papierwerk_shadows_use_the_added_paper_and_translucent_sources_still_work() {
+    let (mut d, id) = fixture();
+    d.get_mut(id).unwrap().effects.push(Effect::drop_shadow());
+    assert!(crate::shadow::hiding_cover(&d, d.get(id).unwrap()).is_none());
+    d.get_mut(id).unwrap().fills[0].opacity = 0.3;
+    let p = paint(&d, id, (0.0, 0.0), 340, 280);
+    assert!(pixel(&p, 70, 120)[3] > 0);
+    assert!(p.data().chunks_exact(4).all(|p| p[..3].iter().all(|&c| c <= p[3])));
+}
+#[test]
+fn papierwerk_empty_and_nonfinite_settings_are_safe() {
+    let mut p = Pixmap::new(120, 90).unwrap();
+    crate::torn_paper::apply(&mut p, &TornPaper::default(), Affine::IDENTITY, (120.0, 90.0));
+    assert!(p.data().iter().all(|&b| b == 0));
+    let hostile = TornPaper { width: f64::NAN, roughness: f64::INFINITY, ..Default::default() };
+    crate::torn_paper::apply(&mut p, &hostile, Affine::scale(0.0), (120.0, 90.0));
+    assert!(p.data().iter().all(|&b| b == 0));
 }
 
+// Pixel samples generated by executing the pinned upstream JS, not the Rust implementation.
 #[test]
-fn torn_paper_keeps_the_interior_of_translucent_paints() {
-    let (mut doc, id) = fixture(NodeKind::Rectangle, TornPaper::default());
-    doc.get_mut(id).unwrap().fills[0].opacity = 0.3;
-    let ripped = render_node(&doc, id, 1.0).unwrap();
-    doc.get_mut(id).unwrap().effects[0].visible = false;
-    let clean = render_node(&doc, id, 1.0).unwrap();
-    assert_eq!(pixel(&ripped, 90, 65), pixel(&clean, 90, 65));
-    assert!(ripped.data().chunks_exact(4).filter(|p| p[3] > 0).count() > 10000);
+fn papierwerk_matches_upstream_border_samples() {
+    let (w, h, pad) = (228_u32, 198_u32, 54_u32);
+    let mut pix = Pixmap::new(w, h).unwrap();
+    for y in pad..pad + 90 {
+        for x in pad..pad + 120 {
+            let i = ((y * w + x) * 4) as usize;
+            pix.data_mut()[i..i + 4].copy_from_slice(&[204, 96, 64, 255]);
+        }
+    }
+    crate::torn_paper::apply(&mut pix, &TornPaper::default(), Affine::translate((f64::from(pad), f64::from(pad))), (120.0, 90.0));
+    for (x, y, rgba) in [
+        (59, 33, [226, 224, 219, 175]),
+        (59, 34, [226, 224, 218, 255]),
+        (59, 35, [226, 224, 218, 255]),
+        (59, 36, [226, 224, 219, 255]),
+        (79, 32, [233, 232, 226, 109]),
+        (79, 33, [234, 232, 226, 255]),
+        (79, 34, [235, 233, 228, 255]),
+        (79, 35, [236, 234, 229, 255]),
+        (99, 31, [235, 233, 227, 158]),
+        (99, 32, [233, 231, 225, 255]),
+        (99, 33, [231, 229, 224, 255]),
+        (99, 34, [230, 228, 222, 255]),
+        (119, 29, [229, 227, 221, 39]),
+        (119, 30, [229, 227, 221, 234]),
+        (119, 31, [230, 228, 223, 255]),
+        (119, 32, [232, 230, 224, 255]),
+        (139, 26, [223, 221, 216, 80]),
+        (139, 27, [223, 221, 216, 255]),
+        (139, 28, [223, 222, 216, 255]),
+        (139, 29, [224, 222, 216, 255]),
+        (159, 26, [239, 237, 231, 92]),
+        (159, 27, [238, 236, 230, 255]),
+        (159, 28, [237, 236, 230, 255]),
+        (159, 29, [236, 234, 229, 255]),
+    ] {
+        let a = pixel(&pix, x, y);
+        let alpha = f64::from(rgba[3]);
+        let expected = [
+            (f64::from(rgba[0]) * alpha / 255.0).round() as u8,
+            (f64::from(rgba[1]) * alpha / 255.0).round() as u8,
+            (f64::from(rgba[2]) * alpha / 255.0).round() as u8,
+            rgba[3],
+        ];
+        for (a, b) in a.iter().zip(expected) {
+            assert!(a.abs_diff(b) <= 1, "upstream mismatch {x},{y}: {a}/{b}");
+        }
+    }
 }

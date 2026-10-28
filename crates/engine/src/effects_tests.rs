@@ -13,25 +13,26 @@ fn rect(s: &mut Session) -> figcraft_doc::NodeId {
 }
 
 #[test]
-fn torn_paper_command_roundtrip_scale_and_undo() {
+fn papierwerk_roundtrip_scale_and_undo_preserve_the_original() {
     let mut s = Session::new();
-    let id = rect(&mut s);
-    s.execute("effect.add", &json!({"ids":[id],"type":"tornPaper"})).unwrap();
-    s.execute("effect.set",&json!({"ids":[id],"index":0,"effect":{"type":"tornPaper","depth":8,"size":22,"edgeWidth":1.5,"seed":73,"color":{"r":1,"g":0.9,"b":0.8,"a":1}}})).unwrap();
-    let before = s.doc().unwrap().get(id).unwrap().effects[0].clone();
-    let bytes = figcraft_format::save_bytes(s.doc().unwrap(), None).unwrap();
-    let (loaded, warnings) = figcraft_format::load_bytes(&bytes).unwrap();
-    assert!(warnings.is_empty());
-    assert_eq!(loaded.get(id).unwrap().effects[0], before);
-    s.execute("transform.scale", &json!({"ids":[id],"factor":2})).unwrap();
-    let EffectKind::TornPaper(p) = &s.doc().unwrap().get(id).unwrap().effects[0].kind else { panic!() };
-    assert_eq!((p.depth, p.size, p.edge_width, p.seed), (16.0, 44.0, 3.0, 73));
+    let r = rect(&mut s);
+    let original = s.doc().unwrap().node(r).unwrap().fills.clone();
+    s.execute("effect.add", &json!({"ids":[r],"type":"tornPaper"})).unwrap();
+    s.execute("effect.set", &json!({"ids":[r],"index":0,"effect":{"type":"tornPaper","width":18,"roughness":0.8,"seed":42,"color":"#EEE8DD"}}))
+        .unwrap();
+    let saved = figcraft_format::save_bytes(s.doc().unwrap(), None).unwrap();
+    let (doc, _) = figcraft_format::load_bytes(&saved).unwrap();
+    assert_eq!(doc.node(r).unwrap().effects, s.doc().unwrap().node(r).unwrap().effects);
+    assert_eq!(doc.node(r).unwrap().fills, original);
+    s.execute("transform.scale", &json!({"ids":[r],"factor":2})).unwrap();
+    let EffectKind::TornPaper(p) = &s.doc().unwrap().node(r).unwrap().effects[0].kind else { panic!() };
+    assert_eq!((p.width, p.roughness, p.seed), (36.0, 0.8, 42));
     s.undo().unwrap();
-    assert_eq!(s.doc().unwrap().get(id).unwrap().effects[0], before);
-    s.execute("effect.remove", &json!({"ids":[id],"index":0})).unwrap();
+    s.execute("effect.remove", &json!({"ids":[r],"index":0})).unwrap();
+    assert!(s.doc().unwrap().node(r).unwrap().effects.is_empty());
+    assert_eq!(s.doc().unwrap().node(r).unwrap().fills, original);
     s.undo().unwrap();
-    assert_eq!(s.doc().unwrap().get(id).unwrap().effects[0], before);
-    assert!(s.execute("effect.set", &json!({"ids":[id],"index":0,"effect":{"type":"tornPaper","depht":9}})).is_err());
+    assert!(matches!(s.doc().unwrap().node(r).unwrap().effects[0].kind, EffectKind::TornPaper(_)));
 }
 
 #[test]

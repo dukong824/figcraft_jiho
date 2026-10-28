@@ -38,13 +38,15 @@ foreach ($source in $files.Keys) {
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Demo.figcraft') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Image Filters.figcraft') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repoRoot 'examples/jiho/Papierwerk.figcraft') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'VALIDATION.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-liquid-metal.md') -Destination (Join-Path $stage 'PAPER-LIQUID-METAL.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/paper-image-filters.md') -Destination (Join-Path $stage 'PAPER-IMAGE-FILTERS.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/birefnet-background-removal.md') -Destination (Join-Path $stage 'BACKGROUND-REMOVAL.md')
-Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/custom-effects-ko-torn-paper.md') -Destination (Join-Path $stage 'CUSTOM-EFFECTS-KO-TORN-PAPER.md')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/papierwerk-torn-paper.md') -Destination (Join-Path $stage 'PAPIERWERK-TORN-PAPER.md')
 $licenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Path $licenses | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/papierwerk') -Destination (Join-Path $licenses 'Papierwerk') -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/birefnet') -Destination (Join-Path $licenses 'BiRefNet') -Recurse
 foreach ($file in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $licenses
@@ -69,6 +71,10 @@ start "" "%~dp0figcraft_jiho.exe" "%~dp0Image Filters.figcraft"
 '@ | Set-Content -LiteralPath (Join-Path $stage 'Open Image Filters.cmd') -Encoding ascii
 @'
 @echo off
+start "" "%~dp0figcraft_jiho.exe" "%~dp0Papierwerk.figcraft"
+'@ | Set-Content -LiteralPath (Join-Path $stage 'Open Papierwerk.cmd') -Encoding ascii
+@'
+@echo off
 if "%~1"=="" (
   echo Drop an image onto this script to make a 3-second Liquid Metal GIF.
   pause
@@ -81,8 +87,10 @@ pause
 figcraft_jiho — personal FigCraft build
 
 Run figcraft_jiho.exe or Open Demo.cmd.
-Custom parameter names/options are localized in Korean. Custom > + > Torn Paper adds editable torn edges.
-See CUSTOM-EFFECTS-KO-TORN-PAPER.md for the Korean terminology and edge controls.
+Rebuilt from v0.11.2.5 + Papierwerk outward torn paper border.
+Select an image or shape > Design > Custom > + > Torn Paper (Papierwerk).
+See PAPIERWERK-TORN-PAPER.md. The original image is preserved; paper extends outside it.
+Open Papierwerk.cmd shows the editable paper-border example on a dark backdrop.
 Select one image > Design > Custom > Remove background (BiRefNet).
 First use downloads approximately 710 MB (+973 MB if CPU fallback is needed); then works offline.
 Original resolution and source image are preserved. See BACKGROUND-REMOVAL.md.

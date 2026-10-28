@@ -1,0 +1,153 @@
+// Papierwerk source excerpt, Copyright (c) 2026 gentrax, MIT.
+// Commit 4ec40a640dec268d2cdf34a77b1d8d2983377bbd; original line ranges 770-802, 829-848, 936-1031.
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function smoothstep(t){ return t * t * (3 - 2 * t); }
+
+/* Eine Value-Noise-Oktave: kleines Zufallsgitter, glatt hochskaliert. */
+function noiseOctave(w, h, cell, rnd){
+  const gw = Math.max(2, Math.round(w / cell) + 1);
+  const gh = Math.max(2, Math.round(h / cell) + 1);
+  const g = new Float32Array(gw * gh);
+  for (let i = 0; i < g.length; i++) g[i] = rnd();
+
+  const out = new Float32Array(w * h);
+  const sx = (gw - 1) / w, sy = (gh - 1) / h;
+  for (let y = 0; y < h; y++){
+    const fy = y * sy, y0 = Math.min(gh - 2, fy | 0);
+    const ty = smoothstep(fy - y0);
+    for (let x = 0; x < w; x++){
+      const fx = x * sx, x0 = Math.min(gw - 2, fx | 0);
+      const tx = smoothstep(fx - x0);
+      const a = g[y0 * gw + x0],       b = g[y0 * gw + x0 + 1];
+      const c = g[(y0 + 1) * gw + x0], d = g[(y0 + 1) * gw + x0 + 1];
+      out[y * w + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+    }
+  }
+  return out;
+}
+
+function smoothNoise(w, h, cell, seed, octaves = 3){
+  const rnd = mulberry32(seed);
+  const total = new Float32Array(w * h);
+  let amp = 1, ampSum = 0, c = cell;
+  for (let o = 0; o < octaves; o++){
+    const n = noiseOctave(w, h, Math.max(2, c), rnd);
+    for (let i = 0; i < n.length; i++) total[i] += n[i] * amp;
+    ampSum += amp; amp *= 0.5; c /= 2.3;
+  }
+  let mean = 0;
+  for (let i = 0; i < total.length; i++){ total[i] /= ampSum; mean += total[i]; }
+  mean /= total.length;
+  let mx = 1e-6;
+  for (let i = 0; i < total.length; i++){
+    total[i] -= mean;
+    const a = Math.abs(total[i]); if (a > mx) mx = a;
+  }
+  for (let i = 0; i < total.length; i++) total[i] /= mx;
+  return total;
+}
+
+/* Exakte euklidische Distanztransformation (Felzenszwalb, separabel).
+   Eine Chamfer-Naeherung liegt hier bis zu 1.3 px daneben — das reicht, um
+   den Rissrand sichtbar zu verziehen, also wird exakt gerechnet. */
+function edt1d(f, n, d, v, z){
+  let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+  for (let q = 1; q < n; q++){
+    let s = ((f[q] + q*q) - (f[v[k]] + v[k]*v[k])) / (2*q - 2*v[k]);
+    while (s <= z[k]){
+      k--;
+      s = ((f[q] + q*q) - (f[v[k]] + v[k]*v[k])) / (2*q - 2*v[k]);
+    }
+    k++; v[k] = q; z[k] = s; z[k+1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++){
+    while (z[k+1] < q) k++;
+    const dq = q - v[k];
+    d[q] = dq*dq + f[v[k]];
+  }
+}
+
+function distanceOutside(alpha, w, h){
+  const INF = 1e12;
+  const sq = new Float64Array(w * h);
+  for (let i = 0; i < sq.length; i++) sq[i] = alpha[i] > 110 ? 0 : INF;
+
+  const n = Math.max(w, h);
+  const f = new Float64Array(n), d = new Float64Array(n);
+  const v = new Int32Array(n), z = new Float64Array(n + 1);
+
+  for (let x = 0; x < w; x++){                 // Spalten
+    for (let y = 0; y < h; y++) f[y] = sq[y*w + x];
+    edt1d(f, h, d, v, z);
+    for (let y = 0; y < h; y++) sq[y*w + x] = d[y];
+  }
+  for (let y = 0; y < h; y++){                 // Zeilen
+    for (let x = 0; x < w; x++) f[x] = sq[y*w + x];
+    edt1d(f, w, d, v, z);
+    for (let x = 0; x < w; x++) sq[y*w + x] = d[x];
+  }
+
+  const out = new Float32Array(w * h);
+  for (let i = 0; i < out.length; i++) out[i] = Math.sqrt(sq[i]);
+  return out;
+}
+
+/* Legt den weissen Ausriss hinter das Sprite und liefert ein neues RGBA-Bild. */
+function addTornBorder(sp, width, rough, seed, col){
+  if (width <= 0) return sp;
+  const pad = Math.round(width * 2.2) + 6;
+  const w = sp.w + pad * 2, h = sp.h + pad * 2;
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < sp.h; y++){
+    const src = y * sp.w * 4;
+    data.set(sp.data.subarray(src, src + sp.w * 4), ((y + pad) * w + pad) * 4);
+  }
+
+  const alpha = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) alpha[i] = data[i * 4 + 3];
+  const dist = distanceOutside(alpha, w, h);
+
+  const nC = smoothNoise(w, h, Math.max(18, width * 2.2), seed);
+  const nF = smoothNoise(w, h, Math.max(6, width * 0.6), seed + 7);
+  const jag = 3;
+
+  const out = new Uint8ClampedArray(w * h * 4);
+  const FEATHER = 1.3;      // Breite des Deckungsuebergangs in Pixeln
+
+  for (let y = 0; y < h; y++){
+    const qy = Math.min(h - 1, (y / jag | 0) * jag);
+    for (let x = 0; x < w; x++){
+      const qx = Math.min(w - 1, (x / jag | 0) * jag);
+      const qi = qy * w + qx, i = y * w + x, o = i * 4;
+
+      // Die Schwelle wird blockweise quantisiert — daher kommt die zackige
+      // Rissoptik. Der Abstand geht dagegen KONTINUIERLICH ein, sonst waere
+      // auch die Kante selbst blockig statt nur ihr Verlauf.
+      let th = width * (1 + rough * (0.75 * nC[qi] + 0.25 * nF[qi]));
+      th = Math.max(width * 0.25, Math.min(width * 2, th));
+
+      // Teildeckung am Rand statt harter Kante -> antialiaste Kontur
+      const pa = Math.max(0, Math.min(1, (th - dist[i]) / FEATHER + 0.5));
+      const sa = data[o + 3] / 255;
+      const a = sa + pa * (1 - sa);          // Sprite ueber Papier
+      if (a <= 0.002){ out[o+3] = 0; continue; }
+
+      const tex = 0.94 + 0.06 * nF[i];
+      const pw = pa * (1 - sa);              // Anteil, den das Papier beitraegt
+      out[o]   = (data[o]     * sa + col.r * tex * pw) / a;
+      out[o+1] = (data[o + 1] * sa + col.g * tex * pw) / a;
+      out[o+2] = (data[o + 2] * sa + col.b * tex * pw) / a;
+      out[o+3] = a * 255;
+    }
+  }
+  return { w, h, data: out };
+}

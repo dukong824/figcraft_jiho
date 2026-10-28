@@ -40,11 +40,10 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
                 ui.close();
             }
             ui.separator();
-            if menu_item(ui, tr("Torn Paper"), "") {
+            if menu_item(ui, tr("Torn Paper (Papierwerk)"), "") {
                 add_custom(app, ui, &ids, "tornPaper", list.as_ref().map(Vec::len));
                 ui.close();
             }
-            ui.separator();
             if menu_item(ui, tr("Liquid Metal"), "") {
                 add_custom(app, ui, &ids, "paperLiquidMetal", list.as_ref().map(Vec::len));
                 ui.close();
@@ -93,7 +92,13 @@ fn effect_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId],
                 ui.data_mut(|d| d.insert_temp(Id::unique((FX_OPEN, i)), open));
             }
             let w = ui.available_width() - 56.0;
-            let label = if matches!(e.kind, EffectKind::PaperLiquidMetal(_)) { tr("Liquid Metal") } else { tr(e.label()) };
+            let label = if matches!(e.kind, EffectKind::PaperLiquidMetal(_)) {
+                tr("Liquid Metal")
+            } else if matches!(e.kind, EffectKind::TornPaper(_)) {
+                tr("Torn Paper")
+            } else {
+                tr(e.label())
+            };
             let resp = widgets::dropdown(ui, label, w, None);
             menu_popup(&resp).show(|ui| {
                 for (l, ty) in Effect::TYPES {
@@ -387,25 +392,19 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 })
             };
             row(ui, 24.0, |ui| {
-                ui.label(tr("Paper edge color"));
+                ui.label(tr("Paper border color"));
             });
             row(ui, 32.0, |ui| fx_color(app, ui, ids, i, e, false, &edit_color));
             for (field, label, value, min, max, step) in [
-                ("depth", crate::i18n::tr_noop("Tear depth"), p.depth, 0.0, 128.0, 0.1),
-                ("size", crate::i18n::tr_noop("Tear spacing"), p.size, 1.0, 512.0, 0.1),
-                ("roughness", crate::i18n::tr_noop("Edge irregularity"), p.roughness, 0.0, 1.0, 0.01),
-                ("fibers", crate::i18n::tr_noop("Paper fibers"), p.fibers, 0.0, 1.0, 0.01),
-                ("edgeWidth", crate::i18n::tr_noop("Paper edge width"), p.edge_width, 0.0, 16.0, 0.1),
-                ("seed", crate::i18n::tr_noop("Pattern seed"), f64::from(p.seed), 0.0, 10000.0, 1.0),
+                ("width", crate::i18n::tr_noop("Paper border width"), p.width, 0.0, 128.0, 0.1),
+                ("roughness", crate::i18n::tr_noop("Paper border raggedness"), p.roughness, 0.0, 1.0, 0.01),
+                ("seed", crate::i18n::tr_noop("Paper border seed"), f64::from(p.seed), 0.0, 10000.0, 1.0),
             ] {
-                let ed = super::custom_controls::number(ui, Id::unique(("torn_paper", i, field)), label, value, min..=max, step);
+                let ed = super::custom_controls::number(ui, Id::unique(("papierwerk", i, field)), label, value, min..=max, step);
                 edit(app, ed, &|v| {
                     with(&|p| match field {
-                        "depth" => p.depth = v.clamp(min, max),
-                        "size" => p.size = v.clamp(min, max),
+                        "width" => p.width = v.clamp(min, max),
                         "roughness" => p.roughness = v.clamp(min, max),
-                        "fibers" => p.fibers = v.clamp(min, max),
-                        "edgeWidth" => p.edge_width = v.clamp(min, max),
                         _ => p.seed = v.round().clamp(min, max) as u32,
                     })
                 });
@@ -445,7 +444,11 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                         let _ = app.session.commit_interaction();
                         ui.data_mut(|d| d.insert_temp(drag_id, false));
                     }
-                    ui.label(tr(super::custom_labels::color(spec.name, spec.label)));
+                    ui.label(tr(match spec.name {
+                        "colorBack" => "Background",
+                        "colorFront" => "Foreground",
+                        _ => spec.label,
+                    }));
                     if let Some(hex) = widgets::text_field(ui, Id::unique(("paper_hex", i, spec.name)), &color.to_hex(), 70.0, "")
                         && let Some(c) = figcraft_color::Color::from_hex_or_name(&hex)
                     {
@@ -454,12 +457,12 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 });
             }
             if p.filter == figcraft_doc::PaperFilterKind::Water {
-                for (name, value) in [("speed", p.speed), ("frame", p.frame)] {
+                for (name, label, value) in [("speed", "Speed", p.speed), ("frame", "Frame (ms)", p.frame)] {
                     let range = if name == "speed" { -3.0..=3.0 } else { -3.6e6..=3.6e6 };
                     let ed = super::custom_controls::number(
                         ui,
                         Id::unique(("paper_filter_time", i, name)),
-                        super::custom_labels::time(name),
+                        label,
                         value,
                         range,
                         if name == "frame" { 1.0 } else { 0.01 },
@@ -471,18 +474,18 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 let value = p.value(spec);
                 if spec.boolean {
                     row(ui, 32.0, |ui| {
-                        if widgets::checkbox(ui, value >= 0.5, tr(super::custom_labels::paper(p.filter, spec.name, spec.label))) {
+                        if widgets::checkbox(ui, value >= 0.5, tr(spec.label)) {
                             set(app, change(&|p| p.set_value(spec.name, if value >= 0.5 { 0.0 } else { 1.0 })), None);
                         }
                     });
                 } else if !spec.options.is_empty() {
                     row(ui, 32.0, |ui| {
-                        ui.label(tr(super::custom_labels::paper(p.filter, spec.name, spec.label)));
+                        ui.label(tr(spec.label));
                         let selected = spec.options.iter().find(|(_, v)| *v == value).map(|(label, _)| *label).unwrap_or("Custom");
-                        let resp = widgets::dropdown(ui, tr(super::custom_labels::option(selected)), ui.available_width() - 8.0, None);
+                        let resp = widgets::dropdown(ui, tr(selected), ui.available_width() - 8.0, None);
                         menu_popup(&resp).show(|ui| {
                             for (label, v) in spec.options {
-                                if menu_item(ui, tr(super::custom_labels::option(label)), "") {
+                                if menu_item(ui, tr(label), "") {
                                     set(app, change(&|p| p.set_value(spec.name, *v)), None);
                                     ui.close();
                                 }
@@ -493,7 +496,7 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                     let ed = super::custom_controls::number(
                         ui,
                         Id::unique(("paper_filter", i, spec.name)),
-                        super::custom_labels::paper(p.filter, spec.name, spec.label),
+                        spec.label,
                         value,
                         spec.min..=spec.max,
                         spec.step,
@@ -510,14 +513,8 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                     }
                 })
             };
-            row(ui, 24.0, |ui| {
-                ui.label(tr("Metal tint"));
-            });
             row(ui, 32.0, |ui| {
                 fx_color(app, ui, ids, i, e, false, &edit_color);
-            });
-            row(ui, 24.0, |ui| {
-                ui.label(tr("Material background"));
             });
             row(ui, 32.0, |ui| {
                 fx_color(app, ui, ids, i, e, true, &edit_color);
@@ -537,14 +534,7 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
             ];
             for (field, (label, value, min, max)) in fields.iter().enumerate() {
                 let step = if matches!(field, 5 | 9 | 10) { 1.0 } else { 0.01 };
-                let ed = super::custom_controls::number(
-                    ui,
-                    Id::unique(("paper_metal", i, field)),
-                    super::custom_labels::metal(label),
-                    *value,
-                    *min..=*max,
-                    step,
-                );
+                let ed = super::custom_controls::number(ui, Id::unique(("paper_metal", i, field)), label, *value, *min..=*max, step);
                 edit(app, ed, &|v| {
                     with(&|m| {
                         let v = v.clamp(*min, *max);
@@ -570,26 +560,16 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
                 }
             });
             if !p.use_image {
-                const SHAPES: [&str; 5] = [
-                    crate::i18n::tr_noop("None|metalShape"),
-                    crate::i18n::tr_noop("Circle|metalShape"),
-                    crate::i18n::tr_noop("Daisy|metalShape"),
-                    crate::i18n::tr_noop("Diamond|metalShape"),
-                    crate::i18n::tr_noop("Metaballs|metalShape"),
-                ];
-                row(ui, 32.0, |ui| {
-                    ui.label(tr("Built-in shape"));
-                    let selected = SHAPES.get(p.shape as usize).copied().unwrap_or(SHAPES[0]);
-                    let resp = widgets::dropdown(ui, tr(selected), ui.available_width() - 8.0, None);
-                    menu_popup(&resp).show(|ui| {
-                        for (shape, label) in SHAPES.iter().enumerate() {
-                            if menu_item(ui, tr(label), "") {
-                                set(app, with(&|m| m.shape = shape as u32), None);
-                                ui.close();
-                            }
-                        }
-                    });
-                });
+                const SHAPES: [&str; 5] = ["None", "Circle", "Daisy", "Diamond", "Metaballs"];
+                let ed = super::custom_controls::number(
+                    ui,
+                    Id::unique(("paper_shape", i)),
+                    SHAPES.get(p.shape as usize).copied().unwrap_or("Shape"),
+                    f64::from(p.shape),
+                    0.0..=4.0,
+                    1.0,
+                );
+                edit(app, ed, &|v| with(&|m| m.shape = v.round().clamp(0.0, 4.0) as u32));
             }
         }
         EffectKind::Glass(g) => {

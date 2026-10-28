@@ -1,16 +1,14 @@
 # Local extension devlog
 
-## 2026-10-28 — M-JIHO-TORN: Korean custom controls and torn paper
+## 2026-10-28 — M-JIHO-PAPIERWERK: outward paper border from .5
 
-Translate every custom parameter, option and color with context-specific Korean terminology,
-including RGB shifts, optical caustics, animation time offsets and CMYK dot gain. Keep saved
-keys/ranges and original Paper shader sources unchanged. Replace the fallback metal-shape number
-with a named dropdown. Add an original serialized Torn Paper effect: compact alpha-distance
-erosion with local seeded noise, fine fibers and an exposed paper cross-section. Preserve the
-interior and export size, follow painted alpha (including translucent fills), keep partial/rotated/
-scaled views consistent, and cast shadows from the torn pixels. Add native CPU/WASM rendering,
-command round trips, scaling/undo, SVG/PDF raster output and explicit warnings for formats without
-this effect. Verification and known environment failures are recorded in `VALIDATION.md`.
+Re-establish the v0.11.2.5 source tree (273bdf51) without rewriting published history,
+then port the pinned MIT Papierwerk border algorithm to Rust. Keep the source image
+above paper and grow render/export bounds. Retain BiRefNet, Paper and sliders exactly
+as in .5; do not reapply .6 custom-parameter localization or inward erosion. Attribute
+the upstream code and adapt its premultiplied compositing, local noise and shadows.
+Validate against pixel samples from the actual upstream JS and outward/preservation,
+pan, native round-trip and undo regressions. Results: VALIDATION.md.
 
 ## 2026-10-28 — M-JIHO-BIREFNET: local background removal
 

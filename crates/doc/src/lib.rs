@@ -737,7 +737,7 @@ impl Document {
             return Some(own);
         }
         Some(match (self.children_render_bounds(n, depth + 1), &n.kind) {
-            (Some(kids), NodeKind::Group) => n.grow_by_effects(kids),
+            (Some(kids), NodeKind::Group) => n.grow_by_effects_at(kids, self.world_transform(id)),
             (Some(kids), _) => own.union(kids),
             (None, _) => own,
         })

@@ -12,9 +12,10 @@ See [maintenance](docs/jiho-maintenance.md). Existing parity estimates below are
 Local addition (2026-10-28): Custom also offers local BiRefNet background removal on Windows,
 with original-size lossless output, retained source/mask, restore and undo.
 See [scope and licences](docs/birefnet-background-removal.md).
-Custom effect controls now have contextual Korean terminology, and the original Torn Paper
-effect provides reproducible, fibrous edges with editable parameters and raster-preserving exports.
-See [usage and terminology](docs/custom-effects-ko-torn-paper.md).
+Rebuilt from the v0.11.2.5 source tree: Custom now offers the MIT-licensed Papierwerk
+outward paper border. The source artwork stays intact and exports include the added paper.
+See [usage and provenance](docs/papierwerk-torn-paper.md).
+
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)
 

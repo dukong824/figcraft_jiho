@@ -783,7 +783,7 @@ pub enum EffectKind {
     PaperLiquidMetal(crate::PaperLiquidMetal),
     /// The seven original Paper Image Filters.
     PaperImageFilter(crate::PaperImageFilter),
-    /// Original torn silhouette with a fibrous paper cross-section.
+    /// Papierwerk paper border behind the original painted silhouette.
     TornPaper(crate::TornPaper),
 }
 
@@ -890,6 +890,7 @@ impl Effect {
             EffectKind::DropShadow(s) => s.radius.abs() * 1.5 + s.spread.max(0.0) + s.offset.0.abs().max(s.offset.1.abs()),
             EffectKind::LayerBlur(b) => b.max_radius() * 1.5,
             EffectKind::Texture(t) if !t.clip_to_shape => t.radius.abs(),
+            EffectKind::TornPaper(p) => p.reach(),
             _ => 0.0,
         }
     }

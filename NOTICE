@@ -79,3 +79,8 @@ Inference uses ort (MIT OR Apache-2.0) and ONNX Runtime (MIT). On Windows, Direc
 uses the Microsoft DirectML binary licence. Complete model/runtime notices are in
 third-party/birefnet; pinned sources and SHA-256 values are documented in
 docs/birefnet-background-removal.md. Model/runtime binaries are downloaded on demand.
+
+Papierwerk outward paper border
+Rust adaptation of addTornBorder, exact Euclidean distance transform, mulberry32 and
+smoothNoise from gentrax/papierwerk-editor, Copyright (c) 2026 gentrax, MIT.
+See third-party/papierwerk/LICENSE and UPSTREAM.md for pinned source and adaptations.

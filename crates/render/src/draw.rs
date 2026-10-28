@@ -467,13 +467,12 @@ pub fn effect_margin(n: &Node) -> f64 {
         })
         .filter(|m| m.is_finite())
         .fold(0.0, f64::max);
-    // Sequential alpha erosion reads farther inward than the other effects' sampling margin.
     ordinary
         + n.effects
             .iter()
             .filter(|e| e.visible)
             .map(|e| match &e.kind {
-                EffectKind::TornPaper(p) if p.sanitized().depth > 0.0 => p.sanitized().depth + 4.0,
+                EffectKind::TornPaper(p) => p.reach(),
                 _ => 0.0,
             })
             .sum::<f64>()
@@ -546,14 +545,10 @@ fn draw_layer(ctx: &Ctx, pix: &mut Pixmap, n: &Node, parent_xf: Affine, depth: u
     let (pw, ph) = (pix.width(), pix.height());
     let local = bounds_within(ctx.doc, n, 0, ctx.lod.then_some(ctx.scale), Some(ctx.bounds)).0;
     let dev = device_rect(xf, local);
-    // A transparent sampling rim seeds the silhouette field even for an opaque rectangle.
-    // This is a working surface only: the effect does not enlarge exported paint bounds.
-    let dev = if crate::torn_paper::active(n) { dev.inflate(1.0, 1.0) } else { dev };
     // Effects that read outside (blur) need a margin when culling. Absurd effects (a spread or
     // blur of millions of pixels) keep a sane layer: what lies further off reads as empty.
     let sample_scale = if crate::torn_paper::active(n) {
         let m = xf.as_coeffs();
-        // Include object/ancestor scaling and shear, not just the canvas zoom.
         ctx.scale.max(m[0].hypot(m[1]).hypot(m[2].hypot(m[3])))
     } else {
         ctx.scale
@@ -702,7 +697,7 @@ fn layer_effects(ctx: &Ctx, layer: &mut Pixmap, n: &Node, id: NodeId, lxf: Affin
             EffectKind::Texture(t) => grain::texture(layer, t, lxf, ctx.scale, id.0 as u32),
             EffectKind::PaperLiquidMetal(p) => crate::paper_metal::apply(ctx, id, layer, lxf, p, index),
             EffectKind::PaperImageFilter(p) => crate::paper_filters::apply(ctx, id, layer, lxf, p, index),
-            EffectKind::TornPaper(p) => crate::torn_paper::apply(layer, p, lxf),
+            EffectKind::TornPaper(p) => crate::torn_paper::apply(layer, p, lxf, (n.width, n.height)),
             _ => {}
         }
     }

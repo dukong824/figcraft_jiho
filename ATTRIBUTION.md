@@ -65,3 +65,9 @@ egui's default fonts (compiled into the `egui`/`epaint` crates) keep their own l
 | `BiRefNet-general-fp16.onnx` (application cache) | ZhengPeng, ONNX Community / [fixed model revision](https://huggingface.co/onnx-community/BiRefNet-ONNX/tree/534d3c82d3bb8b2f0867db6dfbc3a525b8e42f67) | MIT | FP16 conversion of the same model; fixed SHA-256; no reduction of inference dimensions |
 | ONNX Runtime 1.22.0 native DLLs (application cache) | Microsoft / official NuGet | MIT + third-party notices | Complete notices in `third-party/birefnet` |
 | DirectML 1.15.4 native DLL (application cache) | Microsoft / official NuGet | Microsoft DirectML binary licence | Windows only; complete terms in `third-party/birefnet/DirectML-LICENSE.txt` |
+
+## Papierwerk example
+
+| Path | Author / source | License | Notes |
+|---|---|---|---|
+| `examples/jiho/Papierwerk.figcraft` | FigCraft Jiho contributors, original procedural `filter-source.png` landscape and plain backdrop | MIT OR Apache-2.0 | Editable outward-paper example; no third-party images. Papierwerk algorithm attribution and MIT license: `third-party/papierwerk` |
