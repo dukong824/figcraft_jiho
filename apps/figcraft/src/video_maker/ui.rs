@@ -1,6 +1,7 @@
 use super::VideoMaker;
 use super::media;
 use super::model::{AssetKind, BlockKind, Caption, ScriptBlock, Section};
+use super::navigation::Route;
 use egui::{Color32, RichText, TextEdit};
 use std::process::Command;
 
@@ -15,10 +16,17 @@ impl VideoMaker {
             ctx.request_repaint();
         }
         ctx.set_visuals(egui::Visuals::light());
+        #[cfg(not(target_os = "macos"))]
+        figcraft_ui_egui::tabs::resize_edges(&ctx);
         self.poll_jobs(&ctx);
-        self.sidebar(ui);
+        self.browser_bar(ui);
+        if self.sidebar_open {
+            self.sidebar(ui);
+        }
         let export_design = self.header(ui);
-        if self.section != Section::Design {
+        if self.tabs.route().is_none() {
+            self.empty_tab(ui);
+        } else if self.section != Section::Design {
             if matches!(self.section, Section::Script | Section::Edit) {
                 self.ai_panel(ui);
             }
@@ -32,11 +40,177 @@ impl VideoMaker {
         export_design
     }
 
+    fn browser_bar(&mut self, ui: &mut egui::Ui) {
+        let (shortcut_new, shortcut_close, shortcut_back, shortcut_forward) = ui.ctx().input(|input| {
+            (
+                input.modifiers.command && input.key_pressed(egui::Key::T),
+                input.modifiers.command && input.key_pressed(egui::Key::W),
+                input.modifiers.alt && input.key_pressed(egui::Key::ArrowLeft),
+                input.modifiers.alt && input.key_pressed(egui::Key::ArrowRight),
+            )
+        });
+        let labels: Vec<_> = self
+            .tabs
+            .items()
+            .map(|(index, _id, route, active)| {
+                let label = route.map_or_else(
+                    || "새 탭".to_owned(),
+                    |route| {
+                        let name = self
+                            .store
+                            .data
+                            .channels
+                            .iter()
+                            .flat_map(|channel| &channel.videos)
+                            .find(|video| video.id == route.video_id)
+                            .map_or("없는 영상", |video| video.name.as_str());
+                        format!("{} · {}", route.section.label(), name)
+                    },
+                );
+                (index, label, active)
+            })
+            .collect();
+        let mut select = None;
+        let mut close = None;
+        let mut new_tab = shortcut_new;
+        let mut back = shortcut_back;
+        let mut forward = shortcut_forward;
+        egui::Panel::top("purpose-browser-bar")
+            .exact_size(52.0)
+            .frame(egui::Frame::NONE.fill(Color32::from_rgb(248, 248, 248)).inner_margin(egui::Margin::symmetric(16, 5)))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.add_sized([34.0, 34.0], egui::Button::new("◫")).on_hover_text("사이드바 접기/펼치기").clicked() {
+                        self.sidebar_open = !self.sidebar_open;
+                    }
+                    ui.add_space(7.0);
+                    back |= ui
+                        .add_enabled(self.tabs.can_back(), egui::Button::new(RichText::new("‹").size(25.0)).min_size(egui::vec2(34.0, 34.0)))
+                        .on_hover_text("뒤로 가기 (Alt+←)")
+                        .clicked();
+                    forward |= ui
+                        .add_enabled(self.tabs.can_forward(), egui::Button::new(RichText::new("›").size(25.0)).min_size(egui::vec2(34.0, 34.0)))
+                        .on_hover_text("앞으로 가기 (Alt+→)")
+                        .clicked();
+                    ui.add_space(9.0);
+                    ui.separator();
+                    let tab_width = (ui.available_width() - 146.0).max(40.0);
+                    ui.allocate_ui_with_layout(egui::vec2(tab_width, 40.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        egui::ScrollArea::horizontal().id_salt("purpose-open-tabs").show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                for (index, label, active) in &labels {
+                                    let fill = if *active { Color32::WHITE } else { Color32::from_rgb(244, 244, 244) };
+                                    let stroke = egui::Stroke::new(1.0, Color32::from_gray(226));
+                                    egui::Frame::NONE.fill(fill).stroke(stroke).corner_radius(egui::CornerRadius::same(6)).show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            let tab = ui
+                                                .add_sized(
+                                                    [180.0, 32.0],
+                                                    egui::Button::new(RichText::new(label).strong())
+                                                        .frame(false)
+                                                        .sense(egui::Sense::click_and_drag()),
+                                                )
+                                                .on_hover_text(label);
+                                            if tab.clicked() {
+                                                select = Some(*index);
+                                            }
+                                            if tab.drag_started() {
+                                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                                            }
+                                            if tab.double_clicked() {
+                                                let maximized = ui.input(|input| input.viewport().maximized.unwrap_or(false));
+                                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                                            }
+                                            if ui.small_button("×").on_hover_text("탭 닫기 (Ctrl+W)").clicked() {
+                                                close = Some(*index);
+                                            }
+                                        });
+                                    });
+                                }
+                                if ui
+                                    .add_sized([34.0, 34.0], egui::Button::new(RichText::new("+").size(23.0)).frame(false))
+                                    .on_hover_text("새 탭 (Ctrl+T)")
+                                    .clicked()
+                                {
+                                    new_tab = true;
+                                }
+                                let blank_width = (tab_width - labels.len() as f32 * 230.0 - 38.0).max(16.0);
+                                let blank = ui.allocate_response(egui::vec2(blank_width, 36.0), egui::Sense::click_and_drag());
+                                if blank.drag_started() {
+                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                                }
+                                if blank.double_clicked() {
+                                    let maximized = ui.input(|input| input.viewport().maximized.unwrap_or(false));
+                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                                }
+                            });
+                        });
+                    });
+                    let maximized = ui.input(|input| input.viewport().maximized.unwrap_or(false));
+                    if ui.add_sized([44.0, 40.0], egui::Button::new("─").frame(false)).on_hover_text("최소화").clicked() {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    }
+                    if ui
+                        .add_sized([44.0, 40.0], egui::Button::new(if maximized { "❐" } else { "□" }).frame(false))
+                        .on_hover_text(if maximized { "이전 크기" } else { "최대화" })
+                        .clicked()
+                    {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                    }
+                    if ui.add_sized([44.0, 40.0], egui::Button::new("×").frame(false)).on_hover_text("닫기").clicked() {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+            });
+        if shortcut_close {
+            close = self.tabs.items().find(|(_, _, _, active)| *active).map(|(index, _, _, _)| index);
+        }
+        if let Some(index) = close {
+            self.tabs.close(index);
+            self.sync_route();
+        } else if new_tab {
+            self.tabs.new_tab();
+            self.sync_route();
+        } else if let Some(index) = select {
+            self.tabs.select(index);
+            self.sync_route();
+        } else if back {
+            self.tabs.back();
+            self.sync_route();
+        } else if forward {
+            self.tabs.forward();
+            self.sync_route();
+        }
+    }
+
+    fn empty_tab(&mut self, ui: &mut egui::Ui) {
+        let mut selected = None;
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::WHITE).inner_margin(28.0)).show(ui, |ui| {
+            ui.heading("새 탭");
+            ui.label("왼쪽에서 영상의 라이브러리, 대본, 디자인 또는 편집을 선택하세요.");
+            ui.add_space(18.0);
+            for channel in &self.store.data.channels {
+                ui.label(RichText::new(&channel.name).strong());
+                for video in &channel.videos {
+                    if ui.button(format!("{}의 라이브러리 열기", video.name)).clicked() {
+                        selected = Some(video.id);
+                    }
+                }
+                ui.add_space(10.0);
+            }
+        });
+        if let Some(video_id) = selected {
+            self.navigate(Route { video_id, section: Section::Library });
+        }
+    }
+
     fn sidebar(&mut self, ui: &mut egui::Ui) {
         let mut new_channel = false;
         let mut new_video = None;
-        let mut select_video = None;
+        let mut navigate = None;
+        let mut open_in_new_tab = None;
         let mut dirty = false;
+        let active_route = self.tabs.route();
         egui::Panel::left("purpose-sidebar")
             .exact_size(264.0)
             .resizable(true)
@@ -75,9 +249,15 @@ impl VideoMaker {
                                 continue;
                             }
                             ui.indent(("video", video.id), |ui| {
-                                let selected = self.store.data.selected_video == Some(video.id);
-                                if ui.selectable_label(selected, format!("▸ {}", video.name)).clicked() {
-                                    select_video = Some(video.id);
+                                let selected = active_route.is_some_and(|route| route.video_id == video.id);
+                                if ui.selectable_label(selected, format!("▸ {}", video.name)).on_hover_text("Ctrl+클릭으로 새 탭에서 열기").clicked()
+                                {
+                                    let target = Route { video_id: video.id, section: Section::Library };
+                                    if ui.input(|input| input.modifiers.command) {
+                                        open_in_new_tab = Some(target);
+                                    } else {
+                                        navigate = Some(target);
+                                    }
                                 }
                                 if selected {
                                     for section in Section::ALL {
@@ -87,8 +267,20 @@ impl VideoMaker {
                                             Section::Design => "◇  디자인",
                                             Section::Edit => "▥  편집",
                                         };
-                                        if ui.selectable_label(self.section == section, label).clicked() {
-                                            self.section = section;
+                                        if ui
+                                            .selectable_label(
+                                                active_route.is_some_and(|route| route.video_id == video.id && route.section == section),
+                                                label,
+                                            )
+                                            .on_hover_text("Ctrl+클릭으로 새 탭에서 열기")
+                                            .clicked()
+                                        {
+                                            let target = Route { video_id: video.id, section };
+                                            if ui.input(|input| input.modifiers.command) {
+                                                open_in_new_tab = Some(target);
+                                            } else {
+                                                navigate = Some(target);
+                                            }
                                         }
                                     }
                                 }
@@ -107,15 +299,17 @@ impl VideoMaker {
             dirty = true;
         }
         if let Some(channel) = new_video {
-            self.store.data.add_video(channel);
-            self.selected_clip = None;
+            if let Some(video_id) = self.store.data.add_video(channel) {
+                navigate = Some(Route { video_id, section: Section::Library });
+            }
             dirty = true;
         }
-        if let Some(video) = select_video {
-            self.store.data.selected_video = Some(video);
-            self.selected_clip = None;
-            self.preview_clip = None;
-            dirty = true;
+        if let Some(route) = navigate {
+            self.navigate(route);
+        }
+        if let Some(route) = open_in_new_tab {
+            self.tabs.new_tab();
+            self.navigate(route);
         }
         if dirty {
             self.save();
@@ -125,11 +319,17 @@ impl VideoMaker {
     fn header(&mut self, ui: &mut egui::Ui) -> bool {
         let mut export_design = false;
         let mut dirty = false;
-        let crumb = self
-            .store
-            .data
-            .selected()
-            .map(|(c, v)| format!("{}  /  {}  /  {}", c.name, v.name, self.section.label()))
+        let route = self.tabs.route();
+        let crumb = route
+            .and_then(|route| {
+                self.store.data.channels.iter().find_map(|channel| {
+                    channel
+                        .videos
+                        .iter()
+                        .find(|video| video.id == route.video_id)
+                        .map(|video| format!("{}  /  {}  /  {}", channel.name, video.name, route.section.label()))
+                })
+            })
             .unwrap_or_else(|| "영상 선택".into());
         egui::Panel::top("purpose-header")
             .exact_size(76.0)
@@ -141,10 +341,12 @@ impl VideoMaker {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if let Some(video) = self.store.data.selected_mut() {
-                        dirty |= ui.add(TextEdit::singleline(&mut video.name).desired_width(360.0).font(egui::TextStyle::Heading)).changed();
+                    if route.is_some() {
+                        if let Some(video) = self.store.data.selected_mut() {
+                            dirty |= ui.add(TextEdit::singleline(&mut video.name).desired_width(360.0).font(egui::TextStyle::Heading)).changed();
+                        }
                     } else {
-                        ui.heading("영상 선택");
+                        ui.heading("새 탭");
                     }
                     if self.section == Section::Design && ui.button("디자인을 라이브러리에 저장").clicked() {
                         export_design = true;

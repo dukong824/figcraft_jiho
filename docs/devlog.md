@@ -1,5 +1,18 @@
 # Local extension devlog
 
+## 2026-10-28 — M-PURPOSE-VIDEO: browser navigation and window chrome
+
+Give the video workspace session tabs with independent back/forward history, a new-tab chooser,
+close and sidebar toggle. Its top bar now owns the frameless window controls and dragging on
+Windows/Linux, while the embedded FigCraft editor omits its duplicate tab bar. Closing the
+workspace saves its project and loaded design first. Verified the tab/history model and the
+Linux GUI: new tab, back/forward, sidebar toggle, design view, window drag, maximize/restore,
+minimize, and close. macOS retains its inset system title bar.
+Both desktop binaries pass 67 tests each; format, workspace Clippy, layers, assets and WASM
+checks pass. The full cloud CI remains blocked by the unrelated existing engine test
+`board_tables_tests::a_double_click_types_in_the_cell_and_its_row_grows_with_the_text`
+(1391 other engine tests passed).
+
 ## 2026-10-28 — M-PURPOSE-VIDEO: Windows distribution
 
 Add a per-user Inno Setup installer and portable Windows x64 ZIP for Purpose video maker.

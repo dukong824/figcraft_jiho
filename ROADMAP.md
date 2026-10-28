@@ -17,8 +17,9 @@ outward paper border. The source artwork stays intact and exports include the ad
 See [usage and provenance](docs/papierwerk-torn-paper.md).
 Local addition (2026-10-28): Purpose video maker adds a separate desktop entry point for
 channel/video projects, a shared asset library and script, the unchanged FigCraft design
-editor without Home, a basic video/audio/caption timeline with FFmpeg export, and an optional
-Codex CLI assistant. This does not change the FigCraft parity estimates below. See
+editor without Home, a basic video/audio/caption timeline with FFmpeg export, browser-style
+workspace tabs and window controls, and an optional Codex CLI assistant. This does not change
+the FigCraft parity estimates below. See
 [video maker](docs/video-maker.md).
 
 
@@ -370,6 +371,7 @@ Ranked; detail and milestones in [`docs/roadmap.md`](docs/roadmap.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-28 | local | Purpose video maker navigation: independent tab histories, sidebar toggle, new/close tabs, frameless window controls and tab-bar dragging on Windows/Linux. FigCraft parity scores unchanged. |
 | 2026-10-28 | local | Purpose video maker: channel/video project store, imported assets shared across block script, FigCraft design export and video/audio timeline, H.264/AAC MP4 with SRT and subtitle track, optional read-only Codex CLI assistance. FigCraft parity scores unchanged. |
 | 2026-10-26 | minor | Non-ASCII layer names transliterate in code export (M6, #1235): `class_name` transliterates through the new `deunicode` dependency (pure Rust tables, zero deps, BSD-3-Clause), so Korean, Cyrillic, Latin-diacritic and CJK names become readable ASCII classes (`rogeuin-hwamyeon`, `knopka`, `uber`, `an-niu`) in HTML/CSS/React/Leptos output, component roots and `data-*` variant attributes; symbols-only names take the node's kind (`.text`) instead of `layer-`, and the 40-character cut lands on a word boundary. `html_codegen_tests` updated and extended. Numbers unchanged |
 | 2026-10-25 | minor | egui 0.37 capture lifecycle: screenshots with hidden or unknown visibility queue, request a hidden paint, and expire after 60 seconds if no capture arrives (headless-tested contract). Logic-only edits, saves and inspection continue while hidden. Native visible GUI and forced hidden-window paint, browser and Wayland behavior remain unqualified; parity percentages are unchanged. |

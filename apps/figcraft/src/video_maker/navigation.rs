@@ -1,0 +1,156 @@
+use super::model::Section;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Route {
+    pub video_id: u64,
+    pub section: Section,
+}
+
+#[derive(Clone, Debug)]
+struct Tab {
+    id: u64,
+    history: Vec<Option<Route>>,
+    position: usize,
+}
+
+impl Tab {
+    fn new(id: u64, route: Option<Route>) -> Self {
+        Self { id, history: vec![route], position: 0 }
+    }
+
+    fn route(&self) -> Option<Route> {
+        self.history.get(self.position).copied().flatten()
+    }
+
+    fn navigate(&mut self, route: Route) {
+        if self.route() == Some(route) {
+            return;
+        }
+        self.history.truncate(self.position + 1);
+        self.history.push(Some(route));
+        self.position = self.history.len() - 1;
+    }
+}
+
+pub struct Tabs {
+    tabs: Vec<Tab>,
+    active: usize,
+    next_id: u64,
+}
+
+impl Tabs {
+    pub fn new(initial: Option<Route>) -> Self {
+        Self { tabs: vec![Tab::new(1, initial)], active: 0, next_id: 2 }
+    }
+
+    pub fn route(&self) -> Option<Route> {
+        self.tabs.get(self.active).and_then(Tab::route)
+    }
+
+    pub fn items(&self) -> impl Iterator<Item = (usize, u64, Option<Route>, bool)> + '_ {
+        self.tabs.iter().enumerate().map(|(index, tab)| (index, tab.id, tab.route(), index == self.active))
+    }
+
+    pub fn navigate(&mut self, route: Route) {
+        if let Some(tab) = self.tabs.get_mut(self.active) {
+            tab.navigate(route);
+        }
+    }
+
+    pub fn new_tab(&mut self) {
+        self.tabs.push(Tab::new(self.next_id, None));
+        self.next_id += 1;
+        self.active = self.tabs.len() - 1;
+    }
+
+    pub fn select(&mut self, index: usize) {
+        if index < self.tabs.len() {
+            self.active = index;
+        }
+    }
+
+    pub fn close(&mut self, index: usize) {
+        if index >= self.tabs.len() {
+            return;
+        }
+        self.tabs.remove(index);
+        if self.tabs.is_empty() {
+            self.new_tab();
+        } else if index < self.active || self.active == self.tabs.len() {
+            self.active = self.active.saturating_sub(1);
+        }
+    }
+
+    pub fn can_back(&self) -> bool {
+        self.tabs.get(self.active).is_some_and(|tab| tab.position > 0)
+    }
+
+    pub fn can_forward(&self) -> bool {
+        self.tabs.get(self.active).is_some_and(|tab| tab.position + 1 < tab.history.len())
+    }
+
+    pub fn back(&mut self) {
+        if self.can_back()
+            && let Some(tab) = self.tabs.get_mut(self.active)
+        {
+            tab.position -= 1;
+        }
+    }
+
+    pub fn forward(&mut self) {
+        if self.can_forward()
+            && let Some(tab) = self.tabs.get_mut(self.active)
+        {
+            tab.position += 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn route(video_id: u64, section: Section) -> Route {
+        Route { video_id, section }
+    }
+
+    #[test]
+    fn each_tab_keeps_its_own_history_and_forward_branch_is_replaced() {
+        let first = route(1, Section::Script);
+        let second = route(1, Section::Design);
+        let third = route(2, Section::Edit);
+        let mut tabs = Tabs::new(Some(first));
+        tabs.navigate(second);
+        tabs.new_tab();
+        assert_eq!(tabs.route(), None);
+        tabs.navigate(third);
+        tabs.back();
+        assert_eq!(tabs.route(), None);
+        tabs.forward();
+        assert_eq!(tabs.route(), Some(third));
+        tabs.select(0);
+        assert_eq!(tabs.route(), Some(second));
+        tabs.back();
+        assert_eq!(tabs.route(), Some(first));
+        tabs.navigate(third);
+        assert!(!tabs.can_forward());
+        tabs.select(1);
+        assert_eq!(tabs.route(), Some(third));
+    }
+
+    #[test]
+    fn closing_tabs_selects_a_neighbor_and_keeps_one_blank_tab() {
+        let first = route(1, Section::Library);
+        let mut tabs = Tabs::new(Some(first));
+        tabs.new_tab();
+        tabs.navigate(route(2, Section::Script));
+        tabs.new_tab();
+        tabs.close(1);
+        assert_eq!(tabs.route(), None);
+        tabs.close(1);
+        assert_eq!(tabs.route(), Some(first));
+        tabs.close(0);
+        assert_eq!(tabs.route(), None);
+        assert_eq!(tabs.items().count(), 1);
+    }
+}

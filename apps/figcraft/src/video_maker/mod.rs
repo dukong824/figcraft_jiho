@@ -1,12 +1,14 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
 mod media;
 mod model;
+mod navigation;
 mod ui;
 
 use crate::services;
 use figcraft_engine::Session;
 use figcraft_ui_egui::FigApp;
 use model::{Asset, BlockKind, Clip, ScriptBlock, Section, Store, Video};
+use navigation::{Route, Tabs};
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +18,8 @@ use std::sync::mpsc::{self, Receiver};
 pub struct VideoMaker {
     store: Store,
     section: Section,
+    tabs: Tabs,
+    sidebar_open: bool,
     search: String,
     message: String,
     fonts_ready: bool,
@@ -32,7 +36,7 @@ pub struct VideoMaker {
 
 impl VideoMaker {
     pub fn section_is_design(&self) -> bool {
-        self.section == Section::Design
+        self.tabs.route().is_some_and(|route| route.section == Section::Design)
     }
     pub fn new() -> Result<Self, String> {
         let root = std::env::var_os("PURPOSE_PROJECTS_DIR")
@@ -49,9 +53,12 @@ impl VideoMaker {
             let _ = store.data.add_video(channel);
             store.save()?;
         }
+        let initial = store.data.selected_video.map(|video_id| Route { video_id, section: Section::Script });
         Ok(Self {
             store,
             section: Section::Script,
+            tabs: Tabs::new(initial),
+            sidebar_open: true,
             search: String::new(),
             message: String::new(),
             fonts_ready: false,
@@ -68,13 +75,46 @@ impl VideoMaker {
     }
 
     pub fn title(&self) -> String {
-        self.store.data.selected().map_or_else(|| "Purpose video maker".into(), |(_, v)| format!("{} — Purpose video maker", v.name))
+        self.tabs
+            .route()
+            .and_then(|route| self.store.data.channels.iter().flat_map(|channel| &channel.videos).find(|video| video.id == route.video_id))
+            .map_or_else(|| "Purpose video maker".into(), |video| format!("{} — Purpose video maker", video.name))
+    }
+
+    fn sync_route(&mut self) {
+        if let Some(route) = self.tabs.route() {
+            if self.store.data.selected_video != Some(route.video_id) {
+                self.store.data.selected_video = Some(route.video_id);
+                self.selected_clip = None;
+                self.preview_clip = None;
+                self.save();
+            }
+            self.section = route.section;
+        } else {
+            self.section = Section::Library;
+        }
+    }
+
+    fn navigate(&mut self, route: Route) {
+        self.tabs.navigate(route);
+        self.sync_route();
     }
 
     fn save(&mut self) {
         if let Err(e) = self.store.save() {
             self.message = format!("저장 실패: {e}");
         }
+    }
+
+    pub fn prepare_close(&mut self, fig: &mut FigApp) -> Result<(), String> {
+        if self.design_loaded.is_some() {
+            fig.session.execute("file.save", &json!({})).map_err(|e| format!("디자인 저장 실패: {e}"))?;
+        }
+        self.store.save().map_err(|e| format!("프로젝트 저장 실패: {e}"))
+    }
+
+    pub fn show_error(&mut self, error: String) {
+        self.message = error;
     }
 
     fn video(&self) -> Option<&Video> {
@@ -107,14 +147,18 @@ impl VideoMaker {
     }
 
     fn add_to_script(&mut self, id: u64) {
+        let video_id = self.video_id();
         if let Some(video) = self.store.data.selected_mut() {
             video.script.push(ScriptBlock { kind: BlockKind::Asset(id), text: String::new() });
-            self.section = Section::Script;
             self.save();
+        }
+        if let Some(video_id) = video_id {
+            self.navigate(Route { video_id, section: Section::Script });
         }
     }
 
     fn add_to_timeline(&mut self, id: u64) {
+        let Some(video_id) = self.video_id() else { return };
         let Some(asset) = self.video().and_then(|v| v.asset(id)).cloned() else { return };
         if !asset.kind.can_edit() {
             self.message = "디자인 파일은 디자인 탭에서 PNG로 내보낸 뒤 추가하세요".into();
@@ -127,9 +171,9 @@ impl VideoMaker {
             video.clips.push(Clip { id: clip_id, asset_id: id, trim_start: 0.0, trim_end: asset.duration, start, volume: 1.0, audio_track });
             self.selected_clip = Some(clip_id);
             self.preview_clip = None;
-            self.section = Section::Edit;
             self.save();
         }
+        self.navigate(Route { video_id, section: Section::Edit });
     }
 
     pub fn ensure_design(&mut self, fig: &mut FigApp) {

@@ -80,7 +80,8 @@ impl eframe::App for App {
                 *slot = Some(ctx.clone());
             }
         }
-        let design_title = with_app(|fig| {
+        let closing = self.video_maker.is_some() && ctx.input(|input| input.viewport().close_requested());
+        let (design_title, close_result) = with_app(|fig| {
             control_server::drain_queue(&self.queue, &mut fig.control_queue);
             // Phase-safe background work: control queues, autosave/recovery deadlines, live polling.
             // It runs on logic-only callbacks too, so it never reads UI input.
@@ -89,9 +90,21 @@ impl eframe::App for App {
             apple_events::poll(&self.apple_events, fig, ctx);
             // Closing the window asks about unsaved changes (and keeps the app running while other
             // windows are open).
-            figcraft_ui_egui::windows::on_close_request(fig, ctx);
-            fig.title()
-        });
+            let close_result = if closing {
+                self.video_maker.as_mut().map(|maker| maker.prepare_close(fig))
+            } else {
+                figcraft_ui_egui::windows::on_close_request(fig, ctx);
+                None
+            };
+            (fig.title(), close_result)
+        })
+        .map_or((None, None), |(title, result)| (Some(title), result));
+        if let Some(Err(error)) = close_result {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if let Some(maker) = &mut self.video_maker {
+                maker.show_error(error);
+            }
+        }
         // Window title follows the document.
         let title = self.video_maker.as_ref().map(video_maker::VideoMaker::title).or(design_title);
         if let Some(title) = title
@@ -307,7 +320,7 @@ fn main() -> eframe::Result {
     // Hyprland, COSMIC) or an X11 window manager keeps the native frame, while GNOME's Mutter —
     // which draws no server-side frame — leaves it to the app's own custom title bar. This replaces
     // the old bespoke xdg-decoration probe that always drew FigCraft's custom title bar on KDE.
-    fig.ui.title_bar = desktop_title_bar();
+    fig.ui.title_bar = title_bar_for_mode(args.video_maker);
     viewport = window_chrome(viewport, fig.ui.title_bar);
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
@@ -362,6 +375,10 @@ fn desktop_title_bar() -> figcraft_ui_egui::TitleBar {
     title_bar_for(choice.into_frame())
 }
 
+fn title_bar_for_mode(video_maker: bool) -> figcraft_ui_egui::TitleBar {
+    if video_maker && !cfg!(target_os = "macos") { figcraft_ui_egui::TitleBar::Custom } else { desktop_title_bar() }
+}
+
 /// Map craft-window's [`craft_window::Frame`] onto FigCraft's own [`figcraft_ui_egui::TitleBar`].
 ///
 /// `Frame::App` means the app draws its own frame — FigCraft's custom title bar. `Frame::Desktop`
@@ -395,6 +412,18 @@ fn window_chrome(viewport: egui::ViewportBuilder, title_bar: figcraft_ui_egui::T
 #[cfg(test)]
 mod title_bar_tests {
     use figcraft_ui_egui::TitleBar;
+
+    #[test]
+    fn video_maker_draws_its_browser_bar_as_the_window_frame() {
+        let bar = super::title_bar_for_mode(true);
+        if cfg!(target_os = "macos") {
+            assert_eq!(bar, TitleBar::Inset);
+        } else {
+            assert_eq!(bar, TitleBar::Custom);
+            let viewport = super::window_chrome(egui::ViewportBuilder::default(), bar);
+            assert_eq!(viewport.decorations, Some(false));
+        }
+    }
 
     /// craft-window's app frame (GNOME's Wayland session, or a `FIGCRAFT_TITLEBAR=app` override)
     /// becomes FigCraft's custom title bar on every platform, and `window_chrome` then drops the

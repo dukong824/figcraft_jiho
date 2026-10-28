@@ -217,7 +217,7 @@ impl FigApp {
         selection_spacing::sync(self, &ctx);
         // Before any widget: the navigation keys (F6, Tab, arrows, Escape) move the keyboard.
         a11y::begin(self, &ctx, ui.scope_id());
-        if self.ui.title_bar == TitleBar::Custom {
+        if self.ui.title_bar == TitleBar::Custom && !self.ui.video_maker {
             tabs::resize_edges(&ctx);
         }
         if self.ui.icon_gallery {
@@ -228,7 +228,9 @@ impl FigApp {
         self.sync_dev_mode();
         self.end_pen_outside_design();
         tabs::relink_presents(self);
-        tabs::tab_bar(self, ui);
+        if !self.ui.video_maker {
+            tabs::tab_bar(self, ui);
+        }
         // Control/window work and this pass's physical tab click may have replaced the owner.
         // A shared field ID in that replacement must never consume the old commit marker.
         let field_save = shortcuts::revalidate_field_save(self, &ctx, field_save);
