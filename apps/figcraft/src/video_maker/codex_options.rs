@@ -56,6 +56,12 @@ impl Model {
     }
 }
 impl Settings {
+    pub fn reconcile(&mut self, model: &Model) {
+        if !self.effort.is_empty() && !model.supported_reasoning_efforts.iter().any(|e| e.reasoning_effort == self.effort) {
+            self.effort.clear();
+        }
+        self.fast &= model.fast_tier().is_some();
+    }
     pub fn configure(&self, command: &mut Command, fast_tier: Option<&str>) {
         if !self.model.trim().is_empty() {
             command.arg("--model").arg(self.model.trim());
@@ -232,6 +238,16 @@ read unused
         let m:Model=serde_json::from_value(json!({"model":"model-a","displayName":"Model A","supportedReasoningEfforts":[{"reasoningEffort":"high","description":"Careful"}],"serviceTiers":[{"id":"priority","description":"Fast"}]})).unwrap();
         assert_eq!(m.fast_tier(), Some("priority"));
         assert_eq!(m.supported_reasoning_efforts[0].reasoning_effort, "high");
+        let mut selected = Settings { model: "".into(), effort: "xhigh".into(), fast: true };
+        selected.reconcile(&m);
+        assert!(selected.effort.is_empty());
+        assert!(selected.fast);
+        selected.effort = "high".into();
+        selected.reconcile(&m);
+        assert_eq!(selected.effort, "high");
+        selected.reconcile(&Model::default());
+        assert!(selected.effort.is_empty());
+        assert!(!selected.fast);
         assert_eq!(Model::default().fast_tier(), None);
     }
 }

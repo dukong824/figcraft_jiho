@@ -468,6 +468,14 @@ impl VideoMaker {
         if ui.add_enabled_ui(fast, |ui| style::icon_toggle(ui, Icon::Fast, before.fast, 26.0, tip)).inner.clicked() {
             self.store.data.codex_settings.fast = !before.fast;
         }
+        if before.model != self.store.data.codex_settings.model {
+            if let Some(model) = self.selected_model().cloned() {
+                self.store.data.codex_settings.reconcile(&model);
+            } else {
+                self.store.data.codex_settings.effort.clear();
+                self.store.data.codex_settings.fast = false;
+            }
+        }
         if before != self.store.data.codex_settings {
             self.save();
         }

@@ -1,5 +1,11 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: reconcile options on automatic model selection
+
+When switching to the catalog default or entering a model ID, discard reasoning/speed options
+that the new model does not advertise. Cover unsupported effort, retained supported effort and
+fast-mode removal. Cancel the unpublished first 0.1.7 build to include this in the installer.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: pane height, request options and desktop details
 
 Unify channel/video rename and trash actions, retain channel contents for restoration, and merge
