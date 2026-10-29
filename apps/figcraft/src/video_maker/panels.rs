@@ -13,7 +13,12 @@ impl VideoMaker {
             .min_size(310.0)
             .max_size(650.0)
             .resizable(true)
-            .frame(egui::Frame::NONE.fill(style::SURFACE).stroke(egui::Stroke::new(1.0, style::BORDER)).inner_margin(18.0))
+            .frame(egui::Frame::NONE.fill(style::SURFACE).stroke(egui::Stroke::new(1.0, style::BORDER)).inner_margin(egui::Margin {
+                left: 18,
+                right: 18,
+                top: 6,
+                bottom: 16,
+            }))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -21,13 +26,13 @@ impl VideoMaker {
                             SideView::Codex => "Codex",
                             SideView::Trash => "휴지통",
                         })
-                        .size(16.0)
+                        .size(14.0)
                         .strong(),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         close = style::icon_button(ui, Icon::Close, 26.0, "사이드 보기 닫기").clicked();
                         if view == SideView::Codex {
-                            ui.menu_button("⋯", |ui| {
+                            ui.menu_button(RichText::new("⋯").size(18.0).color(style::MUTED), |ui| {
                                 if ui.button("연결 다시 확인").clicked() {
                                     self.refresh_auth();
                                     ui.close();
@@ -80,7 +85,9 @@ impl VideoMaker {
         let messages = self.conversation(video_id).messages.clone();
         let running = self.chat_job.as_ref().filter(|job| job.video_id == video_id).map(|job| job.reply);
         let rect = ui.available_rect_before_wrap();
-        let composer_height = 124.0;
+        let text_height =
+            ui.fonts_mut(|f| f.layout(self.prompt.clone(), egui::FontId::proportional(14.0), style::TEXT, (rect.width() - 26.0).max(80.0))).size().y;
+        let composer_height = (text_height + 74.0).clamp(124.0, (rect.height() * 0.55).clamp(124.0, 320.0));
         let conversation =
             egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), (rect.bottom() - composer_height - 12.0).max(rect.top() + 40.0)));
         let composer = egui::Rect::from_min_max(egui::pos2(rect.left(), conversation.bottom() + 10.0), rect.max);
@@ -221,12 +228,23 @@ impl VideoMaker {
                     let enter = self.chat_job.is_none()
                         && ui.memory(|m| m.has_focus(id))
                         && ui.input_mut(|i| super::interactions::consume_key(i, egui::Modifiers::NONE, egui::Key::Enter));
-                    ui.add_sized(
-                        [ui.available_width(), 62.0],
-                        TextEdit::multiline(&mut self.prompt).id(id).desired_rows(2).frame(egui::Frame::NONE).hint_text("메시지 보내기…"),
-                    );
+                    egui::ScrollArea::vertical()
+                        .id_salt(("codex-input-scroll", video_id))
+                        .max_height(composer_height - 66.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.add(
+                                TextEdit::multiline(&mut self.prompt)
+                                    .id(id)
+                                    .font(egui::FontId::proportional(14.0))
+                                    .desired_width(ui.available_width())
+                                    .desired_rows(2)
+                                    .frame(egui::Frame::NONE)
+                                    .hint_text("메시지 보내기…"),
+                            );
+                        });
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Codex").size(12.0).color(style::MUTED));
+                        self.codex_controls(ui);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if let Some(job) = &self.chat_job {
                                 if job.video_id == video_id {
@@ -328,6 +346,8 @@ impl VideoMaker {
             self.auth_job = None;
             self.store.data.codex_path = Some(path);
             self.authenticated = None;
+            self.catalog.clear();
+            self.catalog_job = None;
             self.save();
             self.refresh_auth();
         }
@@ -335,12 +355,23 @@ impl VideoMaker {
 
     fn trash_contents(&mut self, ui: &mut egui::Ui) {
         let entries = self.store.data.trash.clone();
-        if entries.is_empty() {
+        let channels = self.store.data.trashed_channels.clone();
+        let mut restore_channel = None;
+        if entries.is_empty() && channels.is_empty() {
             ui.add_space(20.0);
             ui.label("휴지통이 비어 있습니다.");
         }
         let mut restore = None;
         egui::ScrollArea::vertical().id_salt("purpose-trash").show(ui, |ui| {
+            for entry in channels.iter().rev() {
+                ui.add_space(12.0);
+                ui.label(RichText::new(&entry.channel.name).strong());
+                ui.label(RichText::new(format!("채널 · 영상 {}개 · {}", entry.channel.videos.len(), entry.deleted_at)).small().color(style::MUTED));
+                if ui.button("복원").clicked() {
+                    restore_channel = Some(entry.channel.id);
+                }
+                ui.separator();
+            }
             for entry in entries.iter().rev() {
                 ui.add_space(12.0);
                 ui.label(RichText::new(&entry.video.name).strong());
@@ -351,8 +382,93 @@ impl VideoMaker {
                 ui.separator();
             }
         });
+        if let Some(id) = restore_channel {
+            self.store.data.restore_channel(id);
+            self.save();
+        }
         if let Some(id) = restore {
             self.store.data.restore_video(id);
+            self.save();
+        }
+    }
+}
+
+impl VideoMaker {
+    fn codex_controls(&mut self, ui: &mut egui::Ui) {
+        let before = self.store.data.codex_settings.clone();
+        let model = self.selected_model().cloned();
+        let label = model.as_ref().map(|m| m.display_name.as_str()).filter(|s| !s.is_empty()).unwrap_or(if before.model.is_empty() {
+            "모델"
+        } else {
+            &before.model
+        });
+        let mut label_job = egui::text::LayoutJob::simple(
+            format!("{label} ⌄"),
+            egui::FontId::proportional(11.0),
+            style::TEXT,
+            (ui.available_width() - 154.0).max(64.0),
+        );
+        label_job.wrap.max_rows = 1;
+        label_job.wrap.break_anywhere = true;
+        ui.menu_button(label_job, |ui| {
+            ui.set_min_width(210.0);
+            if self.catalog_job.is_some() {
+                ui.label("모델 불러오는 중…");
+            }
+            if ui.selectable_label(before.model.is_empty(), "자동 선택").clicked() {
+                self.store.data.codex_settings.model.clear();
+                ui.close();
+            }
+            for model in &self.catalog {
+                if ui.selectable_label(before.model == model.model, &model.display_name).on_hover_text(&model.model).clicked() {
+                    self.store.data.codex_settings.model = model.model.clone();
+                    self.store.data.codex_settings.effort = model.default_reasoning_effort.clone();
+                    self.store.data.codex_settings.fast &= model.fast_tier().is_some();
+                    ui.close();
+                }
+            }
+            ui.separator();
+            ui.collapsing("모델 ID 직접 입력", |ui| {
+                ui.text_edit_singleline(&mut self.store.data.codex_settings.model);
+            });
+            if !self.catalog_error.is_empty() {
+                ui.label(RichText::new(&self.catalog_error).small().color(style::MUTED));
+            }
+            if ui.button("목록 새로고침").clicked() {
+                self.refresh_catalog();
+            }
+        });
+        ui.menu_button(RichText::new(super::codex_options::effort_label(&before.effort)).size(11.0), |ui| {
+            if ui.selectable_label(before.effort.is_empty(), "자동").clicked() {
+                self.store.data.codex_settings.effort.clear();
+                ui.close();
+            }
+            if let Some(model) = &model {
+                for effort in &model.supported_reasoning_efforts {
+                    if ui
+                        .selectable_label(before.effort == effort.reasoning_effort, super::codex_options::effort_label(&effort.reasoning_effort))
+                        .on_hover_text(&effort.description)
+                        .clicked()
+                    {
+                        self.store.data.codex_settings.effort = effort.reasoning_effort.clone();
+                        ui.close();
+                    }
+                }
+            } else {
+                ui.label(RichText::new("모델 목록을 불러오면 선택할 수 있습니다").small());
+            }
+        });
+        let fast = model.as_ref().is_some_and(|m| m.fast_tier().is_some());
+        let tip = model
+            .as_ref()
+            .and_then(|m| m.service_tiers.iter().find(|t| Some(t.id.as_str()) == m.fast_tier()))
+            .map(|t| t.description.as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(if fast { "빠른 생성" } else { "이 모델에서 빠른 생성을 지원하지 않습니다" });
+        if ui.add_enabled_ui(fast, |ui| style::icon_toggle(ui, Icon::Fast, before.fast, 26.0, tip)).inner.clicked() {
+            self.store.data.codex_settings.fast = !before.fast;
+        }
+        if before != self.store.data.codex_settings {
             self.save();
         }
     }

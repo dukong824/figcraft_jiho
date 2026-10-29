@@ -1,10 +1,13 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
+mod backup;
 mod branding;
 mod chat;
 mod codex;
+mod codex_options;
 mod document;
 mod interactions;
 mod rich_script;
+mod settings;
 #[cfg(windows)]
 pub use branding::set_windows_icons;
 pub use branding::window_icon;
@@ -42,8 +45,16 @@ pub struct VideoMaker {
     login: Option<codex::Login>,
     login_output: String,
     auth_error: String,
+    catalog: Vec<codex_options::Model>,
+    catalog_job: Option<Receiver<Result<Vec<codex_options::Model>, String>>>,
+    catalog_error: String,
+    settings_open: bool,
+    backup: backup::Controller,
+    toast: Option<(String, std::time::Instant)>,
+    design_canvas: Option<egui::Rect>,
+    design_backup_saved: Option<std::time::Instant>,
     search: String,
-    rename_video: Option<(u64, String)>,
+    rename_video: Option<(model::Item, String)>,
     history_all: bool,
     history_query: String,
     history_video: Option<u64>,
@@ -113,6 +124,14 @@ impl VideoMaker {
             login: None,
             login_output: String::new(),
             auth_error: String::new(),
+            catalog: Vec::new(),
+            catalog_job: None,
+            catalog_error: String::new(),
+            settings_open: false,
+            backup: Default::default(),
+            toast: None,
+            design_canvas: None,
+            design_backup_saved: None,
             search: String::new(),
             rename_video: None,
             history_all: false,
@@ -201,7 +220,12 @@ impl VideoMaker {
             fig.session.execute("file.save", &json!({})).map_err(|e| format!("디자인 저장 실패: {e}"))?;
         }
         self.checkpoint();
-        self.store.save().map_err(|e| format!("프로젝트 저장 실패: {e}"))
+        self.store.save().map_err(|e| format!("프로젝트 저장 실패: {e}"))?;
+        if let Err(error) = self.backup.finish(&self.store.root, self.store.data.backup_directory.as_deref(), &self.store.data.backup_id) {
+            // The primary project is already durable. An unplugged backup disk must not trap the window open.
+            log::warn!("마지막 백업 실패 (프로젝트 원본은 저장됨): {error}");
+        }
+        Ok(())
     }
 
     pub fn show_error(&mut self, error: String) {
@@ -360,11 +384,13 @@ impl VideoMaker {
             }
             self.save();
         }
-        self.message = format!("{exported}개 디자인을 라이브러리에 저장했습니다");
+        self.toast = Some((format!("{exported}개 디자인을 라이브러리에 저장했습니다"), std::time::Instant::now()));
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
         self.poll_auth(ctx);
+        self.poll_catalog(ctx);
+        self.backup.poll(&self.store.root, self.store.data.backup_directory.as_deref(), &self.store.data.backup_id, ctx);
         if let Some(due) = self.zoom_save_due {
             if due.elapsed() >= std::time::Duration::from_millis(300) {
                 self.zoom_save_due = None;
@@ -413,6 +439,23 @@ impl VideoMaker {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
         self.poll_chat(ctx);
+    }
+
+    pub fn design_frame(&mut self, fig: &mut FigApp, ctx: &egui::Context) {
+        self.design_canvas = Some(fig.canvas.rect);
+        if self.store.data.backup_directory.is_none() || !fig.session.ds().is_ok_and(|ds| ds.is_dirty()) {
+            return;
+        }
+        let interval = std::time::Duration::from_secs(3);
+        let wait = self.design_backup_saved.map_or(std::time::Duration::ZERO, |at| interval.saturating_sub(at.elapsed()));
+        if wait.is_zero() {
+            self.design_backup_saved = Some(std::time::Instant::now());
+            if let Err(error) = fig.session.execute("file.save", &json!({})) {
+                self.message = error.to_string();
+            }
+        } else {
+            ctx.request_repaint_after(wait);
+        }
     }
 
     fn ask_codex(&mut self, request: String) {

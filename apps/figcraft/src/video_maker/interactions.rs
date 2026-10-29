@@ -42,8 +42,17 @@ impl VideoMaker {
             zoom = 1.0;
         }
         let before = zoom;
+        let mut pointer = ctx.pointer_latest_pos();
+        let canvas = if self.section_is_design() { self.design_canvas } else { None };
         raw.events.retain(|event| match event {
+            egui::Event::PointerMoved(pos) => {
+                pointer = Some(*pos);
+                true
+            }
             egui::Event::MouseWheel { unit, delta, modifiers, .. } if modifiers.ctrl || modifiers.mac_cmd => {
+                if canvas.is_some_and(|r| pointer.is_some_and(|p| r.contains(p))) {
+                    return true;
+                }
                 let step = match unit {
                     egui::MouseWheelUnit::Line => delta.y * 0.10,
                     egui::MouseWheelUnit::Point => delta.y * 0.0025,
@@ -99,6 +108,12 @@ impl VideoMaker {
                         )
                     });
                     let monitor = window.current_monitor().or_else(|| window.primary_monitor());
+                    #[cfg(windows)]
+                    {
+                        use winit::platform::windows::WindowExtWindows;
+                        window.set_undecorated_shadow(false);
+                        window.set_border_color(None);
+                    }
                     window.set_maximized(false);
                     window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor.clone())));
                     if let Some(monitor) = monitor {
@@ -112,6 +127,12 @@ impl VideoMaker {
                     }
                 } else {
                     window.set_fullscreen(None);
+                    #[cfg(windows)]
+                    {
+                        use winit::platform::windows::{Color, WindowExtWindows};
+                        window.set_undecorated_shadow(true);
+                        window.set_border_color(Some(Color::SYSTEM_DEFAULT));
+                    }
                     if let Some(saved) = ctx.data_mut(|d| d.remove_temp::<WindowGeometry>(key)) {
                         let _ = window.request_inner_size(saved.size);
                         if let Some(position) = saved.position {
@@ -212,6 +233,31 @@ impl VideoMaker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn canvas_control_wheel_preserves_native_zoom_while_surrounding_panels_change_ui_zoom() {
+        let root = std::env::temp_dir().join(format!("purpose-canvas-zoom-{}", std::process::id()));
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        maker.navigate(Route::Video { video_id: maker.video_id().unwrap(), section: Section::Design });
+        maker.design_canvas = Some(egui::Rect::from_min_max(egui::pos2(300.0, 100.0), egui::pos2(900.0, 700.0)));
+        let ctx = egui::Context::default();
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, 1.0),
+            modifiers: egui::Modifiers::CTRL,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+        };
+        let mut raw = egui::RawInput { events: vec![egui::Event::PointerMoved(egui::pos2(400.0, 200.0)), wheel.clone()], ..Default::default() };
+        maker.raw_input(&ctx, &mut raw);
+        assert_eq!(maker.store.data.ui_zoom, 1.0);
+        assert_eq!(raw.events.len(), 2);
+        raw.events = vec![egui::Event::PointerMoved(egui::pos2(100.0, 200.0)), wheel];
+        maker.raw_input(&ctx, &mut raw);
+        assert!(maker.store.data.ui_zoom > 1.0);
+        assert_eq!(raw.events.len(), 1);
+        let _ = fs::remove_dir_all(root);
+    }
+
     #[test]
     fn shift_enter_and_shift_tab_are_not_consumed_as_plain_keys() {
         for key in [egui::Key::Enter, egui::Key::Tab] {

@@ -143,6 +143,9 @@ impl super::VideoMaker {
             match rx.try_recv() {
                 Ok(Ok(auth)) => {
                     self.authenticated = Some(auth);
+                    if auth {
+                        self.refresh_catalog();
+                    }
                     self.auth_job = None;
                 }
                 Ok(Err(error)) => {
@@ -203,6 +206,7 @@ if [ "$1" = login ]; then
   touch logged-in
   exit 0
 fi
+printf '%s\n' "$@" > args.txt
 while [ "$#" -gt 0 ]; do
   if [ "$1" = --output-last-message ]; then shift; output="$1"; fi
   shift
@@ -226,6 +230,10 @@ echo '수정된 대본' > "$output"
         let mut maker = super::super::VideoMaker::at(root.join("projects")).unwrap();
         maker.store.data.codex_path = Some(cli.clone());
         maker.authenticated = Some(true);
+        maker.store.data.codex_settings = super::super::codex_options::Settings { model: "test-model".into(), effort: "high".into(), fast: true };
+        maker.catalog = vec![
+            serde_json::from_value(serde_json::json!({"model":"test-model","displayName":"Test model","additionalSpeedTiers":["fast"]})).unwrap(),
+        ];
         maker.ask_codex("내 대본 수정".into());
         let id = maker.video_id().unwrap();
         assert_eq!(maker.conversation(id).messages[0].text, "내 대본 수정");
@@ -240,6 +248,10 @@ echo '수정된 대본' > "$output"
         assert!(maker.chat_job.is_none());
         assert_eq!(maker.conversation(id).messages[1].text.trim(), "수정된 대본");
         assert!(std::fs::read_to_string(root.join("request.txt")).unwrap().contains("내 대본 수정"));
+        let args = std::fs::read_to_string(root.join("args.txt")).unwrap();
+        assert!(args.contains("--model\ntest-model\n"));
+        assert!(args.contains("model_reasoning_effort=\"high\""));
+        assert!(args.contains("service_tier=\"fast\""));
         let mut reopened = super::super::VideoMaker::at(root.join("projects")).unwrap();
         assert_eq!(reopened.conversation(id).messages.len(), 2);
         drop(login);

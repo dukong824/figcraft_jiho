@@ -62,6 +62,8 @@ pub struct ScriptImage {
     pub id: u64,
     pub asset_id: u64,
     pub at: usize,
+    #[serde(default)]
+    pub width: Option<f32>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RichScript {
@@ -156,7 +158,7 @@ impl RichScript {
     }
     pub fn insert_image(&mut self, asset_id: u64, at: usize) {
         let id = self.images.iter().map(|p| p.id).max().unwrap_or(0).saturating_add(1);
-        self.images.push(ScriptImage { id, asset_id, at });
+        self.images.push(ScriptImage { id, asset_id, at, width: None });
         self.images.sort_by_key(|p| p.at);
     }
     /// Rebase metadata around the actual changed characters, including CJK edits and paste.

@@ -1,3 +1,25 @@
+## Purpose desktop refinement — 2026-10-29
+
+- 112 desktop tests passed, including channel rename/trash/mixed restoration, image width and
+  request-option persistence, incremental backup/self-recursion/path confinement, canvas-only
+  Ctrl-wheel routing and the height of both right panes. Public stdio model discovery is verified
+  with a subprocess fixture; another CLI fixture verifies model/effort/fast arguments through
+  the actual chat worker and preserves conversations. No paid live inference is claimed.
+- 824 UI tests passed (1 ignored). Workspace clippy with warnings denied passed. Layering,
+  asset attribution, WASM and plugin gates passed. PowerShell syntax and GUI-probe C# compilation
+  passed. The Windows workflow now requires exact physical client coverage in fullscreen before
+  publishing the installer.
+- Inspected native Vulkan GUI captures: channel rename and whole-channel trash/restore, both side
+  views beginning at the breadcrumb row, an upward-growing long Codex input, model controls,
+  double-click image resize (720 to 489.23pt) and its persisted backup, black selected text on
+  blue, native canvas zoom without UI zoom, top saved notification/expiry, and revised typography,
+  icons, context menus and settings. Fixtures contain only synthetic media and conversations.
+- Full CI was attempted. One run passed all 1392 engine tests but failed the two existing Paper
+  Liquid Metal animation/readback tests (176 renderer tests passed, 2 failed, 3 ignored). Those
+  same GPU tests also fail with the cloud lavapipe Vulkan driver. A subsequent full run hit the
+  existing board-table row-growth failure (122 to 122; 1391 passed, 1 failed, 2 ignored). Renderer
+  and board-table implementation files are unchanged. A clean full CI result is not claimed.
+
 ## Purpose selected text and sidebar interactions — 2026-10-29
 
 - 104 desktop tests passed, including Unicode formatting ranges, mixed selection, multi-line

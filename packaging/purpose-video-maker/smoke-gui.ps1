@@ -35,6 +35,11 @@ public static class PurposeWindowCheck {
         return found;
     }
     public static Rect Bounds(IntPtr window) { Rect rect; if (!GetWindowRect(window, out rect)) throw new Exception("GetWindowRect failed"); return rect; }
+    public static Rect ClientBounds(IntPtr window) {
+        Rect client; if (!GetClientRect(window, out client)) throw new Exception("GetClientRect failed");
+        Point point = new Point(); if (!ClientToScreen(window, ref point)) throw new Exception("ClientToScreen failed");
+        return new Rect { Left = point.X, Top = point.Y, Right = point.X + client.Right, Bottom = point.Y + client.Bottom };
+    }
     public static Rect Screen(IntPtr window) {
         MonitorInfo info = new MonitorInfo(); info.Size = Marshal.SizeOf(typeof(MonitorInfo));
         if (!GetMonitorInfo(MonitorFromWindow(window, 2), ref info)) throw new Exception("GetMonitorInfo failed"); return info.Monitor;
@@ -85,6 +90,15 @@ function Wait-Bounds($Window, $Expected) {
     $actual = [PurposeWindowCheck]::Bounds($Window)
     throw "Unexpected window bounds: $($actual.Left),$($actual.Top),$($actual.Right),$($actual.Bottom); expected $($Expected.Left),$($Expected.Top),$($Expected.Right),$($Expected.Bottom)"
 }
+function Wait-FullscreenClient($Window, $Expected) {
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 15) {
+        $client = [PurposeWindowCheck]::ClientBounds($Window)
+        if ($client.Left -eq $Expected.Left -and $client.Top -eq $Expected.Top -and $client.Right -eq $Expected.Right -and $client.Bottom -eq $Expected.Bottom) { return }
+        Start-Sleep -Milliseconds 200
+    }
+    throw "Fullscreen client leaves a monitor gap: $($client.Left),$($client.Top),$($client.Right),$($client.Bottom)"
+}
 $env:PURPOSE_PROJECTS_DIR = $ProjectDirectory
 $previousLogLevel = $env:RUST_LOG
 $env:RUST_LOG = 'info'
@@ -126,6 +140,7 @@ try {
     Write-Output 'Entering fullscreen with the FilmCraft button'
     [PurposeWindowCheck]::EditorFullscreen($window, $false)
     Wait-Bounds $window $screen
+    Wait-FullscreenClient $window $screen
     Start-Sleep -Milliseconds 300
     Write-Output 'Restoring with the FilmCraft button'
     [PurposeWindowCheck]::EditorFullscreen($window, $true)
@@ -133,6 +148,7 @@ try {
     Write-Output 'Entering fullscreen with F11'
     [PurposeWindowCheck]::F11($window)
     Wait-Bounds $window $screen
+    Wait-FullscreenClient $window $screen
     Write-Output 'Restoring with Esc'
     [PurposeWindowCheck]::Escape($window)
     Wait-Bounds $window $normal

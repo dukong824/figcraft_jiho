@@ -34,12 +34,32 @@ pub enum Icon {
     Sparkle,
     History,
     Trash,
+    Settings,
+    Rename,
+    Fast,
 }
 
 pub fn configure(ctx: &egui::Context) {
     let mut visuals = egui::Visuals::light();
     visuals.override_text_color = Some(TEXT);
     visuals.panel_fill = SURFACE;
+    visuals.window_fill = SURFACE;
+    visuals.window_stroke = Stroke::new(1.0, BORDER);
+    visuals.window_corner_radius = CornerRadius::same(10);
+    visuals.menu_corner_radius = CornerRadius::same(8);
+    visuals.window_highlight_topmost = false;
+    visuals.popup_shadow = egui::epaint::Shadow { offset: [0, 4], blur: 18, spread: 0, color: Color32::from_black_alpha(24) };
+    visuals.window_shadow = egui::epaint::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(30) };
+    visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT);
+    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, TEXT);
+    visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, TEXT);
+    visuals.widgets.active.fg_stroke = Stroke::new(1.0, TEXT);
+    visuals.widgets.noninteractive.corner_radius = CornerRadius::same(5);
+    visuals.widgets.inactive.corner_radius = CornerRadius::same(5);
+    visuals.widgets.hovered.corner_radius = CornerRadius::same(5);
+    visuals.widgets.active.corner_radius = CornerRadius::same(5);
+    visuals.text_cursor.stroke = Stroke::new(1.5, TEXT);
+    visuals.hyperlink_color = BLUE;
     visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
     visuals.widgets.inactive.weak_bg_fill = SIDEBAR;
     visuals.widgets.hovered.bg_fill = HOVER;
@@ -54,7 +74,13 @@ pub fn configure(ctx: &egui::Context) {
         style.spacing.item_spacing = vec2(8.0, 7.0);
         style.spacing.button_padding = vec2(9.0, 5.0);
         style.spacing.interact_size.y = 30.0;
-        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(15.0));
+        style.spacing.menu_margin = egui::Margin::same(6);
+        style.spacing.window_margin = egui::Margin::same(20);
+        style.spacing.icon_width = 15.0;
+        style.spacing.icon_spacing = 8.0;
+        style.spacing.scroll.bar_width = 6.0;
+        style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
+        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
         style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
         style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(25.0));
     });
@@ -142,6 +168,15 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
             line(p, pos2(x, y - 4.0), pos2(x, y), color);
             line(p, pos2(x, y), pos2(x + 3.0, y + 2.0), color);
         }
+        Icon::Settings => {
+            p.circle_stroke(r.center(), r.width() * 0.34, stroke);
+            p.circle_stroke(r.center(), r.width() * 0.12, stroke);
+            for i in 0..8 {
+                let angle = i as f32 * std::f32::consts::TAU / 8.0;
+                let v = vec2(angle.cos(), angle.sin());
+                p.line_segment([r.center() + v * r.width() * 0.34, r.center() + v * r.width() * 0.47], stroke);
+            }
+        }
         Icon::Trash => {
             p.rect_stroke(r.shrink2(vec2(4.0, 3.0)).translate(vec2(0.0, 2.0)), CornerRadius::same(1), stroke, StrokeKind::Inside);
             line(p, pos2(l + 2.0, t + 4.0), pos2(l + w - 2.0, t + 4.0), color);
@@ -192,6 +227,33 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
                 line(p, pos2(l + 6.0, t + dy), pos2(l + w - 5.0, t + dy), color);
             }
         }
+        Icon::Rename => {
+            p.add(Shape::line(
+                vec![
+                    pos2(l + 3.0, t + h - 3.0),
+                    pos2(l + 4.0, t + h - 7.0),
+                    pos2(l + w - 5.0, t + 2.0),
+                    pos2(l + w - 1.0, t + 6.0),
+                    pos2(l + 7.0, t + h - 4.0),
+                    pos2(l + 3.0, t + h - 3.0),
+                ],
+                stroke,
+            ));
+        }
+        Icon::Fast => {
+            p.add(Shape::line(
+                vec![
+                    pos2(x + 2.0, t + 1.0),
+                    pos2(l + 3.0, y + 1.0),
+                    pos2(x + 1.0, y + 1.0),
+                    pos2(x - 2.0, t + h - 1.0),
+                    pos2(l + w - 3.0, y - 2.0),
+                    pos2(x - 1.0, y - 2.0),
+                    pos2(x + 2.0, t + 1.0),
+                ],
+                stroke,
+            ));
+        }
         Icon::Design => {
             p.rect_stroke(r.shrink(3.0), CornerRadius::same(2), stroke, StrokeKind::Inside);
             p.circle_filled(pos2(x + 3.0, y - 3.0), 2.0, color);
@@ -228,4 +290,23 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
             line(p, pos2(x + 4.0, y - 4.0), pos2(x - 4.0, y + 4.0), color);
         }
     }
+}
+
+/// Quiet, aligned action rows shared by context menus and overflow menus.
+pub fn menu_item(ui: &mut Ui, label: &str, icon: Icon, destructive: bool) -> Response {
+    ui.set_max_width(240.0);
+    let width = ui.available_width().clamp(180.0, 240.0);
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 32.0), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 5, HOVER);
+    }
+    let color = if destructive { Color32::from_rgb(185, 65, 57) } else { TEXT };
+    paint_icon(
+        ui.painter(),
+        Rect::from_center_size(pos2(rect.left() + 16.0, rect.center().y), vec2(16.0, 16.0)),
+        icon,
+        if destructive { color } else { MUTED },
+    );
+    ui.painter().text(pos2(rect.left() + 35.0, rect.center().y), egui::Align2::LEFT_CENTER, label, FontId::proportional(13.0), color);
+    response
 }

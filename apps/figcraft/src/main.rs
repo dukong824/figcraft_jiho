@@ -160,6 +160,7 @@ impl eframe::App for App {
                             maker.ensure_design(fig);
                             maker.place_design_asset(fig);
                             fig.ui(ui);
+                            maker.design_frame(fig, ui.ctx());
                             let inspector_export =
                                 ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.design-export"))).unwrap_or(false);
                             if export || inspector_export {

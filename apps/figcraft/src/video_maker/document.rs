@@ -91,6 +91,22 @@ use std::{
 
 pub(super) fn install_fonts(ctx: &egui::Context) {
     let mut fonts = ctx.fonts(|f| f.definitions().clone());
+    // Prefer the platform's familiar sans face while preserving all installed CJK fallbacks.
+    if !fonts.font_data.contains_key("inter") {
+        for family in ["Segoe UI", "SF Pro Text", "Arial", "Noto Sans", "DejaVu Sans"] {
+            if let Some(face) = figcraft_text::find_face(family, "Regular")
+                && face.family.eq_ignore_ascii_case(family)
+            {
+                fonts.font_data.insert("purpose-regular".into(), std::sync::Arc::new(figcraft_ui_egui::theme::font_data(&face)));
+                for family in [egui::FontFamily::Proportional, egui::FontFamily::Name("medium".into()), egui::FontFamily::Name("semibold".into())] {
+                    if let Some(list) = fonts.families.get_mut(&family) {
+                        list.insert(0, "purpose-regular".into());
+                    }
+                }
+                break;
+            }
+        }
+    }
     let mut bold = Vec::new();
     for family in ["Inter", "Segoe UI", "Arial", "DejaVu Sans", "Malgun Gothic", "맑은 고딕", "Noto Sans CJK KR", "Noto Sans CJK SC"] {
         if let Some(face) = figcraft_text::find_face(family, "Bold")
@@ -336,6 +352,7 @@ impl VideoMaker {
                 }
             }
         }
+        ui.visuals_mut().selection.stroke.color = egui::Color32::BLACK;
         egui::ScrollArea::vertical().id_salt(("purpose-script-scroll", video.id)).auto_shrink([false, false]).show(ui, |ui| {
             let width = ui.available_width().min(810.0);
             let left = ((ui.available_width() - width) / 2.0).max(0.0);
@@ -448,10 +465,17 @@ impl VideoMaker {
                         start = next;
                         if let Some(image) = image {
                             let asset = video.asset(image.asset_id);
+                            let resize_id = egui::Id::unique(("script-image-resize", video.id, image.id));
+                            let mut resizing = ui.ctx().data(|d| d.get_temp::<bool>(resize_id).unwrap_or(false));
+                            let image_width = image.width.filter(|w| w.is_finite()).unwrap_or(width.min(720.0)).clamp(48.0, width.max(48.0));
                             let response = if let Some(texture) = self.thumbnails.get(&image.asset_id) {
-                                ui.add(egui::Image::new(texture).max_width(width.min(720.0)).sense(Sense::drag()))
+                                ui.add(
+                                    egui::Image::new(texture)
+                                        .fit_to_exact_size(vec2(image_width, image_width * texture.size_vec2().y / texture.size_vec2().x.max(1.0)))
+                                        .sense(Sense::click_and_drag()),
+                                )
                             } else {
-                                let (r, response) = ui.allocate_exact_size(vec2(width.min(640.0), 220.0), Sense::drag());
+                                let (r, response) = ui.allocate_exact_size(vec2(image_width, 220.0), Sense::click_and_drag());
                                 ui.painter().rect_filled(r, 4, style::THUMB);
                                 ui.painter().text(
                                     r.center(),
@@ -467,9 +491,40 @@ impl VideoMaker {
                             {
                                 self.request_thumbnail(asset);
                             }
-                            response.dnd_set_drag_payload(ImageDrag { video: video.id, image: image.id });
+                            if response.double_clicked() {
+                                resizing = !resizing;
+                                ui.ctx().data_mut(|d| d.insert_temp(resize_id, resizing));
+                            }
+                            if resizing {
+                                ui.painter().rect_stroke(response.rect, 2, Stroke::new(1.5, style::BLUE), egui::StrokeKind::Inside);
+                                let handle_rect = egui::Rect::from_center_size(response.rect.right_bottom() - vec2(7.0, 7.0), vec2(18.0, 18.0));
+                                let handle =
+                                    ui.interact(handle_rect, resize_id.with("handle"), Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeNwSe);
+                                ui.painter().rect_filled(handle_rect.shrink(4.0), 2, style::BLUE);
+                                if handle.drag_started() {
+                                    let origin = ui.input(|i| i.pointer.press_origin()).map_or(response.rect.right(), |p| p.x);
+                                    ui.ctx().data_mut(|d| d.insert_temp(resize_id.with("width"), (image_width, origin)));
+                                }
+                                if handle.dragged() {
+                                    let (initial, origin) = ui
+                                        .ctx()
+                                        .data(|d| d.get_temp::<(f32, f32)>(resize_id.with("width")).unwrap_or((image_width, response.rect.right())));
+                                    let pointer = ui.input(|i| i.pointer.interact_pos()).map_or(origin, |p| p.x);
+                                    if let Some(current) = video.script_rich.images.iter_mut().find(|i| i.id == image.id) {
+                                        current.width = Some((initial + pointer - origin).clamp(48.0, width.max(48.0)));
+                                    }
+                                }
+                                if ui.input(|i| i.key_pressed(egui::Key::Escape))
+                                    || ui.input(|i| i.pointer.any_pressed())
+                                        && ui.ctx().pointer_hover_pos().is_some_and(|p| !response.rect.expand(12.0).contains(p))
+                                {
+                                    ui.ctx().data_mut(|d| d.insert_temp(resize_id, false));
+                                }
+                            } else {
+                                response.dnd_set_drag_payload(ImageDrag { video: video.id, image: image.id });
+                            }
                             response.clone().on_hover_cursor(egui::CursorIcon::Grab).context_menu(|ui| {
-                                if ui.button("대본에서 이미지 제거").clicked() {
+                                if style::menu_item(ui, "대본에서 이미지 제거", style::Icon::Trash, true).clicked() {
                                     remove = Some(image.id);
                                     ui.close();
                                 }

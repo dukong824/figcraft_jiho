@@ -118,7 +118,15 @@ pub(super) fn decode_event(value: &Value) -> Option<Event> {
     Some(Event::Activity(label.into(), detail.chars().take(4000).collect()))
 }
 
-fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, cancel: Arc<AtomicBool>) -> Result<String, String> {
+fn run(
+    cli: PathBuf,
+    root: PathBuf,
+    prompt: String,
+    tx: mpsc::Sender<Event>,
+    cancel: Arc<AtomicBool>,
+    settings: super::codex_options::Settings,
+    fast_tier: Option<String>,
+) -> Result<String, String> {
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     let output = root.join(format!(
         ".codex-response-{}.txt",
@@ -144,10 +152,11 @@ fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, can
         .arg(&output)
         .arg("-C")
         .arg(&root)
-        .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    settings.configure(&mut command, fast_tier.as_deref());
+    command.arg("-");
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -256,6 +265,8 @@ impl VideoMaker {
         if self.chat_job.is_some() || self.authenticated != Some(true) || request.trim().is_empty() {
             return;
         }
+        let settings = self.store.data.codex_settings.clone();
+        let fast_tier = self.selected_model().and_then(|m| m.fast_tier()).map(str::to_owned);
         let chat = self.conversation(video);
         let history = chat
             .messages
@@ -297,7 +308,7 @@ impl VideoMaker {
         let stop = cancel.clone();
         let root = self.store.video_dir(video);
         let worker = std::thread::spawn(move || {
-            let result = run(cli, root, prompt, tx.clone(), stop.clone());
+            let result = run(cli, root, prompt, tx.clone(), stop.clone(), settings, fast_tier);
             let _ = tx.send(Event::Finished(result, stop.load(Ordering::Relaxed)));
         });
         self.chat_job = Some(Job { video_id: video, reply, started: Instant::now(), events, cancel, worker: Some(worker) });

@@ -1,5 +1,26 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: pane height, request options and desktop details
+
+Unify channel/video rename and trash actions, retain channel contents for restoration, and merge
+restored channel shells without duplicate videos. Lift every right pane over the breadcrumb row
+while retaining the browser bar and native window controls. Anchor the Codex composer at the bottom
+and grow/scroll upward. Discover the signed-in CLI model catalog through public stdio JSON-RPC;
+pass model, supported reasoning effort and advertised fast service tier to each CLI request.
+
+Double-click script images to resize with a corner handle; persist width, preserve aspect ratio
+and include it in document undo. Keep selected text black on blue. Leave Ctrl-wheel events over
+the actual FigCraft canvas for native canvas zoom. Saved notices appear at the top and expire
+after one second. Remove Windows undecorated shadow/border on fullscreen entry and restore on exit;
+the installer probe now checks exact physical client coverage as well as window bounds.
+
+Add Settings with a configurable incremental backup mirror, streamed media copies, a manifest
+written after referenced files, self-recursion exclusion, progress/errors and a final close flush.
+Only managed project files are covered; directly linked external editor media remains external.
+After functional tests and native interaction checks, refine platform sans fonts, original drawn
+menu/speed icons, neutral hover states, popup spacing, borders and shadows. Verification is recorded
+in VALIDATION.md.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: physical-pixel Windows GUI probing
 
 The 0.1.6 Windows build, installation and editor startup succeeded, but the pointer-based

@@ -27,6 +27,11 @@ The sidebar now pins history/trash and an optional Codex side view with CLI logi
 History opens a full-page searchable table and restores native FilmCraft project snapshots.
 FilmCraft 0.14.0 replaces the basic editor, and the owner-provided P logo brands the video maker.
 Video expansion is independent, titles are shared, and the embedded editor preserves shell scale.
+Channel and video actions now share rename/trash/restore behaviour. All right-side views begin
+below the browser bar, Codex has an upward-growing composer and account-discovered model,
+reasoning and speed controls. Script images resize in place; canvas and UI zoom are separate.
+Settings select an incremental project backup folder. Desktop fonts, icons and popup details
+are refined without changing the workspace structure.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
 The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
 login screen. Library media can be dropped into sidebar destinations, scripts have typography

@@ -210,6 +210,7 @@ impl FigApp {
     pub(super) fn toast_ui(&mut self, ctx: &egui::Context) {
         let Some((msg, clock)) = &mut self.ui.toast else { return };
         let now = ctx.input(|i| i.time);
+        let duration = if self.ui.video_maker && self.ui.last_error.as_ref() != Some(msg) { 1.0 } else { TOAST_SECS };
         // The clock starts on the frame after the one that first draws the toast: that frame's
         // time was taken before whatever raised it ran (a file dialog, a long open), and would
         // count that wait against it, so a failed open's message expired before it was seen.
@@ -217,13 +218,13 @@ impl FigApp {
             ToastClock::Raised => {
                 *clock = ToastClock::Drawn;
                 ctx.request_repaint();
-                TOAST_SECS
+                duration
             }
             ToastClock::Drawn => {
                 *clock = ToastClock::Since(now);
-                TOAST_SECS
+                duration
             }
-            ToastClock::Since(t) => TOAST_SECS - (now - t),
+            ToastClock::Since(t) => duration - (now - t),
         };
         if left <= 0.0 {
             self.ui.toast = None;
@@ -236,8 +237,8 @@ impl FigApp {
         }
         let screen = ctx.content_rect();
         egui::Area::new(egui::Id::unique("toast"))
-            .fixed_pos(egui::pos2(screen.center().x, screen.max.y - 96.0))
-            .pivot(egui::Align2::CENTER_BOTTOM)
+            .fixed_pos(egui::pos2(screen.center().x, if self.ui.video_maker { screen.min.y + 66.0 } else { screen.max.y - 96.0 }))
+            .pivot(if self.ui.video_maker { egui::Align2::CENTER_TOP } else { egui::Align2::CENTER_BOTTOM })
             .order(egui::Order::Tooltip)
             .show(ctx, |ui| {
                 egui::Frame::NONE

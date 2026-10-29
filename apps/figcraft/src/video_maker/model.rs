@@ -183,6 +183,14 @@ pub struct Channel {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Workspace {
     #[serde(default)]
+    pub trashed_channels: Vec<TrashedChannel>,
+    #[serde(default)]
+    pub codex_settings: super::codex_options::Settings,
+    #[serde(default)]
+    pub backup_directory: Option<PathBuf>,
+    #[serde(default)]
+    pub backup_id: String,
+    #[serde(default)]
     pub revisions: Vec<Revision>,
     #[serde(default)]
     pub trash: Vec<TrashedVideo>,
@@ -203,6 +211,10 @@ pub struct Workspace {
 impl Default for Workspace {
     fn default() -> Self {
         Self {
+            trashed_channels: Vec::new(),
+            codex_settings: Default::default(),
+            backup_directory: None,
+            backup_id: String::new(),
             version: 3,
             next_id: 1,
             selected_video: None,
@@ -263,6 +275,17 @@ impl Workspace {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Item {
+    Channel(u64),
+    Video(u64),
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TrashedChannel {
+    pub deleted_at: String,
+    pub channel: Channel,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Revision {
     pub at: String,
@@ -295,6 +318,65 @@ impl Workspace {
         }
     }
 
+    pub fn rename(&mut self, item: Item, name: &str) -> bool {
+        let name = name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        match item {
+            Item::Channel(id) => {
+                if let Some(channel) = self.channels.iter_mut().find(|c| c.id == id) {
+                    channel.name = name.to_owned();
+                    return true;
+                }
+            }
+            Item::Video(id) => {
+                if let Some(video) = self.channels.iter_mut().flat_map(|c| &mut c.videos).find(|v| v.id == id) {
+                    video.name = name.to_owned();
+                    video.script_title = name.to_owned();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    pub fn trash_channel(&mut self, id: u64) -> Vec<u64> {
+        let Some(index) = self.channels.iter().position(|c| c.id == id) else { return Vec::new() };
+        let channel = self.channels.remove(index);
+        let ids: Vec<_> = channel.videos.iter().map(|v| v.id).collect();
+        if self.selected_video.is_some_and(|id| ids.contains(&id)) {
+            self.selected_video = None;
+        }
+        if let Some(previous) = self.trashed_channels.iter_mut().find(|c| c.channel.id == id) {
+            previous.channel.name = channel.name;
+            previous.deleted_at = now();
+            for video in channel.videos {
+                if !previous.channel.videos.iter().any(|v| v.id == video.id) {
+                    previous.channel.videos.push(video);
+                }
+            }
+        } else {
+            self.trashed_channels.push(TrashedChannel { deleted_at: now(), channel });
+        }
+        ids
+    }
+    pub fn restore_channel(&mut self, id: u64) {
+        let Some(index) = self.trashed_channels.iter().position(|c| c.channel.id == id) else {
+            return;
+        };
+        let item = self.trashed_channels.remove(index);
+        if let Some(channel) = self.channels.iter_mut().find(|c| c.id == id) {
+            channel.name = item.channel.name;
+            for video in item.channel.videos {
+                if !channel.videos.iter().any(|v| v.id == video.id) {
+                    channel.videos.push(video);
+                }
+            }
+        } else {
+            self.channels.push(item.channel);
+        }
+        self.collapsed_channels.retain(|c| *c != id);
+    }
     pub fn trash_video(&mut self, id: u64) {
         for channel in &mut self.channels {
             if let Some(index) = channel.videos.iter().position(|v| v.id == id) {
@@ -424,6 +506,36 @@ pub fn file_name(path: &Path) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn channel_rename_trash_and_mixed_restore_keep_every_video_and_settings() {
+        let mut ws = Workspace::default();
+        let channel = ws.add_channel();
+        let first = ws.add_video(channel).unwrap();
+        let second = ws.add_video(channel).unwrap();
+        assert!(ws.rename(Item::Channel(channel), " renamed channel "));
+        assert!(!ws.rename(Item::Channel(channel), "  "));
+        ws.selected_mut().unwrap().script_rich.insert_image(42, 0);
+        ws.selected_mut().unwrap().script_rich.images[0].width = Some(320.0);
+        ws.codex_settings = super::super::codex_options::Settings { model: "model-test".into(), effort: "high".into(), fast: true };
+        ws.backup_directory = Some(PathBuf::from("backup"));
+        ws.backup_id = "test".into();
+        ws.trash_video(first);
+        assert_eq!(ws.trash_channel(channel), vec![second]);
+        assert!(ws.channels.is_empty());
+        let mut ws: Workspace = serde_json::from_slice(&serde_json::to_vec(&ws).unwrap()).unwrap();
+        ws.restore_video(first);
+        ws.restore_channel(channel);
+        ws.restore_channel(channel);
+        assert_eq!(ws.channels.len(), 1);
+        assert_eq!(ws.channels[0].name, "renamed channel");
+        assert_eq!(ws.channels[0].videos.len(), 2);
+        assert_eq!(ws.channels[0].videos.iter().find(|v| v.id == second).unwrap().script_rich.images[0].width, Some(320.0));
+        assert_eq!(ws.codex_settings.model, "model-test");
+        assert!(ws.codex_settings.fast);
+        assert_eq!(ws.backup_id, "test");
+        assert!(ws.trash.is_empty() && ws.trashed_channels.is_empty());
+    }
 
     #[test]
     fn history_and_trash_round_trip_with_independent_expansion() {
