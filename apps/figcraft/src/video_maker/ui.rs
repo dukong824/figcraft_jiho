@@ -1,9 +1,9 @@
-use super::LibraryView;
 use super::VideoMaker;
 use super::media;
 use super::model::{Asset, AssetKind, Caption, Section};
 use super::navigation::Route;
 use super::style::{self, Icon};
+use super::{LibraryView, SideView};
 use egui::{Color32, CornerRadius, FontId, Rect, RichText, Sense, Stroke, TextEdit, pos2, vec2};
 use std::path::Path;
 use std::process::Command;
@@ -19,6 +19,7 @@ impl VideoMaker {
             ctx.request_repaint();
         }
         style::configure(&ctx);
+        ui.set_style(ctx.global_style());
         #[cfg(not(target_os = "macos"))]
         figcraft_ui_egui::tabs::resize_edges(&ctx);
         self.poll_jobs(&ctx);
@@ -27,12 +28,10 @@ impl VideoMaker {
             self.sidebar(ui);
         }
         let export_design = self.header(ui);
+        self.side_panel(ui);
         if self.tabs.route().is_none() {
             self.empty_tab(ui);
         } else if self.section != Section::Design {
-            if matches!(self.section, Section::Script | Section::Edit) {
-                self.ai_panel(ui);
-            }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(32, 12))).show(
                 ui,
                 |ui| match self.section {
@@ -139,7 +138,8 @@ impl VideoMaker {
                                 if style::icon_button(ui, Icon::Plus, 30.0, "새 탭 (Ctrl+T)").clicked() {
                                     new_tab = true;
                                 }
-                                let blank = ui.allocate_response(vec2(60.0, 32.0), Sense::click_and_drag());
+                                let blank_width = (tabs_width - labels.len() as f32 * 206.0 - 35.0).max(60.0);
+                                let blank = ui.allocate_response(vec2(blank_width, 32.0), Sense::click_and_drag());
                                 if blank.drag_started() {
                                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                                 }
@@ -215,8 +215,10 @@ impl VideoMaker {
         let mut new_video = None;
         let mut navigate = None;
         let mut open_in_new_tab = None;
+        let mut trashed = None;
         let mut dirty = false;
         let active_route = self.tabs.route();
+        let mut expanded = self.store.data.expanded_videos.clone();
         egui::Panel::left("purpose-sidebar")
             .default_size(252.0)
             .min_size(210.0)
@@ -224,116 +226,134 @@ impl VideoMaker {
             .resizable(true)
             .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 10)).stroke(Stroke::new(1.0, style::BORDER)))
             .show(ui, |ui| {
+                ui.add_sized([ui.available_width(), 33.0], egui::Label::new(RichText::new("Purpose video maker").size(16.0).strong()));
+                ui.add_space(14.0);
+                ui.add(TextEdit::singleline(&mut self.search).desired_width(ui.available_width()).hint_text("채널 또는 영상 검색"));
+                ui.add_space(18.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Purpose").size(17.0).strong());
-                    ui.label(RichText::new("video maker").size(13.0).color(style::MUTED));
+                    ui.label(RichText::new("워크스페이스").size(12.0).color(style::MUTED));
+                    if style::icon_button(ui, Icon::Plus, 24.0, "새 채널").clicked() {
+                        new_channel = true;
+                    }
                 });
-                ui.add_space(22.0);
-                egui::Frame::NONE.fill(style::HOVER).corner_radius(CornerRadius::same(7)).inner_margin(egui::Margin::symmetric(8, 3)).show(
-                    ui,
-                    |ui| {
-                        ui.horizontal(|ui| {
-                            let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-                            style::paint_icon(ui.painter(), rect, Icon::Search, style::MUTED);
-                            ui.add(
-                                TextEdit::singleline(&mut self.search)
-                                    .desired_width(ui.available_width() - 6.0)
-                                    .frame(egui::Frame::NONE)
-                                    .hint_text("채널 또는 영상 검색"),
-                            );
-                        });
-                    },
-                );
-                ui.add_space(24.0);
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("워크스페이스").size(12.0).strong().color(style::MUTED));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if style::icon_button(ui, Icon::Plus, 24.0, "새 채널").clicked() {
-                            new_channel = true;
-                        }
-                    });
-                });
-                ui.add_space(8.0);
-                egui::ScrollArea::vertical().id_salt("purpose-projects").max_height((ui.available_height() - 60.0).max(40.0)).show(ui, |ui| {
+                ui.add_space(6.0);
+                egui::ScrollArea::vertical().id_salt("purpose-projects").max_height((ui.available_height() - 147.0).max(30.0)).show(ui, |ui| {
                     let query = self.search.to_lowercase();
                     for channel in &mut self.store.data.channels {
                         let channel_match = query.is_empty() || channel.name.to_lowercase().contains(&query);
                         if !channel_match && !channel.videos.iter().any(|v| v.name.to_lowercase().contains(&query)) {
                             continue;
                         }
-                        ui.horizontal(|ui| {
-                            let (rect, _) = ui.allocate_exact_size(vec2(18.0, 20.0), Sense::hover());
-                            style::paint_icon(ui.painter(), rect, Icon::Channel, style::TEXT);
-                            dirty |= ui
-                                .add(
-                                    TextEdit::singleline(&mut channel.name)
-                                        .desired_width((ui.available_width() - 38.0).max(40.0))
-                                        .font(egui::TextStyle::Button)
-                                        .frame(egui::Frame::NONE),
-                                )
-                                .changed();
-                            if style::icon_button(ui, Icon::Plus, 22.0, "이 채널에 영상 추가").clicked() {
+                        ui.push_id(("channel", channel.id), |ui| {
+                            let response = style::nav_row(ui, &channel.name, Icon::Channel, false, 0.0);
+                            response.context_menu(|ui| {
+                                dirty |= ui.text_edit_singleline(&mut channel.name).changed();
+                                if ui.button("영상 추가").clicked() {
+                                    new_video = Some(channel.id);
+                                    ui.close();
+                                }
+                            });
+                            let rect = Rect::from_center_size(pos2(response.rect.right() - 15.0, response.rect.center().y), vec2(24.0, 24.0));
+                            let plus = ui.interact(rect, ui.scope_id().with("add"), Sense::click()).on_hover_text("영상 추가");
+                            style::paint_icon(ui.painter(), rect.shrink(4.0), Icon::Plus, style::MUTED);
+                            if plus.clicked() {
                                 new_video = Some(channel.id);
                             }
                         });
-                        ui.add_space(3.0);
                         for video in &channel.videos {
                             if !channel_match && !video.name.to_lowercase().contains(&query) {
                                 continue;
                             }
-                            let selected = active_route.is_some_and(|route| route.video_id == video.id);
-                            if style::nav_row(ui, &video.name, Icon::Video, false, 10.0).on_hover_text("Ctrl+클릭으로 새 탭에서 열기").clicked()
-                            {
-                                let target = Route { video_id: video.id, section: Section::Library };
-                                if ui.input(|input| input.modifiers.command) {
-                                    open_in_new_tab = Some(target);
-                                } else {
-                                    navigate = Some(target);
-                                }
-                            }
-                            if selected {
-                                for section in Section::ALL {
-                                    let icon = section_icon(section);
-                                    if style::nav_row(
-                                        ui,
-                                        section.label(),
-                                        icon,
-                                        active_route.is_some_and(|route| route.video_id == video.id && route.section == section),
-                                        28.0,
-                                    )
-                                    .on_hover_text("Ctrl+클릭으로 새 탭에서 열기")
-                                    .clicked()
-                                    {
-                                        let target = Route { video_id: video.id, section };
-                                        if ui.input(|input| input.modifiers.command) {
-                                            open_in_new_tab = Some(target);
-                                        } else {
-                                            navigate = Some(target);
-                                        }
+                            ui.push_id(("video", video.id), |ui| {
+                                let is_open = expanded.contains(&video.id);
+                                let (response, toggle) = style::tree_row(ui, &video.name, is_open);
+                                if toggle {
+                                    if is_open {
+                                        expanded.retain(|id| *id != video.id);
+                                    } else {
+                                        expanded.push(video.id);
+                                    }
+                                } else if response.clicked() {
+                                    let target = Route { video_id: video.id, section: Section::Library };
+                                    if ui.input(|i| i.modifiers.command) {
+                                        open_in_new_tab = Some(target);
+                                    } else {
+                                        navigate = Some(target);
                                     }
                                 }
-                            }
+                                response.context_menu(|ui| {
+                                    if ui.button("휴지통으로 이동").clicked() {
+                                        trashed = Some(video.id);
+                                        ui.close();
+                                    }
+                                });
+                                if is_open || !query.is_empty() {
+                                    for section in Section::ALL {
+                                        ui.push_id(section.label(), |ui| {
+                                            if style::nav_row(
+                                                ui,
+                                                section.label(),
+                                                section_icon(section),
+                                                active_route.is_some_and(|r| r.video_id == video.id && r.section == section),
+                                                28.0,
+                                            )
+                                            .clicked()
+                                            {
+                                                let target = Route { video_id: video.id, section };
+                                                if ui.input(|i| i.modifiers.command) {
+                                                    open_in_new_tab = Some(target);
+                                                } else {
+                                                    navigate = Some(target);
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            });
                         }
-                        ui.add_space(15.0);
+                        ui.add_space(10.0);
                     }
                 });
-                ui.add_space((ui.available_height() - 56.0).max(6.0));
+                ui.add_space((ui.available_height() - 134.0).max(4.0));
                 ui.separator();
-                ui.horizontal(|ui| {
-                    let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-                    style::paint_icon(ui.painter(), rect, Icon::Sparkle, style::MUTED);
-                    ui.label(RichText::new("Codex").color(style::MUTED).size(13.0));
-                });
-                ui.label(RichText::new("로컬 프로젝트 · 자동 저장").color(style::FAINT).size(11.0));
+                for (view, label, icon) in [
+                    (SideView::History, "수정 기록", Icon::History),
+                    (SideView::Trash, "휴지통", Icon::Trash),
+                    (SideView::Codex, "Codex", Icon::Sparkle),
+                ] {
+                    ui.push_id(label, |ui| {
+                        if style::nav_row(ui, label, icon, self.side_view == Some(view), 0.0).clicked() {
+                            self.side_view = if self.side_view == Some(view) { None } else { Some(view) };
+                            if self.side_view == Some(SideView::Codex) {
+                                self.refresh_auth();
+                            }
+                            if self.side_view == Some(SideView::History) {
+                                self.checkpoint();
+                            }
+                        }
+                    });
+                }
             });
+        if expanded != self.store.data.expanded_videos {
+            self.store.data.expanded_videos = expanded;
+            dirty = true;
+        }
         if new_channel {
             self.store.data.add_channel();
             dirty = true;
         }
         if let Some(channel) = new_video {
+            self.checkpoint();
             if let Some(video_id) = self.store.data.add_video(channel) {
-                navigate = Some(Route { video_id, section: Section::Library });
+                navigate = Some(Route { video_id, section: Section::Script });
             }
+            dirty = true;
+        }
+        if let Some(id) = trashed {
+            self.checkpoint();
+            self.store.data.trash_video(id);
+            self.tabs.remove_video(id);
+            self.sync_route();
             dirty = true;
         }
         if let Some(route) = navigate {
@@ -349,56 +369,45 @@ impl VideoMaker {
     }
 
     fn header(&mut self, ui: &mut egui::Ui) -> bool {
-        let mut export_design = false;
-        let mut dirty = false;
-        let route = self.tabs.route();
-        let channel_name = route.and_then(|route| {
-            self.store
-                .data
-                .channels
-                .iter()
-                .find(|channel| channel.videos.iter().any(|video| video.id == route.video_id))
-                .map(|channel| channel.name.clone())
-        });
+        let mut export = false;
+        let crumb = self
+            .store
+            .data
+            .selected()
+            .filter(|_| self.tabs.route().is_some())
+            .map(|(channel, video)| format!("{}  /  {}  /  {}", channel.name, video.name, self.section.label()))
+            .unwrap_or_else(|| "새 탭".into());
         egui::Panel::top("purpose-header")
             .exact_size(45.0)
             .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(22, 7)).stroke(Stroke::new(1.0, style::BORDER)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if let Some(channel) = &channel_name {
-                        let (rect, _) = ui.allocate_exact_size(vec2(17.0, 17.0), Sense::hover());
-                        style::paint_icon(ui.painter(), rect, Icon::Channel, style::TEXT);
-                        ui.label(RichText::new(channel).color(style::MUTED).size(13.0));
-                        ui.label(RichText::new("/").color(style::FAINT));
-                        if let Some(video) = self.store.data.selected_mut() {
-                            dirty |= ui
-                                .add(
-                                    TextEdit::singleline(&mut video.name)
-                                        .desired_width(172.0)
-                                        .font(FontId::proportional(13.0))
-                                        .frame(egui::Frame::NONE),
-                                )
-                                .changed();
-                        }
-                        ui.label(RichText::new("/").color(style::FAINT));
-                        ui.label(RichText::new(self.section.label()).size(13.0).strong());
-                    } else {
-                        ui.label(RichText::new("새 탭").size(13.0).strong());
-                    }
+                    let (rect, _) = ui.allocate_exact_size(vec2(17.0, 24.0), Sense::hover());
+                    style::paint_icon(ui.painter(), Rect::from_center_size(rect.center(), vec2(17.0, 17.0)), Icon::Channel, style::MUTED);
+                    ui.add(egui::Label::new(RichText::new(crumb).size(13.0)).truncate());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if self.section == Section::Design && route.is_some() && ui.button("디자인을 라이브러리에 저장").clicked() {
-                            export_design = true;
+                        if !self.sidebar_open && style::icon_button(ui, Icon::Sparkle, 28.0, "Codex 열기").clicked() {
+                            self.side_view = Some(SideView::Codex);
+                            self.refresh_auth();
                         }
-                        if !self.message.is_empty() {
-                            ui.label(RichText::new(&self.message).size(12.0).color(style::BLUE));
+                        if self.section == Section::Design && self.tabs.route().is_some() && ui.button("디자인을 라이브러리에 저장").clicked()
+                        {
+                            export = true;
                         }
                     });
                 });
             });
-        if dirty {
-            self.save();
+        if !self.message.is_empty() {
+            egui::Panel::bottom("purpose-status").exact_size(25.0).frame(egui::Frame::NONE.fill(style::SIDEBAR)).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(&self.message).size(12.0));
+                    if ui.small_button("닫기").clicked() {
+                        self.message.clear();
+                    }
+                });
+            });
         }
-        export_design
+        export
     }
 
     fn library(&mut self, ui: &mut egui::Ui) {
@@ -603,7 +612,7 @@ impl VideoMaker {
                     if let Some(video) = self.store.data.selected_mut() {
                         dirty |= ui
                             .add(
-                                TextEdit::singleline(&mut video.script_title)
+                                TextEdit::singleline(&mut video.name)
                                     .font(FontId::proportional(38.0))
                                     .desired_width(width)
                                     .frame(egui::Frame::NONE)
@@ -918,80 +927,6 @@ impl VideoMaker {
             dirty = true;
         }
         if dirty {
-            self.save();
-        }
-    }
-
-    fn ai_panel(&mut self, ui: &mut egui::Ui) {
-        let mut send = false;
-        let mut insert = false;
-        egui::Panel::right("purpose-codex")
-            .default_size(330.0)
-            .min_size(265.0)
-            .max_size(420.0)
-            .resizable(true)
-            .frame(egui::Frame::NONE.fill(style::SURFACE).stroke(Stroke::new(1.0, style::BORDER)).inner_margin(egui::Margin::symmetric(17, 16)))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let (rect, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
-                    style::paint_icon(ui.painter(), rect, Icon::Sparkle, style::TEXT);
-                    ui.label(RichText::new("Codex").size(16.0).strong());
-                });
-                ui.add_space(5.0);
-                ui.label(RichText::new("현재 영상의 대본, 라이브러리, 타임라인을 참고해 도와줍니다.").size(12.0).color(style::MUTED));
-                ui.add_space(15.0);
-                ui.separator();
-                ui.add_space(11.0);
-                if self.ai_job.is_some() {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(RichText::new("Codex 작업 중…").color(style::MUTED));
-                    });
-                }
-                egui::ScrollArea::vertical().id_salt("purpose-ai-output").max_height((ui.available_height() - 155.0).max(70.0)).show(ui, |ui| {
-                    if self.ai_response.is_empty() && self.ai_job.is_none() {
-                        ui.add_space(22.0);
-                        ui.label(RichText::new("대본을 다듬거나 편집 아이디어를 물어보세요.").size(14.0).color(style::MUTED));
-                        ui.add_space(8.0);
-                        ui.label(RichText::new("답변은 검토한 뒤 대본에 반영할 수 있습니다.").size(12.0).color(style::FAINT));
-                    } else {
-                        ui.label(RichText::new(&self.ai_response).size(14.0));
-                        if self.section == Section::Script && !self.ai_response.is_empty() && self.ai_job.is_none() {
-                            ui.add_space(12.0);
-                            insert = ui.add(egui::Button::new("대본에 추가").fill(style::SIDEBAR)).clicked();
-                        }
-                    }
-                });
-                ui.add_space((ui.available_height() - 170.0).max(8.0));
-                egui::Frame::NONE
-                    .fill(style::SURFACE)
-                    .stroke(Stroke::new(1.0, style::BORDER))
-                    .corner_radius(CornerRadius::same(9))
-                    .inner_margin(egui::Margin::symmetric(9, 7))
-                    .show(ui, |ui| {
-                        ui.add_sized(
-                            [ui.available_width(), 72.0],
-                            TextEdit::multiline(&mut self.prompt).frame(egui::Frame::NONE).hint_text("무엇을 도와드릴까요?"),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.add_space((ui.available_width() - 65.0).max(0.0));
-                            let button = egui::Button::new(RichText::new("보내기").color(Color32::WHITE))
-                                .fill(style::BLUE)
-                                .corner_radius(CornerRadius::same(6));
-                            send = ui.add_enabled(self.ai_job.is_none(), button).clicked();
-                        });
-                    });
-                ui.add_space(6.0);
-                ui.label(RichText::new("Codex CLI 로그인 · 사용 중인 계정 한도 적용").size(11.0).color(style::FAINT));
-            });
-        if send {
-            self.ask_codex(self.prompt.clone());
-        }
-        if insert && let Some(video) = self.store.data.selected_mut() {
-            if !video.script_body.trim().is_empty() {
-                video.script_body.push_str("\n\n");
-            }
-            video.script_body.push_str(&self.ai_response);
             self.save();
         }
     }

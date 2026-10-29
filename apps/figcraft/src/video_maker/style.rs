@@ -29,10 +29,11 @@ pub enum Icon {
     Edit,
     Grid,
     List,
-    Search,
     Image,
     Audio,
     Sparkle,
+    History,
+    Trash,
 }
 
 pub fn configure(ctx: &egui::Context) {
@@ -106,6 +107,24 @@ pub fn nav_row(ui: &mut Ui, label: &str, icon: Icon, selected: bool, indent: f32
     response
 }
 
+pub fn tree_row(ui: &mut Ui, label: &str, expanded: bool) -> (Response, bool) {
+    let response = nav_row(ui, label, Icon::Video, false, 10.0);
+    let icon = Rect::from_center_size(pos2(response.rect.left() + 27.0, response.rect.center().y), vec2(23.0, 25.0));
+    let hovered = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| response.rect.contains(p));
+    let toggle = ui.interact(icon, ui.scope_id().with("expand"), Sense::click());
+    if hovered {
+        ui.painter().rect_filled(icon, CornerRadius::same(3), if response.hovered() { HOVER } else { SIDEBAR });
+        let c = icon.center();
+        let points = if expanded {
+            [pos2(c.x - 4.0, c.y - 2.0), pos2(c.x, c.y + 2.0), pos2(c.x + 4.0, c.y - 2.0)]
+        } else {
+            [pos2(c.x - 2.0, c.y - 4.0), pos2(c.x + 2.0, c.y), pos2(c.x - 2.0, c.y + 4.0)]
+        };
+        ui.painter().add(Shape::line(points.to_vec(), Stroke::new(1.5, MUTED)));
+    }
+    (response, toggle.on_hover_text(if expanded { "접기" } else { "펼치기" }).clicked())
+}
+
 fn line(p: &Painter, a: Pos2, b: Pos2, color: Color32) {
     p.line_segment([a, b], Stroke::new(1.6, color));
 }
@@ -119,6 +138,16 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
     let h = r.height();
     let stroke = Stroke::new(1.5, color);
     match icon {
+        Icon::History => {
+            p.circle_stroke(r.center(), 7.0, stroke);
+            line(p, pos2(x, y - 4.0), pos2(x, y), color);
+            line(p, pos2(x, y), pos2(x + 3.0, y + 2.0), color);
+        }
+        Icon::Trash => {
+            p.rect_stroke(r.shrink2(vec2(4.0, 3.0)).translate(vec2(0.0, 2.0)), CornerRadius::same(1), stroke, StrokeKind::Inside);
+            line(p, pos2(l + 2.0, t + 4.0), pos2(l + w - 2.0, t + 4.0), color);
+            line(p, pos2(x - 2.0, t + 1.0), pos2(x + 2.0, t + 1.0), color);
+        }
         Icon::Sidebar => {
             p.rect_stroke(r.shrink(1.0), CornerRadius::same(2), stroke, StrokeKind::Inside);
             line(p, pos2(l + w * 0.38, t + 1.0), pos2(l + w * 0.38, t + h - 1.0), color);
@@ -179,10 +208,6 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
                 p.circle_filled(pos2(l + 2.0, t + dy), 1.0, color);
                 line(p, pos2(l + 6.0, t + dy), pos2(l + w - 1.0, t + dy), color);
             }
-        }
-        Icon::Search => {
-            p.circle_stroke(pos2(x - 1.5, y - 1.5), 4.0, stroke);
-            line(p, pos2(x + 1.5, y + 1.5), pos2(x + 6.0, y + 6.0), color);
         }
         Icon::Image => {
             p.rect_stroke(r.shrink(2.0), CornerRadius::same(2), stroke, StrokeKind::Inside);

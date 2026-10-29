@@ -78,7 +78,10 @@ impl FigApp {
         }
         // Screen-reader and bidi language of the UI (fork E17).
         ctx.set_language(i18n::current().map(|l| l.code.to_string()));
-        if !self.fonts_installed {
+        if self.ui.video_maker {
+            // The host installs the shared Korean UI font set before drawing its shell.
+            self.fonts_installed = true;
+        } else if !self.fonts_installed {
             // Cmd/Ctrl+= / - / 0 zoom the canvas (view.zoomIn, view.zoomOut, view.zoom100): egui's
             // own keyboard zoom would scale the whole interface on the same keys.
             ctx.options_mut(|o| o.zoom_with_keyboard = false);
@@ -110,7 +113,7 @@ impl FigApp {
             let window_px = ctx.content_rect().size() * ctx.pixels_per_point();
             let size = if cfg!(target_arch = "wasm32") { 1.0 } else { self.session.prefs.ui_scale };
             let plan = ui_scale::plan(size, ctx.native_pixels_per_point(), Some((window_px.x, window_px.y)));
-            if ctx.viewport_id() == egui::ViewportId::ROOT {
+            if ctx.viewport_id() == egui::ViewportId::ROOT && !self.ui.video_maker {
                 ctx.set_zoom_factor(plan.zoom);
             }
             self.ui.ui_scale = plan;
@@ -167,6 +170,9 @@ impl FigApp {
             self.logic_ticked = false;
             self.observe_ime(&ctx, false);
             return;
+        }
+        if self.ui.video_maker {
+            ui.set_style(ctx.global_style());
         }
         windows::begin(self, &ctx);
         let (files, prefs) = (self.session.docs.len(), self.session.prefs.clone());

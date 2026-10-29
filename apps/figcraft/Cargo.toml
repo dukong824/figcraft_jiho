@@ -32,6 +32,7 @@ egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "clipboard", "wayland", "x11"] }
 serde_json = { workspace = true }
 serde = { workspace = true }
+chrono = { workspace = true }
 log = { workspace = true }
 rfd = { workspace = true }
 arboard = { workspace = true, features = ["image-data", "wayland-data-control"] }

@@ -81,6 +81,17 @@ impl Tabs {
         }
     }
 
+    pub fn remove_video(&mut self, id: u64) {
+        for tab in &mut self.tabs {
+            let current = tab.route();
+            tab.history.retain(|r| r.is_none_or(|r| r.video_id != id));
+            if tab.history.is_empty() {
+                tab.history.push(None);
+            }
+            tab.position = tab.history.iter().rposition(|r| *r == current).unwrap_or(tab.history.len() - 1);
+        }
+    }
+
     pub fn can_back(&self) -> bool {
         self.tabs.get(self.active).is_some_and(|tab| tab.position > 0)
     }
@@ -109,6 +120,19 @@ impl Tabs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trashing_a_video_removes_it_from_all_tab_histories() {
+        let mut tabs = Tabs::new(Some(Route { video_id: 1, section: Section::Script }));
+        tabs.navigate(Route { video_id: 2, section: Section::Design });
+        tabs.new_tab();
+        tabs.navigate(Route { video_id: 2, section: Section::Library });
+        tabs.remove_video(2);
+        assert_eq!(tabs.route(), None);
+        tabs.select(0);
+        assert_eq!(tabs.route().unwrap().video_id, 1);
+        assert!(!tabs.can_forward());
+    }
 
     fn route(video_id: u64, section: Section) -> Route {
         Route { video_id, section }

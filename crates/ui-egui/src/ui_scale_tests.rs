@@ -29,6 +29,16 @@ fn settle(u: &mut Ui, native: f32) {
 const SCREENS: [f32; 5] = [1.0, 1.25, 1.5, 2.0, 3.0];
 
 #[test]
+fn the_embedded_video_editor_preserves_the_hosts_zoom() {
+    let mut u = Ui::new(Session::new());
+    u.app.ui.video_maker = true;
+    u.app.session.prefs.ui_scale = 1.5;
+    u.ctx.set_zoom_factor(1.1);
+    settle(&mut u, 1.0);
+    assert!((u.ctx.zoom_factor() - 1.1).abs() < 1e-5);
+}
+
+#[test]
 fn by_default_the_interface_is_the_systems_own_size() {
     for native in SCREENS {
         let mut u = Ui::new(Session::new());

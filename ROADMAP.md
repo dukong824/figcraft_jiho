@@ -23,6 +23,8 @@ the FigCraft parity estimates below. See
 [video maker](docs/video-maker.md).
 The video maker now uses a restrained desktop document layout with original drawn icons,
 a freeform script document, and a switch between filename list and thumbnail tile views.
+The sidebar now pins reversible history/trash and an optional Codex side view with CLI login.
+Video expansion is independent, titles are shared, and the embedded editor preserves shell scale.
 
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)

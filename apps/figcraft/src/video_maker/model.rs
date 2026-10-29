@@ -47,7 +47,7 @@ impl AssetKind {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
     pub id: u64,
     pub name: String,
@@ -58,7 +58,7 @@ pub struct Asset {
     pub has_audio: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BlockKind {
     Heading,
     Paragraph,
@@ -66,13 +66,13 @@ pub enum BlockKind {
     Asset(u64),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ScriptBlock {
     pub kind: BlockKind,
     pub text: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Clip {
     pub id: u64,
     pub asset_id: u64,
@@ -90,7 +90,7 @@ impl Clip {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Caption {
     pub id: u64,
     pub start: f64,
@@ -98,7 +98,7 @@ pub struct Caption {
     pub text: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Video {
     pub id: u64,
     pub name: String,
@@ -164,15 +164,23 @@ impl Video {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Channel {
     pub id: u64,
     pub name: String,
     pub videos: Vec<Video>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Workspace {
+    #[serde(default)]
+    pub revisions: Vec<Revision>,
+    #[serde(default)]
+    pub trash: Vec<TrashedVideo>,
+    #[serde(default)]
+    pub expanded_videos: Vec<u64>,
+    #[serde(default)]
+    pub codex_path: Option<PathBuf>,
     pub version: u32,
     pub next_id: u64,
     pub selected_video: Option<u64>,
@@ -181,7 +189,16 @@ pub struct Workspace {
 
 impl Default for Workspace {
     fn default() -> Self {
-        Self { version: 2, next_id: 1, selected_video: None, channels: Vec::new() }
+        Self {
+            version: 3,
+            next_id: 1,
+            selected_video: None,
+            channels: Vec::new(),
+            revisions: Vec::new(),
+            trash: Vec::new(),
+            expanded_videos: Vec::new(),
+            codex_path: None,
+        }
     }
 }
 
@@ -214,15 +231,73 @@ impl Workspace {
             id,
             name: format!("새 영상 {}", channel.videos.len() + 1),
             assets: Vec::new(),
-            script_title: format!("새 영상 {}의 대본", channel.videos.len() + 1),
+            script_title: format!("새 영상 {}", channel.videos.len() + 1),
             script_body: String::new(),
             script_assets: Vec::new(),
             script: Vec::new(),
             clips: Vec::new(),
             captions: Vec::new(),
         });
+        self.expanded_videos.push(id);
         self.selected_video = Some(id);
         Some(id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Revision {
+    pub at: String,
+    pub label: String,
+    pub video: Video,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TrashedVideo {
+    pub channel_id: u64,
+    pub channel_name: String,
+    pub deleted_at: String,
+    pub video: Video,
+}
+
+fn now() -> String {
+    chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).format("%Y-%m-%d %H:%M:%S UTC").to_string()
+}
+
+impl Workspace {
+    pub fn checkpoint(&mut self, label: &str) {
+        let Some((_, video)) = self.selected() else { return };
+        if self.revisions.iter().rev().find(|r| r.video.id == video.id).is_some_and(|r| r.video == *video) {
+            return;
+        }
+        let video = video.clone();
+        self.revisions.push(Revision { at: now(), label: label.into(), video });
+        if self.revisions.len() > 100 {
+            self.revisions.remove(0);
+        }
+    }
+
+    pub fn trash_video(&mut self, id: u64) {
+        for channel in &mut self.channels {
+            if let Some(index) = channel.videos.iter().position(|v| v.id == id) {
+                let video = channel.videos.remove(index);
+                self.trash.push(TrashedVideo { channel_id: channel.id, channel_name: channel.name.clone(), deleted_at: now(), video });
+                if self.selected_video == Some(id) {
+                    self.selected_video = None;
+                }
+                return;
+            }
+        }
+    }
+
+    pub fn restore_video(&mut self, id: u64) {
+        let Some(index) = self.trash.iter().position(|t| t.video.id == id) else { return };
+        let item = self.trash.remove(index);
+        if !self.channels.iter().any(|c| c.id == item.channel_id) {
+            self.channels.push(Channel { id: item.channel_id, name: item.channel_name, videos: Vec::new() });
+        }
+        if let Some(channel) = self.channels.iter_mut().find(|c| c.id == item.channel_id) {
+            channel.videos.push(item.video);
+        }
     }
 }
 
@@ -244,14 +319,24 @@ impl Store {
         } else {
             Workspace::default()
         };
-        let migrated = data.version < 2;
+        let migrated = data.version < 3;
+        let old_version = data.version;
         if migrated {
             for channel in &mut data.channels {
                 for video in &mut channel.videos {
-                    video.migrate_script();
+                    if old_version < 2 {
+                        video.migrate_script();
+                    }
+                    if !video.script_title.trim().is_empty() && video.script_title != format!("{}의 대본", video.name) {
+                        video.name = video.script_title.clone();
+                    }
+                    video.script_title = video.name.clone();
                 }
             }
-            data.version = 2;
+            data.version = 3;
+            if let Some(id) = data.selected_video {
+                data.expanded_videos.push(id);
+            }
         }
         let store = Self { root, data, writable: true };
         if migrated {
@@ -308,6 +393,29 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn history_and_trash_round_trip_with_independent_expansion() {
+        let mut ws = Workspace::default();
+        let channel = ws.add_channel();
+        let first = ws.add_video(channel).unwrap();
+        ws.selected_mut().unwrap().script_body = "이전 대본".into();
+        ws.checkpoint("첫 기록");
+        ws.selected_mut().unwrap().script_body = "수정한 대본".into();
+        ws.checkpoint("두 번째 기록");
+        ws.checkpoint("중복 없음");
+        assert_eq!(ws.revisions.len(), 2);
+        let second = ws.add_video(channel).unwrap();
+        assert!(ws.expanded_videos.contains(&first) && ws.expanded_videos.contains(&second));
+        ws.trash_video(first);
+        let bytes = serde_json::to_vec(&ws).unwrap();
+        let mut loaded: Workspace = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(loaded.trash[0].video.script_body, "수정한 대본");
+        assert_eq!(loaded.revisions[0].video.script_body, "이전 대본");
+        loaded.restore_video(first);
+        assert!(loaded.trash.is_empty());
+        assert_eq!(loaded.channels[0].videos.iter().find(|v| v.id == first).unwrap().script_body, "수정한 대본");
+    }
+
+    #[test]
     fn videos_are_selected_and_clips_measure_the_timeline() {
         let mut ws = Workspace::default();
         let channel = ws.add_channel();
@@ -351,7 +459,7 @@ mod tests {
         assert!(video.script.is_empty());
         let saved = fs::read_to_string(root.join("workspace.json")).unwrap();
         assert!(!saved.contains("\"script\""));
-        assert_eq!(Store::load(root.clone()).unwrap().data.version, 2);
+        assert_eq!(Store::load(root.clone()).unwrap().data.version, 3);
         let _ = fs::remove_dir_all(root);
     }
 }

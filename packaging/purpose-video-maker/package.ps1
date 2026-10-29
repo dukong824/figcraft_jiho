@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$version = '0.1.2'
+$version = '0.1.3'
 $ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
 $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
 $ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
@@ -73,9 +73,31 @@ ffmpeg/LICENSE.txt. Source and build instructions:
 https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-10-27-18-38
 https://ffmpeg.org/download.html
 
-Codex assistance requires a separately installed Codex CLI and account login.
+OpenAI Codex CLI is included in codex/. Sign in with ChatGPT in the app sidebar.
 See VIDEO-MAKER.md for features and current limits.
 '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding utf8
+
+$codexVersion = 'rust-v0.165.0'
+$codexDirectory = Join-Path $stage 'codex'
+New-Item -ItemType Directory -Path $codexDirectory -Force | Out-Null
+$codexFiles = @(
+    @{ Source = 'codex-x86_64-pc-windows-msvc.exe'; Name = 'codex.exe'; Sha256 = 'd4b2e6a054ea1dfe53217f9d8942c5f8a9f4b76171a1e0bb76ced5759915300a' }
+    @{ Source = 'codex-command-runner-x86_64-pc-windows-msvc.exe'; Name = 'codex-command-runner.exe'; Sha256 = '8f1a9d4217a34d6b44df81c25999ff9b98bb8d0e3c179aa070fcd84b3ce7a9d3' }
+    @{ Source = 'codex-windows-sandbox-setup-x86_64-pc-windows-msvc.exe'; Name = 'codex-windows-sandbox-setup.exe'; Sha256 = 'a39f42dc697919e650cd24f82daaecd6121e41e3f4d56373fef4f4177f8eee02' }
+    @{ Source = 'codex-windows-sandbox-service-x86_64-pc-windows-msvc.exe'; Name = 'codex-windows-sandbox-service.exe'; Sha256 = '48b13eee521adada28083167f187b2df0fb6c2eab2f7e59ef36e0c12beae77b0' }
+ )
+foreach ($item in $codexFiles) {
+    $destination = Join-Path $codexDirectory $item.Name
+    Invoke-WebRequest -Uri "https://github.com/openai/codex/releases/download/$codexVersion/$($item.Source)" -OutFile $destination
+    if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $item.Sha256) { throw 'Codex checksum mismatch' }
+}
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/codex/LICENSE') -Destination (Join-Path $codexDirectory 'LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/codex/NOTICE') -Destination (Join-Path $codexDirectory 'NOTICE.txt')
+"OpenAI Codex $codexVersion; Apache-2.0; https://github.com/openai/codex/tree/$codexVersion" |
+    Set-Content -LiteralPath (Join-Path $codexDirectory 'SOURCE.txt') -Encoding utf8
+& (Join-Path $codexDirectory 'codex.exe') --version
+if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
+
 $revision = (git -C $repoRoot rev-parse HEAD).Trim()
 "Commit: $revision`nVersion: $version`nFFmpeg: $ffmpegName`nFFmpeg SHA256: $ffmpegSha256`n" |
     Set-Content -LiteralPath (Join-Path $stage 'BUILD-INFO.txt') -Encoding ascii

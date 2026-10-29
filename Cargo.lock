@@ -1548,6 +1548,7 @@ name = "figcraft"
 version = "0.11.2"
 dependencies = [
  "arboard",
+ "chrono",
  "craft-update",
  "craft-window",
  "eframe",

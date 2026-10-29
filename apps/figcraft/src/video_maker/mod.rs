@@ -1,7 +1,9 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
+mod codex;
 mod media;
 mod model;
 mod navigation;
+mod panels;
 mod style;
 mod ui;
 
@@ -14,7 +16,7 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::mpsc::{self, Receiver};
 
 pub struct VideoMaker {
@@ -22,6 +24,13 @@ pub struct VideoMaker {
     section: Section,
     tabs: Tabs,
     sidebar_open: bool,
+    side_view: Option<SideView>,
+    revision_due: Option<std::time::Instant>,
+    auth_job: Option<Receiver<Result<bool, String>>>,
+    authenticated: Option<bool>,
+    login: Option<codex::Login>,
+    login_output: String,
+    auth_error: String,
     search: String,
     library_query: String,
     library_view: LibraryView,
@@ -39,6 +48,13 @@ pub struct VideoMaker {
     ai_response: String,
     ai_job: Option<Receiver<Result<String, String>>>,
     export_job: Option<Receiver<Result<PathBuf, String>>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SideView {
+    Codex,
+    History,
+    Trash,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -66,12 +82,20 @@ impl VideoMaker {
             let _ = store.data.add_video(channel);
             store.save()?;
         }
+        store.data.checkpoint("프로젝트 열기");
         let initial = store.data.selected_video.map(|video_id| Route { video_id, section: Section::Script });
         Ok(Self {
             store,
             section: Section::Script,
             tabs: Tabs::new(initial),
             sidebar_open: true,
+            side_view: None,
+            revision_due: None,
+            auth_job: None,
+            authenticated: None,
+            login: None,
+            login_output: String::new(),
+            auth_error: String::new(),
             search: String::new(),
             library_query: String::new(),
             library_view: LibraryView::Tiles,
@@ -102,6 +126,7 @@ impl VideoMaker {
     fn sync_route(&mut self) {
         if let Some(route) = self.tabs.route() {
             if self.store.data.selected_video != Some(route.video_id) {
+                self.checkpoint();
                 self.store.data.selected_video = Some(route.video_id);
                 self.selected_clip = None;
                 self.preview_clip = None;
@@ -118,7 +143,19 @@ impl VideoMaker {
         self.sync_route();
     }
 
+    fn checkpoint(&mut self) {
+        self.store.data.checkpoint("자동 저장");
+        self.revision_due = None;
+        if let Err(e) = self.store.save() {
+            self.message = e;
+        }
+    }
+
     fn save(&mut self) {
+        if let Some(video) = self.store.data.selected_mut() {
+            video.script_title = video.name.clone();
+        }
+        self.revision_due = Some(std::time::Instant::now());
         if let Err(e) = self.store.save() {
             self.message = format!("저장 실패: {e}");
         }
@@ -128,6 +165,7 @@ impl VideoMaker {
         if self.design_loaded.is_some() {
             fig.session.execute("file.save", &json!({})).map_err(|e| format!("디자인 저장 실패: {e}"))?;
         }
+        self.checkpoint();
         self.store.save().map_err(|e| format!("프로젝트 저장 실패: {e}"))
     }
 
@@ -284,6 +322,14 @@ impl VideoMaker {
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
+        self.poll_auth(ctx);
+        if let Some(due) = self.revision_due {
+            if due.elapsed() >= std::time::Duration::from_secs(1) {
+                self.checkpoint();
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            }
+        }
         let finished: Vec<_> = self
             .thumbnail_jobs
             .iter()
@@ -348,6 +394,14 @@ impl VideoMaker {
         if self.ai_job.is_some() || request.trim().is_empty() {
             return;
         }
+        let Some(cli) = codex::executable(self.store.data.codex_path.as_deref()) else {
+            self.auth_error = "Codex CLI를 먼저 연결하세요".into();
+            return;
+        };
+        if self.authenticated != Some(true) {
+            self.auth_error = "ChatGPT 계정으로 로그인하세요".into();
+            return;
+        }
         let Some(video) = self.video().cloned() else { return };
         let root = self.store.video_dir(video.id);
         let script = format!("{}\n\n{}", video.script_title, video.script_body);
@@ -372,7 +426,7 @@ impl VideoMaker {
         );
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(run_codex(&root, &prompt));
+            let _ = tx.send(run_codex(&cli, &root, &prompt));
         });
         self.ai_response.clear();
         self.ai_job = Some(rx);
@@ -380,11 +434,14 @@ impl VideoMaker {
     }
 }
 
-fn run_codex(root: &Path, prompt: &str) -> Result<String, String> {
+fn run_codex(cli: &Path, root: &Path, prompt: &str) -> Result<String, String> {
     fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
     let output_path = std::env::temp_dir().join(format!("purpose-codex-{}-{stamp}.txt", std::process::id()));
-    let mut child = Command::new("codex")
+    let mut child = codex::command(cli)
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("CODEX_API_KEY")
+        .args(["-c", "forced_login_method=\"chatgpt\"", "-c", "model_provider=\"openai\""])
         .args(["exec", "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--output-last-message"])
         .arg(&output_path)
         .arg("-C")
@@ -414,6 +471,22 @@ fn run_codex(root: &Path, prompt: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn editing_the_document_title_persists_the_video_name() {
+        let root = std::env::temp_dir().join(format!("purpose-title-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        maker.store.data.selected_mut().unwrap().name = "내 영상 제목".into();
+        maker.save();
+        let store = Store::load(root.clone()).unwrap();
+        let (_, video) = store.data.selected().unwrap();
+        assert_eq!(video.name, "내 영상 제목");
+        assert_eq!(video.script_title, video.name);
+        assert!(maker.title().starts_with("내 영상 제목"));
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn imported_asset_is_shared_by_script_and_timeline_after_reopen() {

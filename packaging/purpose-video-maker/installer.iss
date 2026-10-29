@@ -8,7 +8,7 @@
 [Setup]
 AppId={{C4BDC487-8A3B-431B-BC60-05D674C38A82}
 AppName=Purpose video maker
-AppVersion=0.1.2
+AppVersion=0.1.3
 AppPublisher=FigCraft Jiho
 AppPublisherURL=https://github.com/dukong824/figcraft_jiho
 DefaultDirName={localappdata}\Programs\Purpose video maker
@@ -16,7 +16,7 @@ DefaultGroupName=Purpose video maker
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\purpose-video-maker.exe
 OutputDir={#OutDir}
-OutputBaseFilename=Purpose-video-maker-0.1.2-windows-x64-setup
+OutputBaseFilename=Purpose-video-maker-0.1.3-windows-x64-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

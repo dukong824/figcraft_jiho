@@ -84,3 +84,7 @@ Papierwerk outward paper border
 Rust adaptation of addTornBorder, exact Euclidean distance transform, mulberry32 and
 smoothNoise from gentrax/papierwerk-editor, Copyright (c) 2026 gentrax, MIT.
 See third-party/papierwerk/LICENSE and UPSTREAM.md for pinned source and adaptations.
+
+OpenAI Codex CLI (Windows video maker packages)
+Unmodified official OpenAI Codex executables, Apache-2.0.
+See third-party/codex and the packaged codex/LICENSE.txt and NOTICE.txt.
