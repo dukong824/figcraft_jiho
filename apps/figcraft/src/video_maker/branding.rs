@@ -6,6 +6,32 @@ pub fn window_icon() -> Option<egui::IconData> {
     Some(egui::IconData { width: 256, height: 256, rgba: icon.into_raw() })
 }
 
+#[cfg(windows)]
+pub fn set_windows_icons(window: &winit::window::Window) -> Result<(), winit::window::BadIcon> {
+    use winit::platform::windows::{IconExtWindows, WindowExtWindows};
+    use winit::{dpi::PhysicalSize, window::Icon};
+
+    let load = |size| {
+        if cfg!(feature = "purpose-branding") {
+            // build.rs embeds the owner's multi-size ICO as resource 1. Let Windows
+            // select its native image instead of constructing a legacy bitmap HICON.
+            Icon::from_resource(1, Some(PhysicalSize::new(size, size)))
+        } else {
+            let pixels = image::load_from_memory(PNG).map(|image| image.resize_exact(size, size, image::imageops::FilterType::Lanczos3).to_rgba8());
+            match pixels {
+                Ok(pixels) => Icon::from_rgba(pixels.into_raw(), size, size),
+                Err(error) => Err(winit::window::BadIcon::OsError(std::io::Error::other(error))),
+            }
+        }
+    };
+    let small = load(32)?;
+    let taskbar = load(48)?;
+    log::info!("Purpose native window icons loaded: small={small:?}, taskbar={taskbar:?}");
+    window.set_window_icon(Some(small));
+    window.set_taskbar_icon(Some(taskbar));
+    Ok(())
+}
+
 pub(super) fn texture(ctx: &egui::Context) -> Option<egui::TextureHandle> {
     let id = egui::Id::unique("purpose-logo");
     if let Some(texture) = ctx.data(|data| data.get_temp::<egui::TextureHandle>(id)) {

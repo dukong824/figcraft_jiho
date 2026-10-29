@@ -25,6 +25,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: purpose-video-maker-windows
+          cache-on-failure: true
+          cache-workspace-crates: true
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress

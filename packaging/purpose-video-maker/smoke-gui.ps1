@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class PurposeWindowCheck {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
@@ -11,6 +12,21 @@ public static class PurposeWindowCheck {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
     [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    public delegate bool EnumWindow(IntPtr window, IntPtr data);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindow callback, IntPtr data);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, StringBuilder title, int count);
+    public static string Title(IntPtr window) { var title = new StringBuilder(512); GetWindowText(window, title, title.Capacity); return title.ToString(); }
+    public static IntPtr Find(int process) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((window, data) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner == (uint)process && IsWindowVisible(window) && Title(window).Contains("Purpose video maker")) { found = window; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
     public static Rect Bounds(IntPtr window) { Rect rect; if (!GetWindowRect(window, out rect)) throw new Exception("GetWindowRect failed"); return rect; }
     public static Rect Screen(IntPtr window) {
         MonitorInfo info = new MonitorInfo(); info.Size = Marshal.SizeOf(typeof(MonitorInfo));
@@ -35,16 +51,21 @@ function Wait-Bounds($Window, $Expected) {
     throw "Unexpected window bounds: $($actual.Left),$($actual.Top),$($actual.Right),$($actual.Bottom); expected $($Expected.Left),$($Expected.Top),$($Expected.Right),$($Expected.Bottom)"
 }
 $env:PURPOSE_PROJECTS_DIR = $ProjectDirectory
-$app = Start-Process -FilePath $Executable -PassThru
+$previousLogLevel = $env:RUST_LOG
+$env:RUST_LOG = 'info'
+New-Item -ItemType Directory -Path $ProjectDirectory -Force | Out-Null
+$startupLog = Join-Path $ProjectDirectory 'startup.log'
+$app = Start-Process -FilePath $Executable -PassThru -RedirectStandardError $startupLog
 try {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     do {
         Start-Sleep -Milliseconds 200
         $app.Refresh()
         if ($app.HasExited) { throw "Installed GUI exited early: $($app.ExitCode)" }
-    } while ($app.MainWindowHandle -eq 0 -and $timer.Elapsed.TotalSeconds -lt 30)
-    $window = $app.MainWindowHandle
+        $window = [PurposeWindowCheck]::Find($app.Id)
+    } while ($window -eq 0 -and $timer.Elapsed.TotalSeconds -lt 30)
     if ($window -eq 0) { throw 'Installed GUI has no main window' }
+    Write-Output "Testing window: $([PurposeWindowCheck]::Title($window)); handle=$window"
     $timer.Restart()
     do {
         $bigIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]1, [IntPtr]0)
@@ -53,7 +74,10 @@ try {
         if ($app.HasExited) { throw "Installed GUI exited before icon setup: $($app.ExitCode)" }
         Start-Sleep -Milliseconds 200
     } while ($timer.Elapsed.TotalSeconds -lt 30)
-    if ($bigIcon -eq [IntPtr]::Zero) { throw 'Windows taskbar has no explicit large application icon' }
+    if ($bigIcon -eq [IntPtr]::Zero) {
+        $smallIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]0, [IntPtr]0)
+        throw "Windows taskbar has no explicit large application icon; window=$window; small=$smallIcon"
+    }
     $normal = [PurposeWindowCheck]::Bounds($window)
     $screen = [PurposeWindowCheck]::Screen($window)
     [PurposeWindowCheck]::F11($window)
@@ -65,6 +89,8 @@ try {
     if ($app.ExitCode -ne 0) { throw "Installed GUI failed: $($app.ExitCode)" }
     Write-Output 'Installed GUI: main window, taskbar icon, fullscreen, restore and clean exit passed'
 } finally {
+    if (Test-Path -LiteralPath $startupLog) { Get-Content -LiteralPath $startupLog | Write-Output }
     if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
     Remove-Item Env:PURPOSE_PROJECTS_DIR
+    $env:RUST_LOG = $previousLogLevel
 }

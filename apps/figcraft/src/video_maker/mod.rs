@@ -4,6 +4,8 @@ mod chat;
 mod codex;
 mod document;
 mod interactions;
+#[cfg(windows)]
+pub use branding::set_windows_icons;
 pub use branding::window_icon;
 mod film;
 mod film_audio;

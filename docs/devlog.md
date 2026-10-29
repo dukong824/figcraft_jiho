@@ -1,5 +1,14 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: load native Windows icon resources
+
+The Windows build and silent installation succeeded, but the installed GUI probe found no
+explicit large icon. Load the owner's embedded multi-size ICO through Windows' native resource
+loader (32px window icon, 48px taskbar icon), and propagate icon-loading errors rather than
+silently clearing the taskbar icon. The probe now selects the visible Purpose window by its
+process/title and records startup stderr. Keep the compile cache on failed platform checks.
+No 0.1.5 installer has been published from either failed validation attempt.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: native Windows taskbar API correction
 
 The first 0.1.5 Windows build exposed that this eframe fork's window_builder hook receives an

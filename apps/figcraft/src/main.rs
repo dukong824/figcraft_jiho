@@ -362,9 +362,7 @@ fn main() -> eframe::Result {
             if video_maker.is_some()
                 && let Some(window) = cc.winit_window()
             {
-                use winit::platform::windows::WindowExtWindows;
-                let icon = video_maker::window_icon().and_then(|icon| winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok());
-                window.set_taskbar_icon(icon);
+                video_maker::set_windows_icons(window)?;
             }
             with_app(|fig| fig.services.set_egui_context(&cc.egui_ctx));
             Ok(Box::new(App {
