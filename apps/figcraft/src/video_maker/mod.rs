@@ -50,6 +50,7 @@ pub struct VideoMaker {
     library_query: String,
     library_view: LibraryView,
     thumbnails: HashMap<u64, egui::TextureHandle>,
+    thumbnail_recent: Vec<u64>,
     thumbnail_jobs: HashMap<u64, Receiver<Result<egui::ColorImage, String>>>,
     thumbnail_failed: HashSet<u64>,
     message: String,
@@ -120,6 +121,7 @@ impl VideoMaker {
             library_query: String::new(),
             library_view: LibraryView::Tiles,
             thumbnails: HashMap::new(),
+            thumbnail_recent: Vec::new(),
             thumbnail_jobs: HashMap::new(),
             thumbnail_failed: HashSet::new(),
             message: String::new(),
@@ -394,6 +396,12 @@ impl VideoMaker {
             match result {
                 Ok(image) => {
                     self.thumbnails.insert(id, ctx.load_texture(format!("purpose-asset-{id}"), image, egui::TextureOptions::LINEAR));
+                    self.thumbnail_recent.retain(|used| *used != id);
+                    self.thumbnail_recent.push(id);
+                    while self.thumbnail_recent.len() > 32 {
+                        let old = self.thumbnail_recent.remove(0);
+                        self.thumbnails.remove(&old);
+                    }
                 }
                 Err(_) => {
                     self.thumbnail_failed.insert(id);

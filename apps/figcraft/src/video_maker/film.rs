@@ -561,4 +561,41 @@ mod tests {
         maker.shutdown_film();
         let _ = fs::remove_dir_all(store.root);
     }
+    #[test]
+    fn the_embedded_fullscreen_button_remains_clickable_with_a_narrow_codex_workspace() {
+        fn draw(ctx: &egui::Context, app: &mut FilmcraftApp, width: f32, events: Vec<egui::Event>) {
+            app.auto.begin_frame();
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 100.0))),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx
+                .run_ui(input, |ui| filmcraft_ui_egui::header::show(app, ui, egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 38.0))));
+            output.textures_delta.clear();
+        }
+        for width in [550.0, 850.0, 1188.0] {
+            let ctx = egui::Context::default();
+            let mut app = FilmcraftApp::new(Session::default());
+            app.embedded = true;
+            draw(&ctx, &mut app, width, Vec::new());
+            let r = app.auto.find("header.fullscreen").expect("the original fullscreen button is visible").rect;
+            assert!(r[0] >= 0.0 && r[0] + r[2] <= width);
+            let pos = egui::pos2(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
+            for pressed in [true, false] {
+                draw(
+                    &ctx,
+                    &mut app,
+                    width,
+                    vec![
+                        egui::Event::PointerMoved(pos),
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE },
+                    ],
+                );
+            }
+            assert_eq!(ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.fullscreen-request"))), Some(true));
+            app.stop();
+            app.session.shutdown();
+        }
+    }
 }

@@ -15,3 +15,6 @@ fork's Releases page instead. Standalone tests/benchmarks are retained as source
 
 The embedded fullscreen actions now request a native-window toggle from the host so both
 editor controls and F11/Esc act on the same window.
+
+The embedded header retains its fullscreen button in narrow workspaces, with menu clipping
+reserving its hit area; other compact-header quick actions remain in their menus.

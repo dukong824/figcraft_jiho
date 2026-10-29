@@ -63,19 +63,19 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let mut left_end = x;
     // In-window menus when there is no native menu bar.
     if app.ui.show_menu_bar {
-        let menu_rect = Rect::from_min_max(pos2(x + 6.0, rect.min.y + 7.0), pos2(x + 520.0, rect.max.y - 7.0));
+        let menu_rect = Rect::from_min_max(
+            pos2(x + 6.0, rect.min.y + 7.0),
+            pos2(if app.embedded { (x + 520.0).min(rect.max.x - 54.0).max(x + 6.0) } else { x + 520.0 }, rect.max.y - 7.0),
+        );
         let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(menu_rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
+        if app.embedded {
+            mu.set_clip_rect(mu.clip_rect().intersect(menu_rect));
+        }
         mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
         mu.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::NONE;
         mu.style_mut().visuals.override_text_color = Some(t.text_dim);
         crate::menus::menu_bar(app, &mut mu);
         left_end = mu.min_rect().max.x;
-    }
-    // The host's Codex side view can make this workspace narrower than a standalone
-    // editor. Keep the complete menus and modes; quick actions also live in those
-    // menus. The host already shows the document title above this strip.
-    if app.embedded && rect.width() < 1100.0 {
-        return;
     }
     // Document title, centred
     let title = if app.session.is_dirty() { tlf!("{name} - Edited", name = app.session.project.name) } else { app.session.project.name.clone() };
@@ -86,6 +86,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         rx -= 38.0;
         let resp = ui.interact(r, egui::Id::unique(("hdr", id)), Sense::click()).on_hover_text(tip);
         app.auto.add(&format!("header.{id}"), r, tip);
+        ui.painter().rect_filled(r.expand(3.0), 0.0, t.header_bg);
         if resp.hovered() {
             ui.painter().rect_filled(r, 4.0, t.hover);
         }
@@ -99,6 +100,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         } else {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
         }
+    }
+    // Fullscreen remains available when the host sidebar/Codex narrows the workspace.
+    // Other quick actions are also available in the menus.
+    if app.embedded && rect.width() < 1100.0 {
+        return;
     }
     if btn(ui, Icon::Speaker, "volume", tl!("Volume"), app).clicked() {
         app.ui.status = tl!("Master volume: use the Audio Track Mixer").into();

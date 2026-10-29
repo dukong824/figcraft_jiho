@@ -322,9 +322,6 @@ impl VideoMaker {
             video.script_rich.images_migrated = true;
         }
         video.script_rich.normalize(&video.script_body);
-        for asset in video.assets.iter().filter(|a| video.script_rich.images.iter().any(|i| i.asset_id == a.id)) {
-            self.request_thumbnail(asset);
-        }
         let dragged = egui::DragAndDrop::payload::<ImageDrag>(ui.ctx()).filter(|d| d.video == video.id);
         let mut destination = None;
         let mut remove = None;
@@ -465,6 +462,11 @@ impl VideoMaker {
                                 );
                                 response
                             };
+                            if ui.is_rect_visible(response.rect)
+                                && let Some(asset) = asset
+                            {
+                                self.request_thumbnail(asset);
+                            }
                             response.dnd_set_drag_payload(ImageDrag { video: video.id, image: image.id });
                             response.clone().on_hover_cursor(egui::CursorIcon::Grab).context_menu(|ui| {
                                 if ui.button("대본에서 이미지 제거").clicked() {

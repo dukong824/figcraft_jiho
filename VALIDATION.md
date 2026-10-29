@@ -1,8 +1,9 @@
 ## Purpose selected text and sidebar interactions — 2026-10-29
 
-- 103 desktop tests passed, including Unicode formatting ranges, mixed selection, multi-line
+- 104 desktop tests passed, including Unicode formatting ranges, mixed selection, multi-line
   indent rebasing, stable image anchors, rich content/fold-state persistence and layer-named
-  PNG exports with duplicate names preserved.
+  PNG exports with duplicate names preserved. Real pointer events also verify that the embedded
+  fullscreen button is visible/clickable at 550pt, 850pt and 1188pt.
 - 824 UI tests passed (1 ignored). Dependency layers, asset attribution, WASM and plugin gates
   passed. PowerShell syntax and the Windows GUI probe's C# compilation passed locally.
 - Inspected native GUI captures: word/paragraph selection, bold/italic/underline and heading 2,

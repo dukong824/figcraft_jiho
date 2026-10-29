@@ -698,7 +698,6 @@ impl VideoMaker {
     }
 
     fn asset_list_row(&mut self, ui: &mut egui::Ui, asset: &Asset) {
-        self.request_thumbnail(asset);
         let response = ui
             .horizontal(|ui| {
                 let (rect, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
@@ -708,6 +707,9 @@ impl VideoMaker {
                     .on_hover_text(&asset.name);
             })
             .response;
+        if ui.is_rect_visible(response.rect) {
+            self.request_thumbnail(asset);
+        }
         self.asset_drag(ui, &response, asset);
         ui.separator();
     }
@@ -721,8 +723,10 @@ impl VideoMaker {
     }
 
     fn asset_thumbnail(&mut self, ui: &mut egui::Ui, asset: &Asset, width: f32, height: f32) {
-        self.request_thumbnail(asset);
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+        if ui.is_rect_visible(rect) {
+            self.request_thumbnail(asset);
+        }
         ui.painter().rect_filled(rect, CornerRadius::same(5), style::THUMB);
         if let Some(texture) = self.thumbnails.get(&asset.id) {
             let size = texture.size_vec2();
@@ -737,6 +741,11 @@ impl VideoMaker {
     }
 
     pub(super) fn request_thumbnail(&mut self, asset: &Asset) {
+        if self.thumbnails.contains_key(&asset.id) {
+            self.thumbnail_recent.retain(|id| *id != asset.id);
+            self.thumbnail_recent.push(asset.id);
+            return;
+        }
         if !matches!(asset.kind, AssetKind::Image | AssetKind::Video)
             || self.thumbnails.contains_key(&asset.id)
             || self.thumbnail_failed.contains(&asset.id)

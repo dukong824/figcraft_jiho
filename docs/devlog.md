@@ -1,5 +1,14 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: retain fullscreen in compact editor headers
+
+Keep the embedded FilmCraft fullscreen control visible even below 1100pt, where the rest of the
+quick-action cluster is collapsed. Reserve its space from the menus. Add a real pointer-click
+regression at 550pt, 850pt and 1188pt so opening Codex cannot hide the only fullscreen button.
+The initial 0.1.6 packaging run was cancelled before publication to include this correction.
+Load thumbnails for visible media and retain only 32 recent textures so the larger script image
+previews do not accumulate unbounded GPU memory in large libraries.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: selected text and media interactions
 
 Add independent channel folding and hovered video menus for rename/trash, including visible
