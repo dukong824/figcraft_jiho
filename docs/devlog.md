@@ -1,5 +1,14 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: installer-only distribution
+
+Stop generating the portable archive. Publish the tested setup EXE directly as a Purpose video
+maker prerelease asset, with its commit and checksum in the release notes, so users can download
+the installer without extracting an Actions artifact ZIP. Keep installer and bundled media/CLI
+smoke checks. Reserve 0.1.4 for the next build; this configuration change skips CI publication.
+Workflow YAML/output checks pass. Full CI passes format/Clippy and retains the documented
+engine table-height failure (1391 other engine tests pass); no Rust code changes.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: workspace panels and Codex login
 
 Pin History, Trash and Codex actions to the sidebar footer. Use one optional side view across

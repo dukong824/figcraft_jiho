@@ -81,7 +81,11 @@ Windows 배포본에는 공식 Codex CLI 0.165.0과 라이선스가 포함됩니
 이 버전은 로컬 영상 제작의 첫 번째 완결된 흐름입니다. 클립을 끌어놓는 다중
 비디오 트랙, 전환 효과, 키프레임, 앱 안의 연속 재생·오디오 모니터링, 하드웨어
 인코딩은 아직 없습니다. 영상은 1280×720, 30fps H.264/AAC MP4로 내보냅니다.
-Windows x64 설치 파일과 포터블 ZIP은 `packaging/purpose-video-maker/package.ps1`로
+Windows x64 설치 파일은 `packaging/purpose-video-maker/package.ps1`로
 빌드합니다. 설치는 사용자 계정 아래에만 적용되며, 프로젝트 데이터는 설치 폴더 밖에
 저장됩니다. CI의 `Purpose video maker Windows package` 작업은 설치 후 실행 및
 포함된 FFmpeg의 H.264 인코딩까지 확인합니다. 설치 파일은 코드 서명되지 않았습니다.
+
+다음 배포부터 포터블 ZIP은 만들지 않습니다. 빌드와 설치 검사가 성공하면 GitHub
+Releases에 `setup.exe` 하나를 게시하며, SHA-256은 릴리스 설명에 기록합니다.
+GitHub가 자동 표시하는 Source code ZIP은 프로그램 설치 파일이 아닙니다.

@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$version = '0.1.3'
+$version = '0.1.4'
 $ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
 $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
 $ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
@@ -63,7 +63,6 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/video-maker.md') -Destination 
 @'
 Purpose video maker for Windows x64
 
-Run purpose-video-maker.exe. The portable ZIP can be extracted anywhere.
 The setup EXE installs to your user profile and creates a Start menu shortcut.
 Your projects are saved in the FigCraft configuration folder, outside the install directory.
 
@@ -102,8 +101,6 @@ $revision = (git -C $repoRoot rev-parse HEAD).Trim()
 "Commit: $revision`nVersion: $version`nFFmpeg: $ffmpegName`nFFmpeg SHA256: $ffmpegSha256`n" |
     Set-Content -LiteralPath (Join-Path $stage 'BUILD-INFO.txt') -Encoding ascii
 
-$zip = Join-Path $OutputDirectory "Purpose-video-maker-$version-windows-x64-portable.zip"
-Compress-Archive -LiteralPath $stage -DestinationPath $zip -CompressionLevel Optimal
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
 if (-not $iscc) { $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe' }
 if (-not (Test-Path -LiteralPath $iscc)) { throw 'Inno Setup 6 ISCC.exe is required' }
@@ -111,10 +108,9 @@ if (-not (Test-Path -LiteralPath $iscc)) { throw 'Inno Setup 6 ISCC.exe is requi
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
 $setup = Join-Path $OutputDirectory "Purpose-video-maker-$version-windows-x64-setup.exe"
 if (-not (Test-Path -LiteralPath $setup)) { throw 'Installer was not created' }
-$sums = foreach ($file in @($zip, $setup)) {
+$sums = foreach ($file in @($setup)) {
     "$( (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() )  $([IO.Path]::GetFileName($file))"
 }
 $sums | Set-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256SUMS.txt') -Encoding ascii
 Remove-Item -LiteralPath $temporary -Recurse -Force
-Write-Output $zip
 Write-Output $setup
