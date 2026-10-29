@@ -68,6 +68,8 @@ impl VideoMaker {
         self.tabs.route().is_some_and(|route| route.section == Section::Design)
     }
     pub fn new() -> Result<Self, String> {
+        // Join the startup scan before the host chooses its shared UI font set.
+        figcraft_text::scan_system_fonts();
         let root = std::env::var_os("PURPOSE_PROJECTS_DIR")
             .map(PathBuf::from)
             .or_else(|| services::config_dir().map(|p| p.join("Purpose video maker")))

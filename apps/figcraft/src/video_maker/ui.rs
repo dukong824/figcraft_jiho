@@ -17,6 +17,7 @@ impl VideoMaker {
             figcraft_ui_egui::theme::install_fonts(&ctx, true, figcraft_ui_egui::cjk::language("ko"));
             self.fonts_ready = true;
             ctx.request_repaint();
+            return false; // set_fonts takes effect on the next frame.
         }
         style::configure(&ctx);
         ui.set_style(ctx.global_style());

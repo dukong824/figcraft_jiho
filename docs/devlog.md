@@ -8,6 +8,7 @@ status, cancellation and logout; bundle checksum-pinned official Windows CLI bin
 Require ChatGPT auth for chat. Persist independent video expansion and reversible video trash,
 checkpoint script/assets/edit settings, and make the script title the video name. Reset the host
 Ui style before drawing and keep embedded editor font/zoom changes from altering the outer shell.
+Wait for the startup font scan and apply fonts before the first visible workspace frame.
 Verify title propagation, independent expansion, panel toggle, design transition, history restore,
 trash restore, and a synthetic CLI login/chat flow in Xvfb. Real account login needs the user.
 Validation: 73 desktop tests and 824 UI tests pass, including the embedded host zoom regression;
