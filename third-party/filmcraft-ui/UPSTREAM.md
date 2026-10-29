@@ -12,3 +12,6 @@ Native host adapters in `apps/figcraft/src/video_maker/film_audio.rs` and
 also follow that desktop host. The original copyright and dual licence apply.
 The frontend disables the upstream binary updater when embedded and opens the
 fork's Releases page instead. Standalone tests/benchmarks are retained as source.
+
+The embedded fullscreen actions now request a native-window toggle from the host so both
+editor controls and F11/Esc act on the same window.

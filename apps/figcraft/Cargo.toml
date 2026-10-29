@@ -35,7 +35,7 @@ egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "clipboard", "wayland", "x11"] }
 serde_json = { workspace = true }
 serde = { workspace = true }
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
 log = { workspace = true }
 rfd = { workspace = true }
 arboard = { workspace = true, features = ["image-data", "wayland-data-control"] }
@@ -55,6 +55,8 @@ filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9
 filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
 filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
 cpal = "0.16"
+pulldown-cmark = { version = "0.13", default-features = false }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 
 # The system's reduce-motion setting (UISettings.AnimationsEnabled), interface language
 # (GlobalizationPreferences.Languages) and controllers for prototypes (Gaming.Input.Gamepad).

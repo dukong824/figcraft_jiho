@@ -1,6 +1,9 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
 mod branding;
+mod chat;
 mod codex;
+mod document;
+mod interactions;
 pub use branding::window_icon;
 mod film;
 mod film_audio;
@@ -22,7 +25,6 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::mpsc::{self, Receiver};
 
 pub struct VideoMaker {
@@ -52,8 +54,11 @@ pub struct VideoMaker {
     film: Option<film::Editor>,
     film_ime_ready: bool,
     prompt: String,
-    ai_response: String,
-    ai_job: Option<Receiver<Result<String, String>>>,
+    chats: HashMap<u64, chat::Conversation>,
+    chat_job: Option<chat::Job>,
+    pending_design_asset: Option<u64>,
+    zoom_ready: bool,
+    zoom_save_due: Option<std::time::Instant>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -118,8 +123,11 @@ impl VideoMaker {
             film: None,
             film_ime_ready: false,
             prompt: String::new(),
-            ai_response: String::new(),
-            ai_job: None,
+            chats: HashMap::new(),
+            chat_job: None,
+            pending_design_asset: None,
+            zoom_ready: false,
+            zoom_save_due: None,
         })
     }
 
@@ -318,6 +326,16 @@ impl VideoMaker {
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
         self.poll_auth(ctx);
+        if let Some(due) = self.zoom_save_due {
+            if due.elapsed() >= std::time::Duration::from_millis(300) {
+                self.zoom_save_due = None;
+                if let Err(error) = self.store.save() {
+                    self.message = error;
+                }
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+        }
         if let Some(due) = self.revision_due {
             if due.elapsed() >= std::time::Duration::from_secs(1) {
                 self.checkpoint();
@@ -349,39 +367,11 @@ impl VideoMaker {
         if !self.thumbnail_jobs.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
-        if let Some(rx) = &self.ai_job {
-            match rx.try_recv() {
-                Ok(Ok(text)) => {
-                    self.ai_response = text;
-                    self.ai_job = None;
-                }
-                Ok(Err(e)) => {
-                    self.ai_response = format!("Codex 오류: {e}");
-                    self.ai_job = None;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    self.ai_response = "Codex 작업이 종료되었습니다".into();
-                    self.ai_job = None;
-                }
-                Err(mpsc::TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
-            }
-        }
+        self.poll_chat(ctx);
     }
 
     fn ask_codex(&mut self, request: String) {
-        if self.ai_job.is_some() || request.trim().is_empty() {
-            return;
-        }
-        let Some(cli) = codex::executable(self.store.data.codex_path.as_deref()) else {
-            self.auth_error = "Codex CLI를 먼저 연결하세요".into();
-            return;
-        };
-        if self.authenticated != Some(true) {
-            self.auth_error = "ChatGPT 계정으로 로그인하세요".into();
-            return;
-        }
         let Some(video) = self.video().cloned() else { return };
-        let root = self.store.video_dir(video.id);
         let script = format!("{}\n\n{}", video.script_title, video.script_body);
         let assets = video.assets.iter().map(|a| format!("{} ({}, {:.1}s)", a.name, a.kind.label(), a.duration)).collect::<Vec<_>>().join("\n");
         let clips = video
@@ -405,51 +395,11 @@ impl VideoMaker {
             .map(|f| f.app.session.project.to_json().to_string())
             .unwrap_or_else(|| "편집 파일: edit.fcproj".into());
         let prompt = format!(
-            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n이전 타임라인:\n{clips}\nFilmCraft 프로젝트:\n{native_edit}\n요청: {}",
-            video.name, script, assets, request
+            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n이전 타임라인:\n{clips}\nFilmCraft 프로젝트:\n{native_edit}",
+            video.name, script, assets
         );
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(run_codex(&cli, &root, &prompt));
-        });
-        self.ai_response.clear();
-        self.ai_job = Some(rx);
-        self.prompt.clear();
+        self.start_chat(request, prompt);
     }
-}
-
-fn run_codex(cli: &Path, root: &Path, prompt: &str) -> Result<String, String> {
-    fs::create_dir_all(root).map_err(|e| e.to_string())?;
-    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
-    let output_path = std::env::temp_dir().join(format!("purpose-codex-{}-{stamp}.txt", std::process::id()));
-    let mut child = codex::command(cli)
-        .env_remove("OPENAI_API_KEY")
-        .env_remove("CODEX_API_KEY")
-        .args(["-c", "forced_login_method=\"chatgpt\"", "-c", "model_provider=\"openai\""])
-        .args(["exec", "--sandbox", "read-only", "--ephemeral", "--skip-git-repo-check", "--output-last-message"])
-        .arg(&output_path)
-        .arg("-C")
-        .arg(root)
-        .arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Codex CLI를 실행할 수 없습니다. 설치와 ChatGPT 로그인을 확인하세요: {e}"))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        use std::io::Write;
-        stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
-    }
-    let result = child.wait_with_output().map_err(|e| e.to_string())?;
-    let answer = fs::read_to_string(&output_path).unwrap_or_default();
-    let _ = fs::remove_file(&output_path);
-    if !result.status.success() {
-        return Err(String::from_utf8_lossy(&result.stderr).chars().take(2000).collect());
-    }
-    if answer.trim().is_empty() {
-        return Err("Codex가 빈 응답을 보냈습니다".into());
-    }
-    Ok(answer)
 }
 
 #[cfg(test)]
@@ -496,6 +446,47 @@ mod tests {
         let editor = maker.film.as_ref().unwrap();
         assert_eq!(editor.app.session.active_sequence().unwrap().video_tracks[0].items.len(), 1);
         maker.shutdown_film();
+        let _ = fs::remove_dir_all(root);
+    }
+}
+
+#[cfg(test)]
+mod workspace_regressions {
+    use super::*;
+    #[test]
+    fn selected_design_exports_to_a_real_library_png_and_can_enter_the_native_editor() {
+        let root = std::env::temp_dir().join(format!("purpose-design-export-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        let mut fig = FigApp::new(Session::new(), Box::new(figcraft_ui_egui::NoServices));
+        maker.ensure_design(&mut fig);
+        fig.session.execute("shape.rectangle", &json!({"x":0,"y":0,"width":96,"height":64})).unwrap();
+        maker.export_design(&mut fig);
+        let asset = maker.video().unwrap().assets[0].clone();
+        let file = maker.store.asset_path(maker.video_id().unwrap(), &asset);
+        let pixels = image::open(&file).unwrap();
+        assert_eq!(pixels.width(), 96);
+        assert_eq!(pixels.height(), 64);
+        maker.append_film_asset(asset.id).unwrap();
+        assert_eq!(maker.film.as_ref().unwrap().app.session.active_sequence().unwrap().video_tracks[0].items.len(), 1);
+        maker.shutdown_film();
+        let _ = fs::remove_dir_all(root);
+    }
+    #[test]
+    fn document_size_and_line_spacing_survive_reopen() {
+        let root = std::env::temp_dir().join(format!("purpose-script-style-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        let video = maker.store.data.selected_mut().unwrap();
+        video.script_font_size = 22.0;
+        video.script_line_height = 1.9;
+        video.script_body = "\t위계\n\t\t본문".into();
+        maker.save();
+        let loaded = VideoMaker::at(root.clone()).unwrap();
+        let video = loaded.video().unwrap();
+        assert_eq!(video.script_font_size, 22.0);
+        assert_eq!(video.script_line_height, 1.9);
+        assert_eq!(video.script_body, "\t위계\n\t\t본문");
         let _ = fs::remove_dir_all(root);
     }
 }

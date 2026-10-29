@@ -36,7 +36,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $dist = 'dist/purpose-video-maker'
-          $stage = Join-Path $dist 'Purpose-video-maker-0.1.4-windows-x64'
+          $stage = Join-Path $dist 'Purpose-video-maker-0.1.5-windows-x64'
           & (Join-Path $stage 'codex/codex.exe') --version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
           $ffmpeg = Join-Path $stage 'ffmpeg/bin/ffmpeg.exe'
@@ -46,7 +46,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled H.264 encoder failed' }
           $codec = (& $ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $sample).Trim()
           if ($codec -ne 'h264') { throw "Unexpected codec: $codec" }
-          $setup = Join-Path $dist 'Purpose-video-maker-0.1.4-windows-x64-setup.exe'
+          $setup = Join-Path $dist 'Purpose-video-maker-0.1.5-windows-x64-setup.exe'
           $installed = Join-Path $env:RUNNER_TEMP 'purpose-installed'
           $process = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installed") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
@@ -54,20 +54,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installed application failed' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'ffmpeg/bin/ffmpeg.exe'))) { throw 'Installed FFmpeg missing' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'licenses/filmcraft/NOTICE'))) { throw 'FilmCraft notice missing' }
-          $env:PURPOSE_PROJECTS_DIR = Join-Path $env:RUNNER_TEMP 'purpose-gui-smoke'
-          $app = Start-Process -FilePath (Join-Path $installed 'purpose-video-maker.exe') -PassThru
-          try {
-            Start-Sleep -Seconds 10
-            $app.Refresh()
-            if ($app.HasExited) { throw "Installed GUI exited early: $($app.ExitCode)" }
-            if ($app.MainWindowHandle -eq 0) { throw 'Installed GUI has no main window' }
-            $null = $app.CloseMainWindow()
-            if (-not $app.WaitForExit(15000)) { throw 'Installed GUI did not close cleanly' }
-            if ($app.ExitCode -ne 0) { throw "Installed GUI failed: $($app.ExitCode)" }
-          } finally {
-            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
-            Remove-Item Env:PURPOSE_PROJECTS_DIR
-          }
+          ./packaging/purpose-video-maker/smoke-gui.ps1 -Executable (Join-Path $installed 'purpose-video-maker.exe') -ProjectDirectory (Join-Path $env:RUNNER_TEMP 'purpose-gui-smoke')
       - name: Publish installer on GitHub Releases
         shell: pwsh
         env:
@@ -83,7 +70,7 @@ jobs:
           @"
           Windows x64 설치 파일입니다. 아래 setup.exe를 다운로드해 실행하세요.
           FFmpeg와 Codex CLI가 포함되어 있습니다.
-          수정 기록 전용 페이지, FilmCraft 0.14 편집기, P 로고와 앱 아이콘을 적용했습니다.
+          Codex 대화·작업 상태, 라이브러리 드래그 앤 드롭, 대본 서식, 전체화면·작업표시줄 아이콘·UI 확대 축소를 개선했습니다.
 
           Commit: $env:GITHUB_SHA
           SHA-256: $sha256

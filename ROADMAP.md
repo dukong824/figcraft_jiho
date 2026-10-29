@@ -28,6 +28,9 @@ History opens a full-page searchable table and restores native FilmCraft project
 FilmCraft 0.14.0 replaces the basic editor, and the owner-provided P logo brands the video maker.
 Video expansion is independent, titles are shared, and the embedded editor preserves shell scale.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
+The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
+login screen. Library media can be dropped into sidebar destinations, scripts have typography
+and indentation controls, and the shell owns fullscreen, taskbar icons and global UI zoom.
 
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)

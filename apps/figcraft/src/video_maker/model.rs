@@ -107,6 +107,10 @@ pub struct Video {
     pub script_title: String,
     #[serde(default)]
     pub script_body: String,
+    #[serde(default = "default_script_size")]
+    pub script_font_size: f32,
+    #[serde(default = "default_line_height")]
+    pub script_line_height: f32,
     #[serde(default)]
     pub film_revision: Option<String>,
     #[serde(default)]
@@ -184,6 +188,8 @@ pub struct Workspace {
     pub expanded_videos: Vec<u64>,
     #[serde(default)]
     pub codex_path: Option<PathBuf>,
+    #[serde(default = "default_zoom")]
+    pub ui_zoom: f32,
     pub version: u32,
     pub next_id: u64,
     pub selected_video: Option<u64>,
@@ -201,6 +207,7 @@ impl Default for Workspace {
             trash: Vec::new(),
             expanded_videos: Vec::new(),
             codex_path: None,
+            ui_zoom: 1.0,
         }
     }
 }
@@ -236,6 +243,8 @@ impl Workspace {
             assets: Vec::new(),
             script_title: format!("새 영상 {}", channel.videos.len() + 1),
             script_body: String::new(),
+            script_font_size: 16.0,
+            script_line_height: 1.6,
             film_revision: None,
             script_assets: Vec::new(),
             script: Vec::new(),
@@ -353,25 +362,7 @@ impl Store {
         if !self.writable {
             return Err("프로젝트 저장소를 사용할 수 없습니다".into());
         }
-        let path = self.root.join("workspace.json");
-        let temp = self.root.join("workspace.json.tmp");
-        let backup = self.root.join("workspace.json.bak");
-        let bytes = serde_json::to_vec_pretty(&self.data).map_err(|e| e.to_string())?;
-        fs::write(&temp, bytes).map_err(|e| e.to_string())?;
-        if fs::rename(&temp, &path).is_err() {
-            // Windows cannot always rename over an existing destination. Keep the old
-            // file recoverable until the new file has taken its place.
-            if backup.exists() {
-                return Err("이전 프로젝트 백업이 남아 있어 저장을 중단했습니다".into());
-            }
-            fs::rename(&path, &backup).map_err(|e| e.to_string())?;
-            if let Err(e) = fs::rename(&temp, &path) {
-                let _ = fs::rename(&backup, &path);
-                return Err(e.to_string());
-            }
-            let _ = fs::remove_file(&backup);
-        }
-        Ok(())
+        write_json(&self.root.join("workspace.json"), &self.data)
     }
 
     pub fn video_dir(&self, id: u64) -> PathBuf {
@@ -385,6 +376,38 @@ impl Store {
     pub fn asset_path(&self, video_id: u64, asset: &Asset) -> PathBuf {
         self.video_dir(video_id).join("assets").join(&asset.file)
     }
+}
+
+fn default_script_size() -> f32 {
+    16.0
+}
+fn default_line_height() -> f32 {
+    1.6
+}
+fn default_zoom() -> f32 {
+    1.0
+}
+
+pub(super) fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let temp = path.with_extension("json.tmp");
+    let backup = path.with_extension("json.bak");
+    let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
+    fs::write(&temp, bytes).map_err(|e| e.to_string())?;
+    if fs::rename(&temp, path).is_err() {
+        if backup.exists() {
+            return Err("이전 백업이 남아 있어 저장을 중단했습니다".into());
+        }
+        fs::rename(path, &backup).map_err(|e| e.to_string())?;
+        if let Err(e) = fs::rename(&temp, path) {
+            let _ = fs::rename(&backup, path);
+            return Err(e.to_string());
+        }
+        let _ = fs::remove_file(backup);
+    }
+    Ok(())
 }
 
 pub fn file_name(path: &Path) -> String {

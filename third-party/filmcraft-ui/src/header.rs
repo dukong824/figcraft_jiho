@@ -94,7 +94,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     };
     if btn(ui, Icon::Fullscreen, "fullscreen", tl!("Full screen"), app).clicked() {
         let fs = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
-        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
+        if app.embedded {
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.fullscreen-request"), true));
+        } else {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
+        }
     }
     if btn(ui, Icon::Speaker, "volume", tl!("Volume"), app).clicked() {
         app.ui.status = tl!("Master volume: use the Audio Track Mixer").into();

@@ -20,6 +20,7 @@ pub enum Icon {
     Close,
     Minimize,
     Maximize,
+    Fullscreen,
     Restore,
     Channel,
     Video,
@@ -156,6 +157,13 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
             let dir = if matches!(icon, Icon::Back) { 1.0 } else { -1.0 };
             line(p, pos2(x + dir * 3.0, y - 5.0), pos2(x - dir * 2.0, y), color);
             line(p, pos2(x - dir * 2.0, y), pos2(x + dir * 3.0, y + 5.0), color);
+        }
+        Icon::Fullscreen => {
+            for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                let corner = pos2(x + dx * 6.0, y + dy * 6.0);
+                line(p, corner, pos2(x + dx * 2.0, corner.y), color);
+                line(p, corner, pos2(corner.x, y + dy * 2.0), color);
+            }
         }
         Icon::Plus => {
             line(p, pos2(x - 5.0, y), pos2(x + 5.0, y), color);

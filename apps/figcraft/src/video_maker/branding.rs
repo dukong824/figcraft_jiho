@@ -1,7 +1,9 @@
 const PNG: &[u8] = include_bytes!("../../../../assets/purpose/purpose.png");
 
 pub fn window_icon() -> Option<egui::IconData> {
-    eframe::icon_data::from_png_bytes(PNG).ok()
+    // Native Windows HICONs use a standard size; the supplied PNG remains unchanged.
+    let icon = image::load_from_memory(PNG).ok()?.resize_exact(256, 256, image::imageops::FilterType::Lanczos3).to_rgba8();
+    Some(egui::IconData { width: 256, height: 256, rgba: icon.into_raw() })
 }
 
 pub(super) fn texture(ctx: &egui::Context) -> Option<egui::TextureHandle> {

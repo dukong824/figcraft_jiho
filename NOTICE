@@ -103,3 +103,7 @@ see third-party/filmcraft-ui/licenses for the licence texts.
 Purpose branding
 The P logo and app icon were supplied by the project owner for use in this app.
 See assets/purpose/README.md for the original source and permission scope.
+
+Codex reply Markdown rendering
+Uses pulldown-cmark 0.13.5 (MIT), Copyright 2015 Google Inc.
+See third-party/pulldown-cmark/LICENSE and UPSTREAM.md.

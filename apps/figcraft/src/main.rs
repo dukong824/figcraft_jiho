@@ -130,6 +130,7 @@ impl eframe::App for App {
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         if let Some(maker) = &mut self.video_maker {
+            maker.raw_input(ctx, raw_input);
             maker.film_raw_input(ctx, raw_input);
         }
         // Pointer and key events sent over the control channel (`ui.input`), for the window
@@ -157,10 +158,13 @@ impl eframe::App for App {
                     with_app(|fig| {
                         figcraft_ui_egui::windows::guard(fig, &ctx, |fig| {
                             maker.ensure_design(fig);
-                            if export {
+                            maker.place_design_asset(fig);
+                            fig.ui(ui);
+                            let inspector_export =
+                                ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.design-export"))).unwrap_or(false);
+                            if export || inspector_export {
                                 maker.export_design(fig);
                             }
-                            fig.ui(ui);
                         })
                     });
                 }
@@ -168,10 +172,14 @@ impl eframe::App for App {
                 with_app(|fig| figcraft_ui_egui::windows::guard(fig, &ctx, |fig| fig.ui(ui)));
             }
         });
+        if let Some(maker) = &mut self.video_maker {
+            maker.window_requests(&ctx, frame);
+        }
     }
 
     fn on_exit(&mut self) {
         if let Some(maker) = &mut self.video_maker {
+            maker.shutdown_chat();
             maker.shutdown_film();
         }
         if self.video_maker.is_some() {
@@ -339,6 +347,12 @@ fn main() -> eframe::Result {
     }
     let mut options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
     graphics::configure(&mut options.wgpu_options);
+    #[cfg(windows)]
+    if args.video_maker {
+        use winit::platform::windows::WindowAttributesExtWindows;
+        let taskbar_icon = video_maker::window_icon().and_then(|icon| winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok());
+        options.window_builder = Some(Box::new(move |attributes| attributes.with_taskbar_icon(taskbar_icon.clone())));
+    }
     figcraft_ui_egui::windows::install(fig);
     // Registered before the event loop starts, so it catches the Finder event that launched the app
     // as well as later ones. Lives until the event loop returns; the app creator only borrows it.

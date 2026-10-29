@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$version = '0.1.4'
+$version = '0.1.5'
 $ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
 $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
 $ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
@@ -50,6 +50,7 @@ if (-not (Test-Path -LiteralPath $ffmpegLicense)) { throw 'FFmpeg archive has no
 
 New-Item -ItemType Directory -Path (Join-Path $stage 'ffmpeg/bin') -Force | Out-Null
 Copy-Item -LiteralPath $binary -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/purpose/purpose.ico') -Destination (Join-Path $stage "purpose-icon-$version.ico")
 foreach ($name in @('ffmpeg.exe', 'ffprobe.exe', 'ffplay.exe')) {
     $source = Join-Path $ffmpegBinary.Directory.FullName $name
     if (-not (Test-Path -LiteralPath $source)) { throw "FFmpeg archive has no $name" }
@@ -65,6 +66,10 @@ foreach ($name in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'UPSTREAM.md')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "third-party/filmcraft-ui/$name") -Destination $filmcraftNotices
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/filmcraft-ui/licenses') -Destination $filmcraftNotices -Recurse
+$markdownNotices = Join-Path $stage 'licenses/pulldown-cmark'
+New-Item -ItemType Directory -Path $markdownNotices -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/pulldown-cmark/LICENSE') -Destination $markdownNotices
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/pulldown-cmark/UPSTREAM.md') -Destination $markdownNotices
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/video-maker.md') -Destination (Join-Path $stage 'VIDEO-MAKER.md')
 @'
 Purpose video maker for Windows x64

@@ -14,7 +14,7 @@ impl VideoMaker {
         }
         ui.add_space(16.0);
         ui.label(RichText::new("수정 기록").size(32.0).strong());
-        ui.label(RichText::new("영상별로 최근 수정 내역을 찾아보고 이전 버전을 복원하세요.").size(14.0).color(style::MUTED));
+
         ui.add_space(24.0);
         ui.horizontal(|ui| {
             if ui.selectable_label(!self.history_all, "최근 수정").clicked() {

@@ -223,9 +223,25 @@ echo '수정된 대본' > "$output"
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(super::status(&cli).unwrap());
-        let answer = super::super::run_codex(&cli, &root, "내 대본 수정").unwrap();
-        assert_eq!(answer.trim(), "수정된 대본");
-        assert_eq!(std::fs::read_to_string(root.join("request.txt")).unwrap(), "내 대본 수정");
+        let mut maker = super::super::VideoMaker::at(root.join("projects")).unwrap();
+        maker.store.data.codex_path = Some(cli.clone());
+        maker.authenticated = Some(true);
+        maker.ask_codex("내 대본 수정".into());
+        let id = maker.video_id().unwrap();
+        assert_eq!(maker.conversation(id).messages[0].text, "내 대본 수정");
+        let ctx = egui::Context::default();
+        for _ in 0..200 {
+            maker.poll_chat(&ctx);
+            if maker.chat_job.is_none() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(maker.chat_job.is_none());
+        assert_eq!(maker.conversation(id).messages[1].text.trim(), "수정된 대본");
+        assert!(std::fs::read_to_string(root.join("request.txt")).unwrap().contains("내 대본 수정"));
+        let mut reopened = super::super::VideoMaker::at(root.join("projects")).unwrap();
+        assert_eq!(reopened.conversation(id).messages.len(), 2);
         drop(login);
         let _ = std::fs::remove_dir_all(root);
     }

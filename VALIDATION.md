@@ -1,3 +1,21 @@
+## Purpose conversation and interaction fixes — 2026-10-29
+
+- 97 desktop tests passed: selected CLI authentication/chat, user-message persistence, public JSON
+  activity/usage, cancellation, Unicode indentation, formatting persistence, cross-video copies,
+  native design PNG export and timeline integration, plus the prior desktop regressions.
+- 824 UI tests passed (1 ignored). Workspace Clippy with warnings denied, layers, asset attribution,
+  WASM and plugin gates passed.
+- Inspected actual GUI captures: user/assistant bubbles and progress with a local mock CLI,
+  formatting controls/Tab, Ctrl+wheel affecting the entire shell, drop to another video's script,
+  image drop to FigCraft, PNG library export and drop to native FilmCraft. Fullscreen works via
+  F11/Esc, the host button and the embedded editor button (1920×1080) with a real window manager.
+- No live ChatGPT inference is claimed. CLI protocol, auth handling and process cancellation use
+  deterministic local fixtures. The app still invokes the official CLI with ChatGPT auth.
+- Full CI was attempted; the existing board-table test still fails at 122 → 122 (1391 passed,
+  1 failed, 2 ignored in the engine suite). It is not a clean full CI run.
+- Windows packaging now probes WM_GETICON/ICON_BIG and fullscreen/restore on the installed GUI;
+  those platform-specific results belong to the release workflow.
+
 ## Purpose video maker FilmCraft integration — 2026-10-29
 
 - Desktop test suite: 87 passed, including migration of native timeline trims/audio gain/captions,

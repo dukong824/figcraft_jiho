@@ -160,7 +160,11 @@ pub fn route(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, params: &Val
         }
         "window.toggleFullScreen" => {
             let fs = !ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(fs));
+            if app.embedded {
+                ctx.data_mut(|d| d.insert_temp(egui::Id::unique("purpose.fullscreen-request"), true));
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(fs));
+            }
             Ok(json!({"fullScreen": fs}))
         }
         "window.nextPanel" | "window.prevPanel" => Ok(cycle_panel(app, id == "window.nextPanel")),

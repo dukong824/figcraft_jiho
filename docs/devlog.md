@@ -1,5 +1,30 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: conversation UI and desktop interactions
+
+Replace the last-answer-only Codex pane with persistent per-video conversations, immediate user
+messages, Markdown replies, public CLI JSON activity, elapsed time, available usage metadata,
+copy/append actions and cancellation. Keep ChatGPT login in the centre only when disconnected;
+move account/CLI actions into the header menu and remove quota/explanatory boilerplate. Cancel
+and join the CLI worker on close, retaining the conversation; preserve earlier turns in context.
+
+Make library tiles and list rows draggable to sidebar library/script/design/edit destinations,
+with a drag preview, target feedback, hover expansion and safe cross-video copies/reuse. Add
+script font size/line spacing, Unicode-safe multi-line Tab/Shift+Tab indentation and inherited
+indentation on Enter. Put real PNG-to-library export in the design header and inspector.
+Route editor fullscreen through the native host window and support F11/Esc. Consume Ctrl+wheel
+before it reaches either embedded editor, persist global zoom and support Ctrl+0. Set Windows'
+separate large taskbar icon, standardise runtime icons to 256 px, and give shortcuts an explicit
+versioned ICO. Reserve installer 0.1.5 and add Windows icon/fullscreen/restore smoke probes.
+
+Validation: 97 desktop tests and 824 UI tests pass; workspace Clippy, WASM/plugins, layers and
+asset attribution pass. Inspect real Xvfb GUI captures for conversation/user bubbles, a mocked
+CLI's progress/completion, script formatting and global zoom, cross-video drops, image drops
+into FigCraft and FilmCraft, library PNG export and fullscreen/restore with a window manager.
+Live ChatGPT inference is not exercised; the selected-CLI/auth/JSON protocol and stop path use
+a local deterministic CLI fixture. Full CI retains the existing board-table row-height failure
+(1391 other engine tests pass). No clean full CI pass is claimed.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: FilmCraft editor, history page and P branding
 
 Replace the basic FFmpeg timeline with FilmCraft 0.14.0 at pinned revision
