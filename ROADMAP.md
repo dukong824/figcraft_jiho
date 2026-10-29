@@ -17,13 +17,15 @@ outward paper border. The source artwork stays intact and exports include the ad
 See [usage and provenance](docs/papierwerk-torn-paper.md).
 Local addition (2026-10-28): Purpose video maker adds a separate desktop entry point for
 channel/video projects, a shared asset library and script, the unchanged FigCraft design
-editor without Home, a basic video/audio/caption timeline with FFmpeg export, browser-style
+editor without Home, an embedded FilmCraft video editor, browser-style
 workspace tabs and window controls, and an optional Codex CLI assistant. This does not change
 the FigCraft parity estimates below. See
 [video maker](docs/video-maker.md).
 The video maker now uses a restrained desktop document layout with original drawn icons,
 a freeform script document, and a switch between filename list and thumbnail tile views.
-The sidebar now pins reversible history/trash and an optional Codex side view with CLI login.
+The sidebar now pins history/trash and an optional Codex side view with CLI login.
+History opens a full-page searchable table and restores native FilmCraft project snapshots.
+FilmCraft 0.14.0 replaces the basic editor, and the owner-provided P logo brands the video maker.
 Video expansion is independent, titles are shared, and the embedded editor preserves shell scale.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
 

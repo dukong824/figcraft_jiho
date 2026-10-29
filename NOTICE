@@ -88,3 +88,18 @@ See third-party/papierwerk/LICENSE and UPSTREAM.md for pinned source and adaptat
 OpenAI Codex CLI (Windows video maker packages)
 Unmodified official OpenAI Codex executables, Apache-2.0.
 See third-party/codex and the packaged codex/LICENSE.txt and NOTICE.txt.
+
+FilmCraft editing integration
+Copyright (c) 2026 ArtCraft Team and the FilmCraft contributors.
+The video editor embeds FilmCraft 0.14.0, revision
+8d925e9df32d8755f22bd2635e400a6b3e93f69c, under MIT OR Apache-2.0.
+The frontend and native audio adapters are adapted for this host. Original notices,
+licences and provenance are retained in third-party/filmcraft-ui. The engine,
+codecs and renderers are pinned dependencies from the same source revision.
+No upstream trademark artwork is used by the embedded frontend.
+FilmCraft's embedded Inter, Noto Serif and JetBrains Mono fonts are OFL-1.1;
+see third-party/filmcraft-ui/licenses for the licence texts.
+
+Purpose branding
+The P logo and app icon were supplied by the project owner for use in this app.
+See assets/purpose/README.md for the original source and permission scope.

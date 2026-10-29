@@ -19,7 +19,6 @@ impl VideoMaker {
                     ui.label(
                         RichText::new(match view {
                             SideView::Codex => "Codex",
-                            SideView::History => "수정 기록",
                             SideView::Trash => "휴지통",
                         })
                         .size(16.0)
@@ -32,7 +31,6 @@ impl VideoMaker {
                 ui.separator();
                 match view {
                     SideView::Codex => self.codex_contents(ui),
-                    SideView::History => self.history_contents(ui),
                     SideView::Trash => self.trash_contents(ui),
                 }
             });
@@ -143,50 +141,15 @@ impl VideoMaker {
                 [ui.available_width(), 60.0],
                 TextEdit::multiline(&mut self.prompt).desired_rows(2).frame(egui::Frame::NONE).hint_text("무엇을 도와드릴까요?"),
             );
-            let enabled = self.authenticated == Some(true) && self.ai_job.is_none() && self.tabs.route().is_some() && !self.prompt.trim().is_empty();
+            let enabled = self.authenticated == Some(true)
+                && self.ai_job.is_none()
+                && self.tabs.route().and_then(super::navigation::Route::video).is_some()
+                && !self.prompt.trim().is_empty();
             if ui.add_enabled(enabled, egui::Button::new("보내기").fill(style::SIDEBAR).min_size(vec2(64.0, 28.0))).clicked() {
                 self.ask_codex(self.prompt.clone());
             }
         });
         ui.label(RichText::new("연결된 계정의 Codex 이용 한도가 적용됩니다.").size(11.0).color(style::FAINT));
-    }
-
-    fn history_contents(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("현재 영상의 대본·에셋·편집 설정 기록입니다.").size(12.0).color(style::MUTED));
-        if self.tabs.route().is_none() {
-            ui.label("영상을 먼저 선택하세요.");
-            return;
-        }
-        if ui.button("지금 기록 저장").clicked() {
-            self.checkpoint();
-        }
-        let entries: Vec<_> = self.store.data.revisions.iter().rev().filter(|r| Some(r.video.id) == self.video_id()).cloned().collect();
-        let mut restore = None;
-        egui::ScrollArea::vertical().id_salt("purpose-history").show(ui, |ui| {
-            for (index, entry) in entries.into_iter().enumerate() {
-                ui.add_space(12.0);
-                ui.label(RichText::new(&entry.at).strong());
-                ui.label(&entry.video.name);
-                ui.label(RichText::new(&entry.label).small().color(style::MUTED));
-                egui::CollapsingHeader::new(format!("대본 미리보기 · {}", entry.at)).id_salt(index).show(ui, |ui| {
-                    ui.label(&entry.video.script_body);
-                });
-                if ui.button("이 버전으로 복원").clicked() {
-                    restore = Some(entry.video);
-                }
-                ui.separator();
-            }
-        });
-        if let Some(video) = restore {
-            self.checkpoint();
-            if let Some(current) = self.store.data.selected_mut() {
-                *current = video;
-            }
-            self.selected_clip = None;
-            self.preview_clip = None;
-            self.store.data.checkpoint("기록 복원");
-            self.save();
-        }
     }
 
     fn trash_contents(&mut self, ui: &mut egui::Ui) {

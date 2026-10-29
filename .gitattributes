@@ -2,3 +2,6 @@
 # (a copy of a Windows checkout must still run packaging/server/install.sh).
 *.sh text eol=lf
 packaging/server/* text eol=lf
+# Preserve FilmCraft translation keys with significant trailing spaces and verbatim licences.
+third-party/filmcraft-ui/src/i18n/*.tsv whitespace=-blank-at-eol,-blank-at-eof
+third-party/filmcraft-ui/licenses/*.txt whitespace=-blank-at-eol

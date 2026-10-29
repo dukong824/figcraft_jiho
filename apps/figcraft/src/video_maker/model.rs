@@ -108,6 +108,8 @@ pub struct Video {
     #[serde(default)]
     pub script_body: String,
     #[serde(default)]
+    pub film_revision: Option<String>,
+    #[serde(default)]
     pub script_assets: Vec<u64>,
     /// Read only during migration from the original block editor.
     #[serde(default, skip_serializing)]
@@ -155,6 +157,7 @@ impl Video {
         }
     }
 
+    #[cfg(test)]
     pub fn duration(&self) -> f64 {
         self.clips.iter().filter(|c| !c.audio_track).map(Clip::duration).sum()
     }
@@ -233,6 +236,7 @@ impl Workspace {
             assets: Vec::new(),
             script_title: format!("새 영상 {}", channel.videos.len() + 1),
             script_body: String::new(),
+            film_revision: None,
             script_assets: Vec::new(),
             script: Vec::new(),
             clips: Vec::new(),

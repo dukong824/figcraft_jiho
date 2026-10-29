@@ -18,7 +18,7 @@ if (Test-Path -LiteralPath $stage) { throw "Package staging folder already exist
 if (-not $BinaryDirectory) {
     Push-Location $repoRoot
     try {
-        cargo build --release --locked --target x86_64-pc-windows-msvc -p figcraft --bin purpose-video-maker
+        cargo build --release --locked --target x86_64-pc-windows-msvc -p figcraft --bin purpose-video-maker --features purpose-branding
         if ($LASTEXITCODE -ne 0) { throw 'Windows application build failed' }
     } finally { Pop-Location }
     $BinaryDirectory = Join-Path $repoRoot 'target/x86_64-pc-windows-msvc/release'
@@ -59,6 +59,12 @@ Copy-Item -LiteralPath $ffmpegLicense -Destination (Join-Path $stage 'ffmpeg/LIC
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE-MIT') -Destination (Join-Path $stage 'LICENSE-MIT.txt')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE-APACHE') -Destination (Join-Path $stage 'LICENSE-APACHE.txt')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'NOTICE') -Destination (Join-Path $stage 'NOTICE.txt')
+$filmcraftNotices = Join-Path $stage 'licenses/filmcraft'
+New-Item -ItemType Directory -Path $filmcraftNotices -Force | Out-Null
+foreach ($name in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'UPSTREAM.md')) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot "third-party/filmcraft-ui/$name") -Destination $filmcraftNotices
+}
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/filmcraft-ui/licenses') -Destination $filmcraftNotices -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs/video-maker.md') -Destination (Join-Path $stage 'VIDEO-MAKER.md')
 @'
 Purpose video maker for Windows x64

@@ -105,6 +105,9 @@ impl eframe::App for App {
                 maker.show_error(error);
             }
         }
+        if let Some(maker) = &mut self.video_maker {
+            maker.film_logic(ctx);
+        }
         // Window title follows the document.
         let title = self.video_maker.as_ref().map(video_maker::VideoMaker::title).or(design_title);
         if let Some(title) = title
@@ -125,7 +128,10 @@ impl eframe::App for App {
         }
     }
 
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if let Some(maker) = &mut self.video_maker {
+            maker.film_raw_input(ctx, raw_input);
+        }
         // Pointer and key events sent over the control channel (`ui.input`), for the window
         // about to draw.
         if let Some(events) = with_app(|fig| figcraft_ui_egui::windows::take_input(fig, raw_input.viewport_id)) {
@@ -135,6 +141,7 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let film_gpu = frame.wgpu_render_state().cloned();
         services::parented(frame, || {
             if let Some(maker) = &mut self.video_maker {
                 let leaving_design = maker.section_is_design();
@@ -144,7 +151,9 @@ impl eframe::App for App {
                         let _ = fig.session.execute("file.save", &json!({}));
                     });
                 }
-                if maker.section_is_design() {
+                if maker.section_is_edit() {
+                    maker.film_ui(ui, film_gpu);
+                } else if maker.section_is_design() {
                     with_app(|fig| {
                         figcraft_ui_egui::windows::guard(fig, &ctx, |fig| {
                             maker.ensure_design(fig);
@@ -162,6 +171,9 @@ impl eframe::App for App {
     }
 
     fn on_exit(&mut self) {
+        if let Some(maker) = &mut self.video_maker {
+            maker.shutdown_film();
+        }
         if self.video_maker.is_some() {
             with_app(|fig| {
                 let _ = fig.session.execute("file.save", &json!({}));
@@ -304,7 +316,7 @@ fn main() -> eframe::Result {
     if let Some(p) = port {
         control_server::start(p, queue.clone(), ctx_slot.clone());
     }
-    let icon = services::window_icon();
+    let icon = if args.video_maker { video_maker::window_icon() } else { services::window_icon() };
     // The app id is the Wayland app_id and the X11 window class on Linux: the desktop entry's name
     // and StartupWMClass (FreeBSD's package matches the binary's name instead).
     let mut viewport = egui::ViewportBuilder::default()

@@ -1,5 +1,11 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
+mod branding;
 mod codex;
+pub use branding::window_icon;
+mod film;
+mod film_audio;
+mod film_audio_in;
+mod history;
 mod media;
 mod model;
 mod navigation;
@@ -10,7 +16,7 @@ mod ui;
 use crate::services;
 use figcraft_engine::Session;
 use figcraft_ui_egui::FigApp;
-use model::{Asset, Clip, Section, Store, Video};
+use model::{Asset, Section, Store, Video};
 use navigation::{Route, Tabs};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -32,6 +38,9 @@ pub struct VideoMaker {
     login_output: String,
     auth_error: String,
     search: String,
+    history_all: bool,
+    history_query: String,
+    history_video: Option<u64>,
     library_query: String,
     library_view: LibraryView,
     thumbnails: HashMap<u64, egui::TextureHandle>,
@@ -40,20 +49,16 @@ pub struct VideoMaker {
     message: String,
     fonts_ready: bool,
     design_loaded: Option<u64>,
-    selected_clip: Option<u64>,
-    preview_at: f64,
-    preview_clip: Option<u64>,
-    preview: Option<egui::TextureHandle>,
+    film: Option<film::Editor>,
+    film_ime_ready: bool,
     prompt: String,
     ai_response: String,
     ai_job: Option<Receiver<Result<String, String>>>,
-    export_job: Option<Receiver<Result<PathBuf, String>>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SideView {
     Codex,
-    History,
     Trash,
 }
 
@@ -65,7 +70,7 @@ enum LibraryView {
 
 impl VideoMaker {
     pub fn section_is_design(&self) -> bool {
-        self.tabs.route().is_some_and(|route| route.section == Section::Design)
+        self.tabs.route().is_some_and(|route| route.video().is_some_and(|(_, section)| section == Section::Design))
     }
     pub fn new() -> Result<Self, String> {
         // Join the startup scan before the host chooses its shared UI font set.
@@ -85,7 +90,7 @@ impl VideoMaker {
             store.save()?;
         }
         store.data.checkpoint("프로젝트 열기");
-        let initial = store.data.selected_video.map(|video_id| Route { video_id, section: Section::Script });
+        let initial = store.data.selected_video.map(|video_id| Route::Video { video_id, section: Section::Script });
         Ok(Self {
             store,
             section: Section::Script,
@@ -99,6 +104,9 @@ impl VideoMaker {
             login_output: String::new(),
             auth_error: String::new(),
             search: String::new(),
+            history_all: false,
+            history_query: String::new(),
+            history_video: None,
             library_query: String::new(),
             library_view: LibraryView::Tiles,
             thumbnails: HashMap::new(),
@@ -107,34 +115,43 @@ impl VideoMaker {
             message: String::new(),
             fonts_ready: false,
             design_loaded: None,
-            selected_clip: None,
-            preview_at: 0.0,
-            preview_clip: None,
-            preview: None,
+            film: None,
+            film_ime_ready: false,
             prompt: String::new(),
             ai_response: String::new(),
             ai_job: None,
-            export_job: None,
         })
     }
 
     pub fn title(&self) -> String {
+        if self.tabs.route() == Some(Route::History) {
+            return "수정 기록 — Purpose video maker".into();
+        }
         self.tabs
             .route()
-            .and_then(|route| self.store.data.channels.iter().flat_map(|channel| &channel.videos).find(|video| video.id == route.video_id))
+            .and_then(|route| route.video())
+            .and_then(|(id, _)| self.store.data.channels.iter().flat_map(|channel| &channel.videos).find(|video| video.id == id))
             .map_or_else(|| "Purpose video maker".into(), |video| format!("{} — Purpose video maker", video.name))
     }
 
     fn sync_route(&mut self) {
-        if let Some(route) = self.tabs.route() {
-            if self.store.data.selected_video != Some(route.video_id) {
+        if self.section == Section::Edit {
+            // Keep the unsaved editor alive on an I/O error. Opening another editor and
+            // closing the window both retry this save before dropping its session.
+            if let Err(error) = self.save_film() {
+                self.message = error;
+            }
+            if let Some(editor) = &mut self.film {
+                editor.app.stop();
+            }
+        }
+        if let Some((video_id, section)) = self.tabs.route().and_then(Route::video) {
+            if self.store.data.selected_video != Some(video_id) {
                 self.checkpoint();
-                self.store.data.selected_video = Some(route.video_id);
-                self.selected_clip = None;
-                self.preview_clip = None;
+                self.store.data.selected_video = Some(video_id);
                 self.save();
             }
-            self.section = route.section;
+            self.section = section;
         } else {
             self.section = Section::Library;
         }
@@ -164,6 +181,7 @@ impl VideoMaker {
     }
 
     pub fn prepare_close(&mut self, fig: &mut FigApp) -> Result<(), String> {
+        self.save_film()?;
         if self.design_loaded.is_some() {
             fig.session.execute("file.save", &json!({})).map_err(|e| format!("디자인 저장 실패: {e}"))?;
         }
@@ -214,27 +232,16 @@ impl VideoMaker {
             self.save();
         }
         if let Some(video_id) = video_id {
-            self.navigate(Route { video_id, section: Section::Script });
+            self.navigate(Route::Video { video_id, section: Section::Script });
         }
     }
 
     fn add_to_timeline(&mut self, id: u64) {
         let Some(video_id) = self.video_id() else { return };
-        let Some(asset) = self.video().and_then(|v| v.asset(id)).cloned() else { return };
-        if !asset.kind.can_edit() {
-            self.message = "디자인 파일은 디자인 탭에서 PNG로 내보낸 뒤 추가하세요".into();
-            return;
+        match self.append_film_asset(id) {
+            Ok(()) => self.navigate(Route::Video { video_id, section: Section::Edit }),
+            Err(error) => self.message = error,
         }
-        let clip_id = self.store.data.id();
-        if let Some(video) = self.store.data.selected_mut() {
-            let audio_track = asset.kind == model::AssetKind::Audio;
-            let start = if audio_track { video.duration() } else { 0.0 };
-            video.clips.push(Clip { id: clip_id, asset_id: id, trim_start: 0.0, trim_end: asset.duration, start, volume: 1.0, audio_track });
-            self.selected_clip = Some(clip_id);
-            self.preview_clip = None;
-            self.save();
-        }
-        self.navigate(Route { video_id, section: Section::Edit });
     }
 
     pub fn ensure_design(&mut self, fig: &mut FigApp) {
@@ -309,20 +316,6 @@ impl VideoMaker {
         }
     }
 
-    fn start_export(&mut self) {
-        if self.export_job.is_some() {
-            return;
-        }
-        let Some(video) = self.video().cloned() else { return };
-        let dir = self.store.video_dir(video.id);
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(media::export(&video, &dir));
-        });
-        self.export_job = Some(rx);
-        self.message = "MP4를 내보내는 중입니다…".into();
-    }
-
     fn poll_jobs(&mut self, ctx: &egui::Context) {
         self.poll_auth(ctx);
         if let Some(due) = self.revision_due {
@@ -355,23 +348,6 @@ impl VideoMaker {
         }
         if !self.thumbnail_jobs.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
-        }
-        if let Some(rx) = &self.export_job {
-            match rx.try_recv() {
-                Ok(Ok(path)) => {
-                    self.message = format!("내보내기 완료: {}", path.display());
-                    self.export_job = None;
-                }
-                Ok(Err(e)) => {
-                    self.message = e;
-                    self.export_job = None;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    self.message = "내보내기 작업이 종료되었습니다".into();
-                    self.export_job = None;
-                }
-                Err(mpsc::TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
-            }
         }
         if let Some(rx) = &self.ai_job {
             match rx.try_recv() {
@@ -422,9 +398,15 @@ impl VideoMaker {
             })
             .collect::<Vec<_>>()
             .join("\n");
+        let native_edit = self
+            .film
+            .as_ref()
+            .filter(|f| f.video_id == video.id)
+            .map(|f| f.app.session.project.to_json().to_string())
+            .unwrap_or_else(|| "편집 파일: edit.fcproj".into());
         let prompt = format!(
-            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n타임라인:\n{}\n요청: {}",
-            video.name, script, assets, clips, request
+            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n이전 타임라인:\n{clips}\nFilmCraft 프로젝트:\n{native_edit}\n요청: {}",
+            video.name, script, assets, request
         );
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -510,7 +492,10 @@ mod tests {
         assert_eq!(video.assets[0].kind, model::AssetKind::Image);
         assert!(store.asset_path(video.id, &video.assets[0]).is_file());
         assert!(video.script_assets.contains(&id));
-        assert_eq!(video.clips[0].asset_id, id);
+        assert!(store.video_dir(video.id).join("edit.fcproj").is_file());
+        let editor = maker.film.as_ref().unwrap();
+        assert_eq!(editor.app.session.active_sequence().unwrap().video_tracks[0].items.len(), 1);
+        maker.shutdown_film();
         let _ = fs::remove_dir_all(root);
     }
 }

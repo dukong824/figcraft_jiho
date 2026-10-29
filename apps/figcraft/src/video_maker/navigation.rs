@@ -1,9 +1,18 @@
 use super::model::Section;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Route {
-    pub video_id: u64,
-    pub section: Section,
+pub enum Route {
+    Video { video_id: u64, section: Section },
+    History,
+}
+
+impl Route {
+    pub fn video(self) -> Option<(u64, Section)> {
+        match self {
+            Self::Video { video_id, section } => Some((video_id, section)),
+            Self::History => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -84,7 +93,7 @@ impl Tabs {
     pub fn remove_video(&mut self, id: u64) {
         for tab in &mut self.tabs {
             let current = tab.route();
-            tab.history.retain(|r| r.is_none_or(|r| r.video_id != id));
+            tab.history.retain(|r| r.is_none_or(|r| r.video().is_none_or(|(video_id, _)| video_id != id)));
             if tab.history.is_empty() {
                 tab.history.push(None);
             }
@@ -122,20 +131,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trashing_a_video_removes_it_from_all_tab_histories() {
-        let mut tabs = Tabs::new(Some(Route { video_id: 1, section: Section::Script }));
-        tabs.navigate(Route { video_id: 2, section: Section::Design });
+    fn history_is_a_browser_page_and_survives_video_removal() {
+        let video = route(1, Section::Script);
+        let mut tabs = Tabs::new(Some(video));
+        tabs.navigate(Route::History);
+        tabs.back();
+        assert_eq!(tabs.route(), Some(video));
+        tabs.forward();
+        assert_eq!(tabs.route(), Some(Route::History));
         tabs.new_tab();
-        tabs.navigate(Route { video_id: 2, section: Section::Library });
+        tabs.navigate(route(2, Section::Edit));
+        tabs.select(0);
+        tabs.remove_video(1);
+        assert_eq!(tabs.route(), Some(Route::History));
+        assert!(!tabs.can_back());
+    }
+
+    #[test]
+    fn trashing_a_video_removes_it_from_all_tab_histories() {
+        let mut tabs = Tabs::new(Some(Route::Video { video_id: 1, section: Section::Script }));
+        tabs.navigate(Route::Video { video_id: 2, section: Section::Design });
+        tabs.new_tab();
+        tabs.navigate(Route::Video { video_id: 2, section: Section::Library });
         tabs.remove_video(2);
         assert_eq!(tabs.route(), None);
         tabs.select(0);
-        assert_eq!(tabs.route().unwrap().video_id, 1);
+        assert_eq!(tabs.route().unwrap().video().unwrap().0, 1);
         assert!(!tabs.can_forward());
     }
 
     fn route(video_id: u64, section: Section) -> Route {
-        Route { video_id, section }
+        Route::Video { video_id, section }
     }
 
     #[test]

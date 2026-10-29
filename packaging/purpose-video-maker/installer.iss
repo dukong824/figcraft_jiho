@@ -6,6 +6,7 @@
 #endif
 
 [Setup]
+SetupIconFile=..\..\assets\purpose\purpose.ico
 AppId={{C4BDC487-8A3B-431B-BC60-05D674C38A82}
 AppName=Purpose video maker
 AppVersion=0.1.4

@@ -1,12 +1,11 @@
 use super::VideoMaker;
 use super::media;
-use super::model::{Asset, AssetKind, Caption, Section};
+use super::model::{Asset, AssetKind, Section};
 use super::navigation::Route;
 use super::style::{self, Icon};
 use super::{LibraryView, SideView};
 use egui::{Color32, CornerRadius, FontId, Rect, RichText, Sense, Stroke, TextEdit, pos2, vec2};
 use std::path::Path;
-use std::process::Command;
 
 impl VideoMaker {
     /// Draw the shared shell and non-design sections. The caller draws FigCraft in the remaining
@@ -32,13 +31,15 @@ impl VideoMaker {
         self.side_panel(ui);
         if self.tabs.route().is_none() {
             self.empty_tab(ui);
-        } else if self.section != Section::Design {
+        } else if self.tabs.route() == Some(Route::History) {
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(32.0)).show(ui, |ui| self.history_page(ui));
+        } else if !matches!(self.section, Section::Design | Section::Edit) {
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(32, 12))).show(
                 ui,
                 |ui| match self.section {
                     Section::Library => self.library(ui),
                     Section::Script => self.script(ui),
-                    Section::Edit => self.edit(ui),
+                    Section::Edit => {}
                     Section::Design => {}
                 },
             );
@@ -62,15 +63,16 @@ impl VideoMaker {
                 let label = route.map_or_else(
                     || "새 탭".to_owned(),
                     |route| {
+                        let Some((video_id, section)) = route.video() else { return "수정 기록".to_owned() };
                         let name = self
                             .store
                             .data
                             .channels
                             .iter()
                             .flat_map(|channel| &channel.videos)
-                            .find(|video| video.id == route.video_id)
+                            .find(|video| video.id == video_id)
                             .map_or("없는 영상", |video| video.name.as_str());
-                        format!("{}  /  {}", name, route.section.label())
+                        format!("{}  /  {}", name, section.label())
                     },
                 );
                 (index, label, active)
@@ -207,7 +209,7 @@ impl VideoMaker {
             });
         });
         if let Some(video_id) = selected {
-            self.navigate(Route { video_id, section: Section::Library });
+            self.navigate(Route::Video { video_id, section: Section::Library });
         }
     }
 
@@ -218,7 +220,7 @@ impl VideoMaker {
         let mut open_in_new_tab = None;
         let mut trashed = None;
         let mut dirty = false;
-        let active_route = self.tabs.route();
+        let active_route = self.tabs.route().and_then(Route::video);
         let mut expanded = self.store.data.expanded_videos.clone();
         egui::Panel::left("purpose-sidebar")
             .default_size(252.0)
@@ -227,7 +229,12 @@ impl VideoMaker {
             .resizable(true)
             .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 10)).stroke(Stroke::new(1.0, style::BORDER)))
             .show(ui, |ui| {
-                ui.add_sized([ui.available_width(), 33.0], egui::Label::new(RichText::new("Purpose video maker").size(16.0).strong()));
+                ui.horizontal(|ui| {
+                    if let Some(logo) = super::branding::texture(ui.ctx()) {
+                        ui.image((logo.id(), vec2(26.0, 26.0)));
+                    }
+                    ui.label(RichText::new("Purpose video maker").size(15.0).strong());
+                });
                 ui.add_space(14.0);
                 ui.add(TextEdit::singleline(&mut self.search).desired_width(ui.available_width()).hint_text("채널 또는 영상 검색"));
                 ui.add_space(18.0);
@@ -275,7 +282,7 @@ impl VideoMaker {
                                         expanded.push(video.id);
                                     }
                                 } else if response.clicked() {
-                                    let target = Route { video_id: video.id, section: Section::Library };
+                                    let target = Route::Video { video_id: video.id, section: Section::Library };
                                     if ui.input(|i| i.modifiers.command) {
                                         open_in_new_tab = Some(target);
                                     } else {
@@ -295,12 +302,12 @@ impl VideoMaker {
                                                 ui,
                                                 section.label(),
                                                 section_icon(section),
-                                                active_route.is_some_and(|r| r.video_id == video.id && r.section == section),
+                                                active_route == Some((video.id, section)),
                                                 28.0,
                                             )
                                             .clicked()
                                             {
-                                                let target = Route { video_id: video.id, section };
+                                                let target = Route::Video { video_id: video.id, section };
                                                 if ui.input(|i| i.modifiers.command) {
                                                     open_in_new_tab = Some(target);
                                                 } else {
@@ -317,19 +324,17 @@ impl VideoMaker {
                 });
                 ui.add_space((ui.available_height() - 134.0).max(4.0));
                 ui.separator();
-                for (view, label, icon) in [
-                    (SideView::History, "수정 기록", Icon::History),
-                    (SideView::Trash, "휴지통", Icon::Trash),
-                    (SideView::Codex, "Codex", Icon::Sparkle),
-                ] {
+                if style::nav_row(ui, "수정 기록", Icon::History, self.tabs.route() == Some(Route::History), 0.0).clicked() {
+                    self.checkpoint();
+                    self.history_video = None;
+                    self.navigate(Route::History);
+                }
+                for (view, label, icon) in [(SideView::Trash, "휴지통", Icon::Trash), (SideView::Codex, "Codex", Icon::Sparkle)] {
                     ui.push_id(label, |ui| {
                         if style::nav_row(ui, label, icon, self.side_view == Some(view), 0.0).clicked() {
                             self.side_view = if self.side_view == Some(view) { None } else { Some(view) };
                             if self.side_view == Some(SideView::Codex) {
                                 self.refresh_auth();
-                            }
-                            if self.side_view == Some(SideView::History) {
-                                self.checkpoint();
                             }
                         }
                     });
@@ -346,7 +351,7 @@ impl VideoMaker {
         if let Some(channel) = new_video {
             self.checkpoint();
             if let Some(video_id) = self.store.data.add_video(channel) {
-                navigate = Some(Route { video_id, section: Section::Script });
+                navigate = Some(Route::Video { video_id, section: Section::Script });
             }
             dirty = true;
         }
@@ -375,9 +380,9 @@ impl VideoMaker {
             .store
             .data
             .selected()
-            .filter(|_| self.tabs.route().is_some())
+            .filter(|_| self.tabs.route().and_then(Route::video).is_some())
             .map(|(channel, video)| format!("{}  /  {}  /  {}", channel.name, video.name, self.section.label()))
-            .unwrap_or_else(|| "새 탭".into());
+            .unwrap_or_else(|| if self.tabs.route() == Some(Route::History) { "수정 기록".into() } else { "새 탭".into() });
         egui::Panel::top("purpose-header")
             .exact_size(45.0)
             .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(22, 7)).stroke(Stroke::new(1.0, style::BORDER)))
@@ -646,287 +651,6 @@ impl VideoMaker {
                 });
             });
         });
-        if dirty {
-            self.save();
-        }
-    }
-
-    fn edit(&mut self, ui: &mut egui::Ui) {
-        let Some(video) = self.video().cloned() else { return };
-        if self.selected_clip.is_none() {
-            self.selected_clip = video.clips.iter().find(|clip| !clip.audio_track).map(|clip| clip.id);
-        }
-        egui::ScrollArea::vertical().id_salt("purpose-edit-scroll").show(ui, |ui| {
-            ui.add_space(22.0);
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("편집").size(32.0).strong());
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let button =
-                        egui::Button::new(RichText::new("MP4 내보내기").color(Color32::WHITE)).fill(style::TEXT).corner_radius(CornerRadius::same(6));
-                    if ui.add_enabled(self.export_job.is_none(), button).clicked() {
-                        self.start_export();
-                    }
-                });
-            });
-            ui.label(RichText::new(format!("1280 × 720 · 30 fps · 영상 길이 {:.1}초", video.duration())).size(13.0).color(style::MUTED));
-            ui.add_space(22.0);
-            self.preview_ui(ui, &video);
-            ui.add_space(28.0);
-            ui.label(RichText::new("타임라인").size(19.0).strong());
-            ui.add_space(9.0);
-            let mut clicked = None;
-            egui::Frame::NONE
-                .fill(style::SIDEBAR)
-                .stroke(Stroke::new(1.0, style::BORDER))
-                .corner_radius(CornerRadius::same(8))
-                .inner_margin(egui::Margin::same(13))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("영상").size(12.0).strong().color(style::MUTED));
-                        ui.add_space(8.0);
-                        egui::ScrollArea::horizontal().id_salt("video-timeline").show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                for clip in video.clips.iter().filter(|c| !c.audio_track) {
-                                    let name = video.asset(clip.asset_id).map_or("없는 에셋", |a| a.name.as_str());
-                                    let width = (clip.duration() * 36.0).clamp(115.0, 280.0) as f32;
-                                    let selected = self.selected_clip == Some(clip.id);
-                                    let button = egui::Button::new(format!("{}\n{:.1}초", name, clip.duration()))
-                                        .fill(if selected { Color32::from_rgb(210, 229, 246) } else { style::SURFACE })
-                                        .stroke(Stroke::new(1.0, if selected { style::BLUE } else { style::BORDER }))
-                                        .corner_radius(CornerRadius::same(5));
-                                    if ui.add_sized([width, 48.0], button).clicked() {
-                                        clicked = Some(clip.id);
-                                    }
-                                }
-                                if video.clips.iter().all(|c| c.audio_track) {
-                                    ui.label(RichText::new("라이브러리에서 영상을 추가하세요").size(12.0).color(style::FAINT));
-                                }
-                            });
-                        });
-                    });
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("오디오").size(12.0).strong().color(style::MUTED));
-                        egui::ScrollArea::horizontal().id_salt("audio-timeline").show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                for clip in video.clips.iter().filter(|c| c.audio_track) {
-                                    let name = video.asset(clip.asset_id).map_or("없는 에셋", |a| a.name.as_str());
-                                    let selected = self.selected_clip == Some(clip.id);
-                                    let button = egui::Button::new(format!("{}  ·  {:.1}초", name, clip.start))
-                                        .fill(if selected { Color32::from_rgb(210, 229, 246) } else { style::SURFACE })
-                                        .stroke(Stroke::new(1.0, if selected { style::BLUE } else { style::BORDER }))
-                                        .corner_radius(CornerRadius::same(5));
-                                    if ui.add_sized([180.0, 42.0], button).clicked() {
-                                        clicked = Some(clip.id);
-                                    }
-                                }
-                                if video.clips.iter().all(|c| !c.audio_track) {
-                                    ui.label(RichText::new("오디오 파일을 추가하면 여기에 표시됩니다").size(12.0).color(style::FAINT));
-                                }
-                            });
-                        });
-                    });
-                });
-            if let Some(id) = clicked {
-                self.selected_clip = Some(id);
-                self.preview_clip = None;
-                self.preview_at = 0.0;
-            }
-            ui.add_space(20.0);
-            self.clip_controls(ui, &video);
-            ui.add_space(20.0);
-            self.captions(ui);
-            ui.add_space(28.0);
-        });
-    }
-
-    fn preview_ui(&mut self, ui: &mut egui::Ui, video: &super::model::Video) {
-        if self.preview_clip != self.selected_clip {
-            self.refresh_preview(ui.ctx(), video);
-        }
-        let width = ui.available_width().min(690.0);
-        egui::Frame::NONE.fill(Color32::from_rgb(31, 31, 31)).corner_radius(CornerRadius::same(7)).show(ui, |ui| {
-            ui.allocate_ui_with_layout(vec2(width, 360.0), egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
-                if let Some(texture) = &self.preview {
-                    let size = texture.size_vec2();
-                    let factor = (width / size.x).min(360.0 / size.y).min(1.0);
-                    ui.image((texture.id(), size * factor));
-                } else {
-                    ui.label(RichText::new("클립을 선택하면 미리보기가 표시됩니다").color(Color32::from_gray(200)).size(13.0));
-                }
-            });
-        });
-        ui.add_space(9.0);
-        if let Some(clip) = video.clips.iter().find(|clip| Some(clip.id) == self.selected_clip) {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(video.asset(clip.asset_id).map_or("없는 에셋", |asset| asset.name.as_str())).size(12.0).color(style::MUTED));
-                ui.add_space(11.0);
-                let response = ui.add_sized([230.0, 25.0], egui::Slider::new(&mut self.preview_at, 0.0..=clip.duration()).text("위치"));
-                if response.changed() {
-                    self.preview_clip = None;
-                }
-                ui.add_space(5.0);
-                if ui.add(egui::Button::new("소스 재생").small().fill(style::SIDEBAR)).clicked()
-                    && let Some(asset) = video.asset(clip.asset_id)
-                {
-                    let path = self.store.asset_path(video.id, asset);
-                    match Command::new(super::media::tool("ffplay"))
-                        .args(["-autoexit", "-loglevel", "error", "-ss"])
-                        .arg(format!("{:.3}", clip.trim_start))
-                        .args(["-t"])
-                        .arg(format!("{:.3}", clip.duration()))
-                        .arg(path)
-                        .spawn()
-                    {
-                        Ok(_) => self.message = "ffplay에서 소스를 재생합니다".into(),
-                        Err(e) => self.message = format!("ffplay를 실행할 수 없습니다: {e}"),
-                    }
-                }
-            });
-        }
-    }
-
-    fn refresh_preview(&mut self, ctx: &egui::Context, video: &super::model::Video) {
-        self.preview = None;
-        self.preview_clip = self.selected_clip;
-        let Some(clip) = video.clips.iter().find(|c| Some(c.id) == self.selected_clip) else { return };
-        let Some(asset) = video.asset(clip.asset_id) else { return };
-        if asset.kind == AssetKind::Audio {
-            return;
-        }
-        let path = self.store.asset_path(video.id, asset);
-        let png = if asset.kind == AssetKind::Image {
-            std::fs::read(&path).map_err(|e| e.to_string())
-        } else {
-            media::preview_png(&path, clip.trim_start + self.preview_at)
-        };
-        match png.and_then(|bytes| image::load_from_memory(&bytes).map_err(|e| e.to_string())) {
-            Ok(frame) => {
-                let frame = frame.to_rgba8();
-                let size = [frame.width() as usize, frame.height() as usize];
-                self.preview =
-                    Some(ctx.load_texture("purpose-preview", egui::ColorImage::from_rgba_unmultiplied(size, &frame), egui::TextureOptions::LINEAR));
-            }
-            Err(e) => self.message = format!("미리보기 실패: {e}"),
-        }
-    }
-
-    fn clip_controls(&mut self, ui: &mut egui::Ui, snapshot: &super::model::Video) {
-        let Some(id) = self.selected_clip else { return };
-        let Some(index) = snapshot.clips.iter().position(|c| c.id == id) else { return };
-        let asset_duration = snapshot.asset(snapshot.clips[index].asset_id).map_or(0.0, |a| a.duration);
-        let mut dirty = false;
-        let mut remove = false;
-        let mut move_by = 0isize;
-        egui::Frame::NONE
-            .fill(style::SURFACE)
-            .stroke(Stroke::new(1.0, style::BORDER))
-            .corner_radius(CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(14))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("선택한 클립").size(16.0).strong());
-                    if ui.small_button("←").clicked() {
-                        move_by = -1;
-                    }
-                    if ui.small_button("→").clicked() {
-                        move_by = 1;
-                    }
-                    if ui.small_button("삭제").clicked() {
-                        remove = true;
-                    }
-                });
-                if let Some(video) = self.store.data.selected_mut()
-                    && let Some(clip) = video.clips.get_mut(index)
-                {
-                    ui.horizontal(|ui| {
-                        ui.label("시작 트림");
-                        dirty |= ui.add(egui::DragValue::new(&mut clip.trim_start).speed(0.1).range(0.0..=asset_duration)).changed();
-                        ui.label("끝 트림");
-                        dirty |= ui.add(egui::DragValue::new(&mut clip.trim_end).speed(0.1).range(0.0..=asset_duration)).changed();
-                        ui.label("볼륨");
-                        dirty |= ui.add(egui::Slider::new(&mut clip.volume, 0.0..=4.0).text("×")).changed();
-                        if clip.audio_track {
-                            ui.label("타임라인 시작");
-                            dirty |= ui.add(egui::DragValue::new(&mut clip.start).speed(0.1).range(0.0..=86_400.0)).changed();
-                        }
-                    });
-                    if clip.trim_end <= clip.trim_start + 0.04 {
-                        clip.trim_end = (clip.trim_start + 0.04).min(asset_duration);
-                        dirty = true;
-                    }
-                }
-            });
-        if let Some(video) = self.store.data.selected_mut() {
-            if remove {
-                video.clips.remove(index);
-                self.selected_clip = None;
-                self.preview_clip = None;
-                dirty = true;
-            } else if move_by != 0 {
-                let dest = index as isize + move_by;
-                if dest >= 0 && (dest as usize) < video.clips.len() && video.clips[dest as usize].audio_track == video.clips[index].audio_track {
-                    video.clips.swap(index, dest as usize);
-                    dirty = true;
-                }
-            }
-        }
-        if dirty {
-            self.preview_clip = None;
-            self.save();
-        }
-    }
-
-    fn captions(&mut self, ui: &mut egui::Ui) {
-        let mut add = false;
-        let mut remove = None;
-        let mut dirty = false;
-        egui::Frame::NONE
-            .fill(style::SURFACE)
-            .stroke(Stroke::new(1.0, style::BORDER))
-            .corner_radius(CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(14))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("자막").size(16.0).strong());
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(egui::Button::new("+ 자막").small().fill(style::SIDEBAR)).clicked() {
-                            add = true;
-                        }
-                    });
-                });
-                ui.add_space(8.0);
-                if let Some(video) = self.store.data.selected_mut() {
-                    for (index, caption) in video.captions.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            dirty |= ui.add(egui::DragValue::new(&mut caption.start).speed(0.1).range(0.0..=86_400.0)).changed();
-                            ui.label("–");
-                            dirty |= ui.add(egui::DragValue::new(&mut caption.end).speed(0.1).range(0.0..=86_400.0)).changed();
-                            dirty |= ui.add(TextEdit::singleline(&mut caption.text).desired_width(360.0).hint_text("자막 내용")).changed();
-                            if ui.small_button("삭제").clicked() {
-                                remove = Some(index);
-                            }
-                        });
-                    }
-                }
-            });
-        if add {
-            let id = self.store.data.id();
-            if let Some(video) = self.store.data.selected_mut() {
-                let start = video.duration();
-                video.captions.push(Caption { id, start, end: start + 3.0, text: String::new() });
-                dirty = true;
-            }
-        }
-        if let Some(index) = remove
-            && let Some(video) = self.store.data.selected_mut()
-        {
-            video.captions.remove(index);
-            dirty = true;
-        }
         if dirty {
             self.save();
         }

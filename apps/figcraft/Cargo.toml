@@ -15,6 +15,9 @@ path = "src/main.rs"
 name = "purpose-video-maker"
 path = "src/main.rs"
 
+[features]
+purpose-branding = []
+
 [lints]
 workspace = true
 
@@ -39,6 +42,19 @@ arboard = { workspace = true, features = ["image-data", "wayland-data-control"] 
 webbrowser = { workspace = true }
 image = { workspace = true }
 env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+
+
+filmcraft-ui-egui = { path = "../../third-party/filmcraft-ui" }
+filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-project = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-text = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-platform = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-codecs = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+cpal = "0.16"
 
 # The system's reduce-motion setting (UISettings.AnimationsEnabled), interface language
 # (GlobalizationPreferences.Languages) and controllers for prototypes (Gaming.Input.Gamepad).

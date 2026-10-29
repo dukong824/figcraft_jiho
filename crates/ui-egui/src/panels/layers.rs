@@ -85,7 +85,18 @@ pub fn rail(app: &mut FigApp, ui: &mut Ui) {
     if lresp.hovered() || app.ui.main_menu {
         ui.painter().rect_filled(lr, CornerRadius::same(6), t.hover);
     }
-    icons::paint(ui.painter(), Rect::from_center_size(lr.center(), vec2(18.0, 18.0)), Icon::Logo, t.icon);
+    let host_logo =
+        app.ui.video_maker.then(|| ui.ctx().data(|data| data.get_temp::<egui::TextureHandle>(egui::Id::unique("purpose-logo")))).flatten();
+    if let Some(logo) = host_logo {
+        ui.painter().image(
+            logo.id(),
+            Rect::from_center_size(lr.center(), vec2(24.0, 24.0)),
+            Rect::from_min_max(egui::Pos2::ZERO, pos2(1.0, 1.0)),
+            egui::Color32::WHITE,
+        );
+    } else {
+        icons::paint(ui.painter(), Rect::from_center_size(lr.center(), vec2(18.0, 18.0)), Icon::Logo, t.icon);
+    }
     if lresp.clicked() {
         app.ui.main_menu = !app.ui.main_menu;
     }

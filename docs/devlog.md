@@ -1,5 +1,29 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: FilmCraft editor, history page and P branding
+
+Replace the basic FFmpeg timeline with FilmCraft 0.14.0 at pinned revision
+8d925e9df32d8755f22bd2635e400a6b3e93f69c. Vendor its egui frontend, retain licences/credits,
+and pin the native engine/codecs/renderers. Let the host own window lifecycle, fonts and scale;
+disable the embedded upstream binary updater. Attach native audio I/O, media clipboard,
+file dialogs, GPU preview/export hooks and the complete editor workspace. Use one edit.fcproj
+per video, migrate old clips/audio gain/captions, fit incoming visual clips to frame, autosave,
+and retain immutable project snapshots for history restoration. Save clean externally opened
+projects into the current video's project too. Share library media with the native project.
+
+Open History as a main browser page: searchable all-video table, channel/time/count columns,
+per-video versions and restoration of script/library plus native edit project. Keep browser
+back/forward navigation. Use the owner's unmodified P PNG for sidebar/runtime branding and
+its ICO conversions for Windows executable, installer and uninstall icon. Include FilmCraft
+and font notices in the installer. Publish only setup.exe, with an installed-GUI open/close check.
+
+Validation: 87 desktop tests, 824 UI tests, workspace Clippy, dependency layers, asset attribution and WASM/plugin gates pass.
+Exercise history table/detail, native timeline/video/audio-meter/caption playback, export UI,
+and design transitions in Xvfb. Decode the actual GUI-exported 1280×720 H.264/AAC MP4 with
+ffprobe, and test native export pixels with the external FFmpeg decoder. Verify migration,
+save/reopen, revision restoration and missing-project recovery. Full CI still reaches the
+existing board-table row-growth failure (122 → 122; 1391 other engine tests pass).
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: installer-only distribution
 
 Stop generating the portable archive. Publish the tested setup EXE directly as a Purpose video

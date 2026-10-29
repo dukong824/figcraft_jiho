@@ -1,3 +1,24 @@
+## Purpose video maker FilmCraft integration — 2026-10-29
+
+- Desktop test suite: 87 passed, including migration of native timeline trims/audio gain/captions,
+  native project save/reopen, revision restoration, missing-current-file recovery, and clean
+  external project import persistence.
+- Native H.264/AAC export: passed. ffprobe verifies streams/dimensions and FFmpeg decodes the
+  output; a decoded off-centre pixel checks that library sources fit the sequence.
+- Actual Linux GUI: inspected history table/detail, FilmCraft timeline and media bins, moving
+  program monitor, live audio levels, Korean captions, export settings, and transition to the
+  FigCraft design editor with the host shell's size preserved. GUI export produced a decodable
+  1280×720 H.264/AAC MP4 (2.005 s). This cloud instance has no audio output device, so audible
+  hardware output is not claimed.
+- Logo original PNG SHA-256 matches the supplied download; Windows ICO has seven size variants.
+- UI crate: 824 passed, 1 ignored. WASM and plugin gates passed.
+- Workspace Clippy with warnings denied, dependency layers and asset attribution: passed.
+- Full `cargo xtask ci` attempted: retains the existing engine row-growth failure
+  `board_tables_tests::a_double_click_types_in_the_cell_and_its_row_grows_with_the_text`
+  (122 → 122; 1391 passed, 1 failed, 2 ignored). A clean full CI pass is not claimed.
+- Installer workflow publishes only setup.exe. It also verifies the installed GUI opens and
+  closes, the packaged media tools, Codex executable and FilmCraft licence notices on Windows.
+
 # FigCraft Jiho build validation
 
 ## Papierwerk outward border, rebuilt from .5 — 2026-10-28

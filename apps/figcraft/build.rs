@@ -3,16 +3,18 @@
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(windows_slim_errors)");
     println!("cargo::rerun-if-changed=../../assets/app-icon/figcraft.ico");
+    println!("cargo::rerun-if-changed=../../assets/purpose/purpose.ico");
+    let purpose = std::env::var_os("CARGO_FEATURE_PURPOSE_BRANDING").is_some();
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os == "windows" {
         let mut res = winresource::WindowsResource::new();
-        let ico = "../../assets/app-icon/figcraft.ico";
+        let ico = if purpose { "../../assets/purpose/purpose.ico" } else { "../../assets/app-icon/figcraft.ico" };
         if std::path::Path::new(ico).exists() {
             res.set_icon(ico);
         }
-        res.set("ProductName", "FigCraft");
-        res.set("FileDescription", "FigCraft");
-        res.set("CompanyName", "ArtCraft");
+        res.set("ProductName", if purpose { "Purpose video maker" } else { "FigCraft" });
+        res.set("FileDescription", if purpose { "Purpose video maker" } else { "FigCraft" });
+        res.set("CompanyName", if purpose { "Purpose" } else { "ArtCraft" });
         if let Err(e) = res.compile() {
             println!("cargo::warning=winresource: {e}");
         }

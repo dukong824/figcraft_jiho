@@ -294,6 +294,7 @@ pub fn install_fonts(ctx: &Context, system: bool, cjk: u8) {
         semi.push(sb_name.into());
     }
     semi.extend(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
+    fonts.families.insert(FontFamily::Name("medium".into()), semi.clone());
     fonts.families.insert(FontFamily::Name("semibold".into()), semi);
     // Keep the logo's typeface independent of UI text. System Archivo is used when available;
     // releases with craft-fonts embed it so the wordmark does not depend on installation.
