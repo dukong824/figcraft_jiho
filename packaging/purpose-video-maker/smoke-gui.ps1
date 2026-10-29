@@ -6,10 +6,15 @@ using System.Runtime.InteropServices;
 using System.Text;
 public static class PurposeWindowCheck {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] public struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
     [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     public delegate bool EnumWindow(IntPtr window, IntPtr data);
@@ -35,6 +40,28 @@ public static class PurposeWindowCheck {
     public static void F11(IntPtr window) {
         PostMessage(window, 0x100, new IntPtr(0x7A), new IntPtr(0x00570001));
         PostMessage(window, 0x101, new IntPtr(0x7A), new IntPtr(0xC0570001L));
+    }
+    public static void Escape(IntPtr window) {
+        PostMessage(window, 0x100, new IntPtr(0x1B), new IntPtr(0x00010001));
+        PostMessage(window, 0x101, new IntPtr(0x1B), new IntPtr(0xC0010001L));
+    }
+    public static void Click(IntPtr window, int x, int y) {
+        Point screen = new Point { X = x, Y = y };
+        if (!ClientToScreen(window, ref screen)) throw new Exception("ClientToScreen failed");
+        SetCursorPos(screen.X, screen.Y);
+        IntPtr position = new IntPtr((y << 16) | (x & 0xFFFF));
+        PostMessage(window, 0x200, IntPtr.Zero, position);
+        PostMessage(window, 0x201, new IntPtr(1), position);
+        PostMessage(window, 0x202, IntPtr.Zero, position);
+    }
+    public static void OpenEditor(IntPtr window) {
+        double scale = GetDpiForWindow(window) / 96.0;
+        Click(window, (int)(90 * scale), (int)(423 * scale));
+    }
+    public static void EditorFullscreen(IntPtr window, bool fullscreen) {
+        Rect client; if (!GetClientRect(window, out client)) throw new Exception("GetClientRect failed");
+        double scale = GetDpiForWindow(window) / 96.0;
+        Click(window, client.Right - (int)(28 * scale), (int)((fullscreen ? 20 : 111) * scale));
     }
 }
 '@
@@ -80,14 +107,21 @@ try {
     }
     $normal = [PurposeWindowCheck]::Bounds($window)
     $screen = [PurposeWindowCheck]::Screen($window)
+    [PurposeWindowCheck]::OpenEditor($window)
+    Start-Sleep -Seconds 1
+    [PurposeWindowCheck]::EditorFullscreen($window, $false)
+    Wait-Bounds $window $screen
+    Start-Sleep -Milliseconds 300
+    [PurposeWindowCheck]::EditorFullscreen($window, $true)
+    Wait-Bounds $window $normal
     [PurposeWindowCheck]::F11($window)
     Wait-Bounds $window $screen
-    [PurposeWindowCheck]::F11($window)
+    [PurposeWindowCheck]::Escape($window)
     Wait-Bounds $window $normal
     $null = $app.CloseMainWindow()
     if (-not $app.WaitForExit(15000)) { throw 'Installed GUI did not close cleanly' }
     if ($app.ExitCode -ne 0) { throw "Installed GUI failed: $($app.ExitCode)" }
-    Write-Output 'Installed GUI: main window, taskbar icon, fullscreen, restore and clean exit passed'
+    Write-Output 'Installed GUI: main window, taskbar icon, FilmCraft fullscreen button, restore, F11/Esc and clean exit passed'
 } finally {
     if (Test-Path -LiteralPath $startupLog) { Get-Content -LiteralPath $startupLog | Write-Output }
     if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }

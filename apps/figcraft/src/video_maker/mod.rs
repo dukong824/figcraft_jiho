@@ -4,6 +4,7 @@ mod chat;
 mod codex;
 mod document;
 mod interactions;
+mod rich_script;
 #[cfg(windows)]
 pub use branding::set_windows_icons;
 pub use branding::window_icon;
@@ -42,6 +43,7 @@ pub struct VideoMaker {
     login_output: String,
     auth_error: String,
     search: String,
+    rename_video: Option<(u64, String)>,
     history_all: bool,
     history_query: String,
     history_video: Option<u64>,
@@ -111,6 +113,7 @@ impl VideoMaker {
             login_output: String::new(),
             auth_error: String::new(),
             search: String::new(),
+            rename_video: None,
             history_all: false,
             history_query: String::new(),
             history_video: None,
@@ -236,9 +239,13 @@ impl VideoMaker {
         let video_id = self.video_id();
         if let Some(video) = self.store.data.selected_mut()
             && video.asset(id).is_some()
-            && !video.script_assets.contains(&id)
         {
-            video.script_assets.push(id);
+            if !video.script_assets.contains(&id) {
+                video.script_assets.push(id);
+            }
+            if video.asset(id).is_some_and(|a| a.kind == model::AssetKind::Image) && !video.script_rich.images.iter().any(|i| i.asset_id == id) {
+                video.script_rich.insert_image(id, video.script_body.chars().count());
+            }
             self.save();
         }
         if let Some(video_id) = video_id {
@@ -246,6 +253,7 @@ impl VideoMaker {
         }
     }
 
+    #[cfg(test)]
     fn add_to_timeline(&mut self, id: u64) {
         let Some(video_id) = self.video_id() else { return };
         match self.append_film_asset(id) {
@@ -299,31 +307,58 @@ impl VideoMaker {
             self.message = format!("디자인 저장 실패: {e}");
             return;
         }
-        let asset_id = self.store.data.id();
-        let file = format!("design-{asset_id}.png");
+        let selected = fig.session.ds().map(|ds| ds.selection.clone()).unwrap_or_default();
+        let jobs = fig
+            .session
+            .doc()
+            .ok()
+            .map(|doc| {
+                if selected.is_empty() {
+                    let name = fig.session.page().ok().and_then(|id| doc.node(id)).map_or("Page", |n| n.name.as_str());
+                    vec![(Vec::new(), name.to_owned(), 1.0)]
+                } else {
+                    selected
+                        .iter()
+                        .filter_map(|id| {
+                            doc.node(*id).map(|node| {
+                                let suffix = node.exports.first().map(|e| e.file_suffix()).unwrap_or_default();
+                                let scale = node.exports.first().map_or(1.0, |e| figcraft_engine::cmd::file::export_scale(doc, &[*id], e));
+                                (vec![*id], format!("{}{suffix}", node.name), scale)
+                            })
+                        })
+                        .collect()
+                }
+            })
+            .unwrap_or_default();
         let dir = self.store.video_dir(id).join("assets");
-        if let Err(e) = fs::create_dir_all(&dir) {
-            self.message = e.to_string();
+        if let Err(error) = fs::create_dir_all(&dir) {
+            self.message = error.to_string();
             return;
         }
-        let path = dir.join(&file);
-        match fig.session.execute("file.export", &json!({"format": "png", "path": path, "scale": 1.0})) {
-            Ok(_) => {
-                if let Some(video) = self.store.data.selected_mut() {
-                    video.assets.push(Asset {
-                        id: asset_id,
-                        name: format!("{} 디자인", video.name),
-                        file,
-                        kind: model::AssetKind::Image,
-                        duration: 5.0,
-                        has_audio: false,
-                    });
-                    self.save();
-                    self.message = "디자인 PNG를 라이브러리에 저장했습니다".into();
-                }
+        let mut exported = 0;
+        for (ids, name, scale) in jobs {
+            let asset_id = self.store.data.id();
+            let file = format!("design-{asset_id}.png");
+            let path = dir.join(&file);
+            if let Err(error) = fig.session.execute("file.export", &json!({"format":"png","path":path,"ids":ids,"scale":scale})) {
+                self.message = format!("디자인 내보내기 실패: {error}");
+                return;
             }
-            Err(e) => self.message = format!("디자인 내보내기 실패: {e}"),
+            let stem = name.rsplit('/').next().unwrap_or("Untitled").trim();
+            let stem = if stem.is_empty() { "Untitled" } else { stem };
+            if let Some(video) = self.store.data.selected_mut() {
+                let mut name = format!("{stem}.png");
+                let mut index = 2;
+                while video.assets.iter().any(|a| a.name == name) {
+                    name = format!("{stem} ({index}).png");
+                    index += 1;
+                }
+                video.assets.push(Asset { id: asset_id, name, file, kind: model::AssetKind::Image, duration: 5.0, has_audio: false });
+                exported += 1;
+            }
+            self.save();
         }
+        self.message = format!("{exported}개 디자인을 라이브러리에 저장했습니다");
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
@@ -463,8 +498,13 @@ mod workspace_regressions {
         let mut fig = FigApp::new(Session::new(), Box::new(figcraft_ui_egui::NoServices));
         maker.ensure_design(&mut fig);
         fig.session.execute("shape.rectangle", &json!({"x":0,"y":0,"width":96,"height":64})).unwrap();
+        let selected = fig.session.selection().to_vec();
+        fig.session.execute("node.set", &json!({"ids":selected,"props":{"name":"썸네일 원본"}})).unwrap();
         maker.export_design(&mut fig);
         let asset = maker.video().unwrap().assets[0].clone();
+        assert_eq!(asset.name, "썸네일 원본.png");
+        maker.export_design(&mut fig);
+        assert_eq!(maker.video().unwrap().assets[1].name, "썸네일 원본 (2).png");
         let file = maker.store.asset_path(maker.video_id().unwrap(), &asset);
         let pixels = image::open(&file).unwrap();
         assert_eq!(pixels.width(), 96);
@@ -472,6 +512,33 @@ mod workspace_regressions {
         maker.append_film_asset(asset.id).unwrap();
         assert_eq!(maker.film.as_ref().unwrap().app.session.active_sequence().unwrap().video_tracks[0].items.len(), 1);
         maker.shutdown_film();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn selected_script_formatting_images_and_channel_folding_survive_reopen() {
+        let root = std::env::temp_dir().join(format!("purpose-rich-script-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        let channel = maker.store.data.channels[0].id;
+        maker.store.data.collapsed_channels.push(channel);
+        let video = maker.store.data.selected_mut().unwrap();
+        video.script_body = "첫 문단\n둘째 문단".into();
+        video.script_rich.apply(0..2, |s| {
+            s.bold = true;
+            s.italic = true;
+            s.underline = true;
+            s.size = Some(23.0);
+            s.line_height = Some(1.8);
+        });
+        video.script_rich.set_kind(&video.script_body, 5..10, rich_script::TextKind::H2);
+        video.script_rich.insert_image(55, 5);
+        video.script_rich.images_migrated = true;
+        let rich = video.script_rich.clone();
+        maker.save();
+        let loaded = VideoMaker::at(root.clone()).unwrap();
+        assert_eq!(loaded.video().unwrap().script_rich, rich);
+        assert_eq!(loaded.store.data.collapsed_channels, vec![channel]);
         let _ = fs::remove_dir_all(root);
     }
     #[test]

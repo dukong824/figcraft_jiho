@@ -28,6 +28,13 @@ pub(super) fn consume_key(input: &mut egui::InputState, modifiers: egui::Modifie
     consumed
 }
 
+#[derive(Clone, Default)]
+struct WindowGeometry {
+    size: winit::dpi::PhysicalSize<u32>,
+    position: Option<winit::dpi::PhysicalPosition<i32>>,
+    maximized: bool,
+}
+
 impl VideoMaker {
     pub fn raw_input(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         let mut zoom = self.store.data.ui_zoom;
@@ -79,10 +86,44 @@ impl VideoMaker {
     pub fn window_requests(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         let request = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.fullscreen-request"))).unwrap_or(false);
         if let Some(window) = frame.winit_window() {
+            log::debug!("Purpose geometry: native={:?} egui={:?} ppp={}", window.inner_size(), ctx.viewport_rect(), ctx.pixels_per_point());
             let current = window.fullscreen().is_some();
             if request {
                 let target = !current;
-                window.set_fullscreen(target.then_some(winit::window::Fullscreen::Borderless(None)));
+                let key = egui::Id::unique("purpose.window-restore");
+                if target {
+                    ctx.data_mut(|d| {
+                        d.insert_temp(
+                            key,
+                            WindowGeometry { size: window.inner_size(), position: window.outer_position().ok(), maximized: window.is_maximized() },
+                        )
+                    });
+                    let monitor = window.current_monitor().or_else(|| window.primary_monitor());
+                    window.set_maximized(false);
+                    window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(monitor.clone())));
+                    if let Some(monitor) = monitor {
+                        let size = monitor.size();
+                        let _ = window.request_inner_size(size);
+                        window.set_outer_position(monitor.position());
+                        ctx.send_viewport_cmd_to(
+                            egui::ViewportId::ROOT,
+                            egui::ViewportCommand::InnerSize(egui::vec2(size.width as f32, size.height as f32) / ctx.pixels_per_point()),
+                        );
+                    }
+                } else {
+                    window.set_fullscreen(None);
+                    if let Some(saved) = ctx.data_mut(|d| d.remove_temp::<WindowGeometry>(key)) {
+                        let _ = window.request_inner_size(saved.size);
+                        if let Some(position) = saved.position {
+                            window.set_outer_position(position);
+                        }
+                        window.set_maximized(saved.maximized);
+                        ctx.send_viewport_cmd_to(
+                            egui::ViewportId::ROOT,
+                            egui::ViewportCommand::InnerSize(egui::vec2(saved.size.width as f32, saved.size.height as f32) / ctx.pixels_per_point()),
+                        );
+                    }
+                }
                 ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Fullscreen(target));
                 ctx.request_repaint();
             }

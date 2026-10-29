@@ -1,4 +1,4 @@
-use egui::{Align2, Color32, CornerRadius, FontId, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Color32, CornerRadius, FontId, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
 
 pub const TEXT: Color32 = Color32::from_rgb(55, 53, 47);
 pub const MUTED: Color32 = Color32::from_rgb(120, 119, 116);
@@ -20,7 +20,6 @@ pub enum Icon {
     Close,
     Minimize,
     Maximize,
-    Fullscreen,
     Restore,
     Channel,
     Video,
@@ -98,19 +97,18 @@ pub fn nav_row(ui: &mut Ui, label: &str, icon: Icon, selected: bool, indent: f32
     }
     let icon_rect = Rect::from_center_size(pos2(rect.left() + indent + 17.0, rect.center().y), vec2(17.0, 17.0));
     paint_icon(ui.painter(), icon_rect, icon, if selected { TEXT } else { MUTED });
-    ui.painter().with_clip_rect(rect).text(
-        pos2(rect.left() + indent + 34.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(14.0),
-        TEXT,
-    );
+    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(14.0), TEXT, (width - indent - 66.0).max(15.0));
+    job.wrap.max_rows = 1;
+    job.wrap.break_anywhere = true;
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
+    let position = pos2(rect.left() + indent + 34.0, rect.center().y - galley.size().y / 2.0);
+    ui.painter().with_clip_rect(rect).galley(position, galley, TEXT);
     response
 }
 
-pub fn tree_row(ui: &mut Ui, label: &str, expanded: bool) -> (Response, bool) {
-    let response = nav_row(ui, label, Icon::Video, false, 10.0);
-    let icon = Rect::from_center_size(pos2(response.rect.left() + 27.0, response.rect.center().y), vec2(23.0, 25.0));
+pub fn tree_row(ui: &mut Ui, label: &str, expanded: bool, channel: bool) -> (Response, bool) {
+    let response = nav_row(ui, label, if channel { Icon::Channel } else { Icon::Video }, false, if channel { 0.0 } else { 10.0 });
+    let icon = Rect::from_center_size(pos2(response.rect.left() + if channel { 17.0 } else { 27.0 }, response.rect.center().y), vec2(23.0, 25.0));
     let hovered = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| response.rect.contains(p));
     let toggle = ui.interact(icon, ui.scope_id().with("expand"), Sense::click());
     if hovered {
@@ -157,13 +155,6 @@ pub fn paint_icon(p: &Painter, r: Rect, icon: Icon, color: Color32) {
             let dir = if matches!(icon, Icon::Back) { 1.0 } else { -1.0 };
             line(p, pos2(x + dir * 3.0, y - 5.0), pos2(x - dir * 2.0, y), color);
             line(p, pos2(x - dir * 2.0, y), pos2(x + dir * 3.0, y + 5.0), color);
-        }
-        Icon::Fullscreen => {
-            for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
-                let corner = pos2(x + dx * 6.0, y + dy * 6.0);
-                line(p, corner, pos2(x + dx * 2.0, corner.y), color);
-                line(p, corner, pos2(corner.x, y + dy * 2.0), color);
-            }
         }
         Icon::Plus => {
             line(p, pos2(x - 5.0, y), pos2(x + 5.0, y), color);

@@ -12,6 +12,7 @@ impl VideoMaker {
     /// area when `section == Design` and handles a requested design export after this returns.
     pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
         let ctx = ui.ctx().clone();
+        log::debug!("Purpose root: max={:?} clip={:?} content={:?}", ui.max_rect(), ui.clip_rect(), ctx.content_rect());
         if !self.fonts_ready {
             figcraft_ui_egui::theme::install_fonts(&ctx, true, figcraft_ui_egui::cjk::language("ko"));
             self.fonts_ready = true;
@@ -25,17 +26,29 @@ impl VideoMaker {
             }
             self.zoom_ready = true;
         }
+        if !ctx.fonts(|f| f.definitions().families.contains_key(&egui::FontFamily::Name("purpose-script-bold".into()))) {
+            super::document::install_fonts(&ctx);
+            ctx.request_repaint();
+            return false;
+        }
         style::configure(&ctx);
         ui.set_style(ctx.global_style());
         #[cfg(not(target_os = "macos"))]
         figcraft_ui_egui::tabs::resize_edges(&ctx);
         self.poll_jobs(&ctx);
-        self.browser_bar(ui);
-        if self.sidebar_open {
-            self.sidebar(ui);
-        }
-        let export_design = self.header(ui);
-        self.side_panel(ui);
+        let editor_fullscreen =
+            self.section_is_edit() && ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("purpose.fullscreen-active")).unwrap_or(false));
+        let export_design = if editor_fullscreen {
+            false
+        } else {
+            self.browser_bar(ui);
+            if self.sidebar_open {
+                self.sidebar(ui);
+            }
+            let export = self.header(ui);
+            self.side_panel(ui);
+            export
+        };
         if self.tabs.route().is_none() {
             self.empty_tab(ui);
         } else if self.tabs.route() == Some(Route::History) {
@@ -70,7 +83,14 @@ impl VideoMaker {
                 .interactable(false)
                 .show(&ctx, |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
-                        ui.label(name);
+                        ui.set_width(180.0);
+                        if let Some(texture) = self.thumbnails.get(&payload.asset_id) {
+                            ui.add(egui::Image::new(texture).max_size(vec2(180.0, 110.0)));
+                        } else {
+                            let (r, _) = ui.allocate_exact_size(vec2(180.0, 75.0), Sense::hover());
+                            style::paint_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(32.0, 32.0)), Icon::Library, style::MUTED);
+                        }
+                        ui.add(egui::Label::new(name).truncate());
                     });
                 });
         }
@@ -252,7 +272,9 @@ impl VideoMaker {
         let mut dropped = None;
         let drag = egui::DragAndDrop::payload::<super::interactions::AssetDrag>(ui.ctx());
         let allowed: Vec<_> = Section::ALL.into_iter().filter(|section| drag.as_ref().is_some_and(|p| self.drop_allowed(p, *section))).collect();
+        let mut rename = None;
         let mut dirty = false;
+        let mut collapsed = self.store.data.collapsed_channels.clone();
         let active_route = self.tabs.route().and_then(Route::video);
         let mut expanded = self.store.data.expanded_videos.clone();
         egui::Panel::left("purpose-sidebar")
@@ -286,7 +308,18 @@ impl VideoMaker {
                             continue;
                         }
                         ui.push_id(("channel", channel.id), |ui| {
-                            let response = style::nav_row(ui, &channel.name, Icon::Channel, false, 0.0);
+                            let open = !collapsed.contains(&channel.id);
+                            let (response, toggle) = style::tree_row(ui, &channel.name, open, true);
+                            if toggle {
+                                if open {
+                                    collapsed.push(channel.id);
+                                } else {
+                                    collapsed.retain(|id| *id != channel.id);
+                                }
+                            }
+                            if response.dnd_hover_payload::<super::interactions::AssetDrag>().is_some() {
+                                collapsed.retain(|id| *id != channel.id);
+                            }
                             response.context_menu(|ui| {
                                 dirty |= ui.text_edit_singleline(&mut channel.name).changed();
                                 if ui.button("영상 추가").clicked() {
@@ -296,25 +329,33 @@ impl VideoMaker {
                             });
                             let rect = Rect::from_center_size(pos2(response.rect.right() - 15.0, response.rect.center().y), vec2(24.0, 24.0));
                             let plus = ui.interact(rect, ui.scope_id().with("add"), Sense::click()).on_hover_text("영상 추가");
-                            style::paint_icon(ui.painter(), rect.shrink(4.0), Icon::Plus, style::MUTED);
+                            if plus.hovered() {
+                                ui.painter().rect_filled(rect, 4, style::SELECTED);
+                            }
+                            style::paint_icon(ui.painter(), rect.shrink(4.0), Icon::Plus, if plus.hovered() { style::TEXT } else { style::MUTED });
                             if plus.clicked() {
                                 new_video = Some(channel.id);
                             }
                         });
+                        if collapsed.contains(&channel.id) && query.is_empty() {
+                            continue;
+                        }
                         for video in &channel.videos {
                             if !channel_match && !video.name.to_lowercase().contains(&query) {
                                 continue;
                             }
                             ui.push_id(("video", video.id), |ui| {
                                 let is_open = expanded.contains(&video.id);
-                                let (response, toggle) = style::tree_row(ui, &video.name, is_open);
+                                let (response, toggle) = style::tree_row(ui, &video.name, is_open, false);
                                 if toggle {
                                     if is_open {
                                         expanded.retain(|id| *id != video.id);
                                     } else {
                                         expanded.push(video.id);
                                     }
-                                } else if response.clicked() {
+                                } else if response.clicked()
+                                    && ui.input(|i| i.pointer.interact_pos()).is_none_or(|p| p.x < response.rect.right() - 34.0)
+                                {
                                     let target = Route::Video { video_id: video.id, section: Section::Library };
                                     if ui.input(|i| i.modifiers.command) {
                                         open_in_new_tab = Some(target);
@@ -322,7 +363,39 @@ impl VideoMaker {
                                         navigate = Some(target);
                                     }
                                 }
+                                let menu_id = ui.scope_id().with("video-menu");
+                                let hovered = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| response.rect.contains(p));
+                                if hovered || egui::Popup::is_id_open(ui.ctx(), menu_id) {
+                                    let rect = Rect::from_center_size(pos2(response.rect.right() - 16.0, response.rect.center().y), vec2(27.0, 27.0));
+                                    let more = ui.interact(rect, ui.scope_id().with("more"), Sense::click());
+                                    if more.hovered() {
+                                        ui.painter().rect_filled(rect, 4, style::SELECTED);
+                                    }
+                                    ui.painter().text(
+                                        rect.center(),
+                                        egui::Align2::CENTER_CENTER,
+                                        "⋯",
+                                        egui::FontId::proportional(20.0),
+                                        style::MUTED,
+                                    );
+                                    egui::Popup::from_toggle_button_response(&more).id(menu_id).show(|ui| {
+                                        ui.set_min_width(160.0);
+                                        if ui.button("이름 바꾸기").clicked() {
+                                            rename = Some((video.id, video.name.clone()));
+                                            ui.close();
+                                        }
+                                        ui.separator();
+                                        if ui.button("휴지통으로 이동").clicked() {
+                                            trashed = Some(video.id);
+                                            ui.close();
+                                        }
+                                    });
+                                }
                                 response.context_menu(|ui| {
+                                    if ui.button("이름 바꾸기").clicked() {
+                                        rename = Some((video.id, video.name.clone()));
+                                        ui.close();
+                                    }
                                     if ui.button("휴지통으로 이동").clicked() {
                                         trashed = Some(video.id);
                                         ui.close();
@@ -393,6 +466,13 @@ impl VideoMaker {
         {
             self.message = error;
         }
+        if let Some(rename) = rename {
+            self.rename_video = Some(rename);
+        }
+        if collapsed != self.store.data.collapsed_channels {
+            self.store.data.collapsed_channels = collapsed;
+            dirty = true;
+        }
         if expanded != self.store.data.expanded_videos {
             self.store.data.expanded_videos = expanded;
             dirty = true;
@@ -402,6 +482,7 @@ impl VideoMaker {
             dirty = true;
         }
         if let Some(channel) = new_video {
+            self.store.data.collapsed_channels.retain(|id| *id != channel);
             self.checkpoint();
             if let Some(video_id) = self.store.data.add_video(channel) {
                 navigate = Some(Route::Video { video_id, section: Section::Script });
@@ -422,13 +503,44 @@ impl VideoMaker {
             self.tabs.new_tab();
             self.navigate(route);
         }
+        let mut renamed = false;
+        if let Some((id, name)) = &mut self.rename_video {
+            let mut cancel = false;
+            egui::Window::new("이름 바꾸기").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, vec2(0.0, 0.0)).show(
+                ui.ctx(),
+                |ui| {
+                    let edit = ui.add(TextEdit::singleline(name).desired_width(280.0));
+                    if !edit.has_focus() {
+                        edit.request_focus();
+                    }
+                    ui.horizontal(|ui| {
+                        renamed = ui.button("저장").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        cancel = ui.button("취소").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape));
+                    });
+                },
+            );
+            if renamed
+                && !name.trim().is_empty()
+                && let Some(video) = self.store.data.channels.iter_mut().flat_map(|c| &mut c.videos).find(|v| v.id == *id)
+            {
+                video.name = name.trim().to_owned();
+                video.script_title = video.name.clone();
+                dirty = true;
+            }
+            if cancel {
+                renamed = true;
+            }
+        }
+        if renamed {
+            self.rename_video = None;
+        }
         if dirty {
             self.save();
         }
     }
 
     fn header(&mut self, ui: &mut egui::Ui) -> bool {
-        let mut export = false;
+        let export = false;
         let crumb = self
             .store
             .data
@@ -445,15 +557,9 @@ impl VideoMaker {
                     style::paint_icon(ui.painter(), Rect::from_center_size(rect.center(), vec2(17.0, 17.0)), Icon::Channel, style::MUTED);
                     ui.add(egui::Label::new(RichText::new(crumb).size(13.0)).truncate());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if self.section == Section::Edit && style::icon_button(ui, Icon::Fullscreen, 28.0, "전체화면 · F11").clicked() {
-                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.fullscreen-request"), true));
-                        }
                         if !self.sidebar_open && style::icon_button(ui, Icon::Sparkle, 28.0, "Codex 열기").clicked() {
                             self.side_view = Some(SideView::Codex);
                             self.refresh_auth();
-                        }
-                        if self.section == Section::Design && self.tabs.route().is_some() && ui.button("라이브러리로 내보내기").clicked() {
-                            export = true;
                         }
                     });
                 });
@@ -474,8 +580,6 @@ impl VideoMaker {
     fn library(&mut self, ui: &mut egui::Ui) {
         let mut imported = Vec::new();
         imported.extend(ui.ctx().input(|i| i.raw.dropped_files.iter().map(|file| file.path().to_path_buf()).collect::<Vec<_>>()));
-        let mut attach = None;
-        let mut timeline = None;
         egui::ScrollArea::vertical().id_salt("purpose-library-scroll").show(ui, |ui| {
             let viewport_width = ui.clip_rect().width();
             let width = viewport_width.min(1100.0);
@@ -484,22 +588,22 @@ impl VideoMaker {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.set_max_width(width);
-                    ui.add_space(41.0);
-                    ui.label(RichText::new("라이브러리").size(34.0).strong().color(style::TEXT));
-                    ui.add_space(24.0);
+                    ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        let import = egui::Button::new(RichText::new("파일 가져오기").color(Color32::WHITE).size(13.0))
-                            .fill(style::TEXT)
-                            .corner_radius(CornerRadius::same(6))
-                            .min_size(vec2(110.0, 32.0));
-                        if ui.add(import).clicked()
-                            && let Some(files) = rfd::FileDialog::new().pick_files()
-                        {
-                            imported = files;
-                        }
-                        ui.add_space(8.0);
+                        ui.label(RichText::new("라이브러리").size(30.0).strong().color(style::TEXT));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let import = egui::Button::new(RichText::new("파일 가져오기").color(Color32::WHITE).size(13.0))
+                                .fill(style::TEXT)
+                                .corner_radius(CornerRadius::same(6))
+                                .min_size(vec2(110.0, 32.0));
+                            if ui.add(import).clicked()
+                                && let Some(files) = rfd::FileDialog::new().pick_files()
+                            {
+                                imported = files;
+                            }
+                        });
                     });
-                    ui.add_space(30.0);
+                    ui.add_space(12.0);
                     let assets = self.video().map(|v| v.assets.clone()).unwrap_or_default();
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(format!("모든 파일  {}", assets.len())).size(14.0).strong().color(style::TEXT));
@@ -545,17 +649,17 @@ impl VideoMaker {
                         let count = ((ui.available_width() + gap) / (218.0 + gap)).floor().max(1.0) as usize;
                         let tile_width = (ui.available_width() - gap * (count.saturating_sub(1) as f32)) / count as f32;
                         for row in visible.chunks(count) {
-                            ui.horizontal(|ui| {
+                            ui.horizontal_top(|ui| {
                                 ui.spacing_mut().item_spacing.x = gap;
                                 for asset in row {
-                                    self.asset_tile(ui, asset, tile_width, &mut attach, &mut timeline);
+                                    self.asset_tile(ui, asset, tile_width);
                                 }
                             });
                             ui.add_space(6.0);
                         }
                     } else {
                         for asset in &visible {
-                            self.asset_list_row(ui, asset, &mut attach, &mut timeline);
+                            self.asset_list_row(ui, asset);
                         }
                     }
                 });
@@ -566,15 +670,9 @@ impl VideoMaker {
                 self.message = format!("{}: {e}", path.display());
             }
         }
-        if let Some(id) = attach {
-            self.add_to_script(id);
-        }
-        if let Some(id) = timeline {
-            self.add_to_timeline(id);
-        }
     }
 
-    fn asset_tile(&mut self, ui: &mut egui::Ui, asset: &Asset, width: f32, attach: &mut Option<u64>, timeline: &mut Option<u64>) {
+    fn asset_tile(&mut self, ui: &mut egui::Ui, asset: &Asset, width: f32) {
         let response = egui::Frame::NONE
             .fill(style::SURFACE)
             .stroke(Stroke::new(1.0, style::BORDER))
@@ -585,38 +683,29 @@ impl VideoMaker {
                     ui.set_width(width - 18.0);
                     self.asset_thumbnail(ui, asset, width - 18.0, 124.0);
                     ui.add_space(8.0);
-                    ui.label(RichText::new(&asset.name).size(13.0).strong());
+                    let mut job = egui::text::LayoutJob::simple(asset.name.clone(), egui::FontId::proportional(13.0), style::TEXT, width - 18.0);
+                    job.wrap.max_rows = 2;
+                    job.wrap.break_anywhere = true;
+                    let (name_rect, name_response) = ui.allocate_exact_size(vec2(width - 18.0, 34.0), Sense::hover());
+                    let galley = ui.fonts_mut(|f| f.layout_job(job));
+                    ui.painter().galley(name_rect.min, galley, style::TEXT);
+                    name_response.on_hover_text(&asset.name);
                     ui.label(RichText::new(asset_detail(asset)).size(11.0).color(style::MUTED));
-                    ui.add_space(7.0);
-                    ui.horizontal(|ui| {
-                        if ui.add(egui::Button::new("대본에 첨부").small().fill(style::SIDEBAR)).clicked() {
-                            *attach = Some(asset.id);
-                        }
-                        if asset.kind.can_edit() && ui.add(egui::Button::new("편집에 추가").small().fill(style::SIDEBAR)).clicked() {
-                            *timeline = Some(asset.id);
-                        }
-                    });
                 });
             })
             .response;
         self.asset_drag(ui, &response, asset);
     }
 
-    fn asset_list_row(&mut self, ui: &mut egui::Ui, asset: &Asset, attach: &mut Option<u64>, timeline: &mut Option<u64>) {
+    fn asset_list_row(&mut self, ui: &mut egui::Ui, asset: &Asset) {
+        self.request_thumbnail(asset);
         let response = ui
             .horizontal(|ui| {
                 let (rect, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
                 style::paint_icon(ui.painter(), rect, asset_icon(asset.kind), style::MUTED);
                 ui.add_space(8.0);
-                ui.label(RichText::new(&asset.name).size(14.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if asset.kind.can_edit() && ui.add(egui::Button::new("편집에 추가").small().fill(style::SIDEBAR)).clicked() {
-                        *timeline = Some(asset.id);
-                    }
-                    if ui.add(egui::Button::new("대본에 첨부").small().fill(style::SIDEBAR)).clicked() {
-                        *attach = Some(asset.id);
-                    }
-                });
+                ui.add_sized([ui.available_width(), 26.0], egui::Label::new(RichText::new(&asset.name).size(14.0)).truncate())
+                    .on_hover_text(&asset.name);
             })
             .response;
         self.asset_drag(ui, &response, asset);
@@ -647,7 +736,7 @@ impl VideoMaker {
         }
     }
 
-    fn request_thumbnail(&mut self, asset: &Asset) {
+    pub(super) fn request_thumbnail(&mut self, asset: &Asset) {
         if !matches!(asset.kind, AssetKind::Image | AssetKind::Video)
             || self.thumbnails.contains_key(&asset.id)
             || self.thumbnail_failed.contains(&asset.id)
@@ -701,7 +790,7 @@ fn load_thumbnail(path: &Path, kind: AssetKind) -> Result<egui::ColorImage, Stri
     } else {
         image::open(path).map_err(|e| e.to_string())?
     };
-    let image = image.thumbnail(380, 240).to_rgba8();
+    let image = image.thumbnail(1280, 960).to_rgba8();
     let size = [image.width() as usize, image.height() as usize];
     Ok(egui::ColorImage::from_rgba_unmultiplied(size, &image))
 }

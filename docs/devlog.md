@@ -1,5 +1,23 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: selected text and media interactions
+
+Add independent channel folding and hovered video menus for rename/trash, including visible
+hover feedback on the channel add button. Compact the library header; remove per-asset action
+buttons; clamp card names to two lines and list names to one, and draw thumbnail drag previews.
+
+The script remains a freeform document. Persist Unicode character ranges for inline bold,
+italic, underline, strike, size and line spacing, paragraph headings 1–4 and bullets. Double or
+triple selection opens a floating formatting menu. Original system bold faces provide actual
+bold text. Images sit at document line anchors and can be dragged between paragraphs; old
+image attachments migrate into the flow. Text, formatting and images share undo/redo snapshots.
+
+Keep one library-export action below the normal FigCraft export button in the same style. Name
+PNGs after selected layers or the page, preserve the export suffix/scale, and number duplicate
+names. The editor's existing fullscreen button now hides host chrome, targets the monitor's
+physical size and restores the original window geometry and shell. Remove the duplicate host
+fullscreen control. Package the next installer as 0.1.6.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: load native Windows icon resources
 
 The Windows build and silent installation succeeded, but the installed GUI probe found no

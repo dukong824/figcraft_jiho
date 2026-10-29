@@ -31,6 +31,9 @@ Future video maker builds publish only the tested Windows installer on GitHub Re
 The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
 login screen. Library media can be dropped into sidebar destinations, scripts have typography
 and indentation controls, and the shell owns fullscreen, taskbar icons and global UI zoom.
+Channel folding and hovered video menus now accompany a compact library with thumbnail drags.
+Scripts use selection formatting and inline movable images; design exports use layer/page names
+and editor fullscreen gives FilmCraft the full viewport.
 
 
 **Stage: alpha** · next: beta, ~26 points and ~162–292 h away (one Opus 5.5 agent; ~33–67 h wall-clock with 5 agents)

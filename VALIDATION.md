@@ -1,3 +1,21 @@
+## Purpose selected text and sidebar interactions — 2026-10-29
+
+- 103 desktop tests passed, including Unicode formatting ranges, mixed selection, multi-line
+  indent rebasing, stable image anchors, rich content/fold-state persistence and layer-named
+  PNG exports with duplicate names preserved.
+- 824 UI tests passed (1 ignored). Dependency layers, asset attribution, WASM and plugin gates
+  passed. PowerShell syntax and the Windows GUI probe's C# compilation passed locally.
+- Inspected native GUI captures: word/paragraph selection, bold/italic/underline and heading 2,
+  image drag between paragraphs, channel folding, hovered video menu and rename, compact library
+  cards and thumbnail drag preview, and a page-named PNG exported below the normal export button.
+- Clicked the embedded FilmCraft fullscreen button: the editor occupies 1920×1080, host chrome
+  is hidden, and Esc restores 1918×1059 and the shell. Verified the complete viewport with Mesa
+  lavapipe Vulkan under Xvfb. The cloud Mesa OpenGL path showed a clipped bottom strip after a
+  resize even with correct window/egui geometry; that backend was not used as visual proof of
+  complete fullscreen rendering. Windows is verified separately by the installer workflow.
+- Full CI attempted: the existing board-table row-growth test still fails (122 → 122;
+  1391 passed, 1 failed, 2 ignored). A clean full CI result is not claimed.
+
 ## Purpose conversation and interaction fixes — 2026-10-29
 
 - 97 desktop tests passed: selected CLI authentication/chat, user-message persistence, public JSON

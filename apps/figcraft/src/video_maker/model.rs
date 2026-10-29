@@ -114,6 +114,8 @@ pub struct Video {
     #[serde(default)]
     pub film_revision: Option<String>,
     #[serde(default)]
+    pub script_rich: super::rich_script::RichScript,
+    #[serde(default)]
     pub script_assets: Vec<u64>,
     /// Read only during migration from the original block editor.
     #[serde(default, skip_serializing)]
@@ -187,6 +189,8 @@ pub struct Workspace {
     #[serde(default)]
     pub expanded_videos: Vec<u64>,
     #[serde(default)]
+    pub collapsed_channels: Vec<u64>,
+    #[serde(default)]
     pub codex_path: Option<PathBuf>,
     #[serde(default = "default_zoom")]
     pub ui_zoom: f32,
@@ -206,6 +210,7 @@ impl Default for Workspace {
             revisions: Vec::new(),
             trash: Vec::new(),
             expanded_videos: Vec::new(),
+            collapsed_channels: Vec::new(),
             codex_path: None,
             ui_zoom: 1.0,
         }
@@ -246,6 +251,7 @@ impl Workspace {
             script_font_size: 16.0,
             script_line_height: 1.6,
             film_revision: None,
+            script_rich: Default::default(),
             script_assets: Vec::new(),
             script: Vec::new(),
             clips: Vec::new(),

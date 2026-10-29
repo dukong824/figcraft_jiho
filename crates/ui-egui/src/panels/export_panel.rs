@@ -24,9 +24,6 @@ const PREVIEW_H: f32 = 160.0;
 
 /// The Export section for the selected layers.
 pub fn section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
-    if app.ui.video_maker && ui.button("라이브러리로 내보내기").clicked() {
-        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.design-export"), true));
-    }
     let t = Tokens::get(ui.ctx());
     let ids = sel.to_vec();
     let shared = common(doc, sel, |n| n.exports.clone());
@@ -61,6 +58,9 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
     };
     if wide_button(ui, &label) {
         export_layers(app, sel, false);
+    }
+    if app.ui.video_maker && wide_button(ui, "라이브러리로 내보내기") {
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.design-export"), true));
     }
 }
 
@@ -426,14 +426,14 @@ pub(crate) fn suggested_name(doc: &Document, ids: &[NodeId], setting: &ExportSet
 /// The page's Export section: the whole page as one PNG.
 pub fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document, page: NodeId) {
     widgets::section_header(ui, tr("Export"), &[], false);
-    if app.ui.video_maker && wide_button(ui, "페이지를 라이브러리로 내보내기") {
-        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.design-export"), true));
-    }
     if wide_button(ui, tr("Export page as PNG")) {
         let all: Vec<NodeId> = doc.node(page).map(|p| p.children.clone()).unwrap_or_default();
         let setting = ExportSetting::default();
         let page_name = doc.node(page).map_or(tr("Page"), |p| p.name.as_str());
         let file = format!("{page_name}.{}", setting.format.ext());
         save_one(app, &all, &setting, &file);
+    }
+    if app.ui.video_maker && wide_button(ui, "라이브러리로 내보내기") {
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.design-export"), true));
     }
 }
