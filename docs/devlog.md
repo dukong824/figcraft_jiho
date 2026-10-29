@@ -1,5 +1,12 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: native Windows taskbar API correction
+
+The first 0.1.5 Windows build exposed that this eframe fork's window_builder hook receives an
+egui ViewportBuilder, rather than winit WindowAttributes. Set the separate large icon through
+the CreationContext's actual winit window instead. Wait for icon setup (after graphics startup)
+before the installed-GUI smoke test sends F11. The failed attempt did not publish a release.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: conversation UI and desktop interactions
 
 Replace the last-answer-only Codex pane with persistent per-video conversations, immediate user

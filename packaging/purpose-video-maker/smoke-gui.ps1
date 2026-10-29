@@ -45,8 +45,14 @@ try {
     } while ($app.MainWindowHandle -eq 0 -and $timer.Elapsed.TotalSeconds -lt 30)
     $window = $app.MainWindowHandle
     if ($window -eq 0) { throw 'Installed GUI has no main window' }
-    Start-Sleep -Seconds 2
-    $bigIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]1, [IntPtr]0)
+    $timer.Restart()
+    do {
+        $bigIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]1, [IntPtr]0)
+        if ($bigIcon -ne [IntPtr]::Zero) { break }
+        $app.Refresh()
+        if ($app.HasExited) { throw "Installed GUI exited before icon setup: $($app.ExitCode)" }
+        Start-Sleep -Milliseconds 200
+    } while ($timer.Elapsed.TotalSeconds -lt 30)
     if ($bigIcon -eq [IntPtr]::Zero) { throw 'Windows taskbar has no explicit large application icon' }
     $normal = [PurposeWindowCheck]::Bounds($window)
     $screen = [PurposeWindowCheck]::Screen($window)

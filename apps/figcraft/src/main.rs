@@ -347,12 +347,6 @@ fn main() -> eframe::Result {
     }
     let mut options = eframe::NativeOptions { viewport, renderer: eframe::Renderer::Wgpu, ..Default::default() };
     graphics::configure(&mut options.wgpu_options);
-    #[cfg(windows)]
-    if args.video_maker {
-        use winit::platform::windows::WindowAttributesExtWindows;
-        let taskbar_icon = video_maker::window_icon().and_then(|icon| winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok());
-        options.window_builder = Some(Box::new(move |attributes| attributes.with_taskbar_icon(taskbar_icon.clone())));
-    }
     figcraft_ui_egui::windows::install(fig);
     // Registered before the event loop starts, so it catches the Finder event that launched the app
     // as well as later ones. Lives until the event loop returns; the app creator only borrows it.
@@ -364,6 +358,14 @@ fn main() -> eframe::Result {
         if args.video_maker { "Purpose video maker" } else { "FigCraft" },
         options,
         Box::new(move |cc| {
+            #[cfg(windows)]
+            if video_maker.is_some()
+                && let Some(window) = cc.winit_window()
+            {
+                use winit::platform::windows::WindowExtWindows;
+                let icon = video_maker::window_icon().and_then(|icon| winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok());
+                window.set_taskbar_icon(icon);
+            }
             with_app(|fig| fig.services.set_egui_context(&cc.egui_ctx));
             Ok(Box::new(App {
                 queue,
