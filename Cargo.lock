@@ -1753,6 +1753,7 @@ dependencies = [
  "figcraft-format",
  "figcraft-text",
  "figcraft-ui-egui",
+ "figcraft-ui-icons",
  "filmcraft-codecs",
  "filmcraft-engine",
  "filmcraft-export",
@@ -2069,6 +2070,7 @@ dependencies = [
  "figcraft-pathops",
  "figcraft-render",
  "figcraft-text",
+ "figcraft-ui-icons",
  "image",
  "log",
  "serde",
@@ -2076,6 +2078,15 @@ dependencies = [
  "toml",
  "wat",
  "web-time",
+]
+
+[[package]]
+name = "figcraft-ui-icons"
+version = "0.11.2"
+dependencies = [
+ "egui",
+ "tiny-skia 0.12.0",
+ "usvg",
 ]
 
 [[package]]
@@ -2640,6 +2651,7 @@ dependencies = [
  "craft-update 0.1.0 (git+https://github.com/storytold/craft-libs?rev=92d392cff132eaf53e13afff77f38b5c11b73aa0)",
  "eframe",
  "egui",
+ "figcraft-ui-icons",
  "filmcraft-audio-dsp",
  "filmcraft-color",
  "filmcraft-edit",

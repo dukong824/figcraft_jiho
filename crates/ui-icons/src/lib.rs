@@ -1,0 +1,145 @@
+//! Lucide 1.64.0 (ISC / Feather MIT), embedded offline from its pinned upstream revision.
+//! Original SVG geometry is rasterised at the current display scale, then tinted by egui.
+use egui::{Color32, Context, Id, Painter, Rect, TextureHandle, TextureOptions, pos2, vec2};
+use std::collections::VecDeque;
+mod assets;
+pub use assets::ALL;
+
+const CACHE_LIMIT: usize = 192;
+
+#[derive(Clone)]
+struct Entry {
+    name: &'static str,
+    pixels: u32,
+    texture: TextureHandle,
+}
+#[derive(Clone, Default)]
+struct Cache {
+    entries: VecDeque<Entry>,
+}
+
+pub fn set_enabled(ctx: &Context, enabled: bool) {
+    ctx.data_mut(|data| data.insert_temp(Id::unique("purpose-lucide-enabled"), enabled));
+}
+pub fn enabled(ctx: &Context) -> bool {
+    ctx.data(|data| data.get_temp::<bool>(Id::unique("purpose-lucide-enabled")).unwrap_or(false))
+}
+
+/// Paint an embedded glyph once, centred and clipped to the supplied box. Returns false only
+/// for unknown assets or a decoding error, allowing the host to retain an existing fallback.
+pub fn paint(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool {
+    let Some((name, source)) = assets::get(name) else { return false };
+    if !rect.is_finite() || !rect.is_positive() || !painter.clip_rect().intersects(rect) {
+        return true;
+    }
+    let side = rect.width().min(rect.height());
+    let rect = Rect::from_center_size(rect.center(), vec2(side, side));
+    let pixels = (side * painter.ctx().pixels_per_point()).ceil().clamp(8.0, 128.0) as u32;
+    let key = Id::unique("purpose-lucide-cache");
+    let cached = painter.ctx().data_mut(|data| {
+        let cache = data.get_temp_mut_or_default::<Cache>(key);
+        let index = cache.entries.iter().position(|entry| entry.name == name && entry.pixels == pixels)?;
+        let entry = cache.entries.remove(index)?;
+        let texture = entry.texture.clone();
+        cache.entries.push_back(entry);
+        Some(texture)
+    });
+    let texture = if let Some(texture) = cached {
+        texture
+    } else {
+        let Some(image) = rasterize(source, pixels) else { return false };
+        let texture = painter.ctx().load_texture(format!("lucide-{name}-{pixels}"), image, TextureOptions::LINEAR);
+        painter.ctx().data_mut(|data| {
+            let cache = data.get_temp_mut_or_default::<Cache>(key);
+            cache.entries.push_back(Entry { name, pixels, texture: texture.clone() });
+            while cache.entries.len() > CACHE_LIMIT {
+                cache.entries.pop_front();
+            }
+        });
+        texture
+    };
+    painter.with_clip_rect(painter.clip_rect().intersect(rect)).image(texture.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+    true
+}
+
+fn rasterize(source: &[u8], pixels: u32) -> Option<egui::ColorImage> {
+    let tree = usvg::Tree::from_data(source, &usvg::Options::default()).ok()?;
+    let mut pixmap = tiny_skia::Pixmap::new(pixels, pixels)?;
+    let scale = tiny_skia::Transform::from_scale(pixels as f32 / tree.size().width(), pixels as f32 / tree.size().height());
+    if !draw(tree.root(), &mut pixmap, scale) {
+        return None;
+    }
+    Some(egui::ColorImage::from_rgba_premultiplied([pixels as usize, pixels as usize], pixmap.data()))
+}
+fn draw(group: &usvg::Group, pixmap: &mut tiny_skia::Pixmap, scale: tiny_skia::Transform) -> bool {
+    for node in group.children() {
+        match node {
+            usvg::Node::Group(group) => {
+                if !draw(group, pixmap, scale) {
+                    return false;
+                }
+            }
+            usvg::Node::Path(path) => {
+                if !path.is_visible() {
+                    continue;
+                }
+                let transform = scale.pre_concat(path.abs_transform());
+                let mut paint = tiny_skia::Paint { anti_alias: true, ..Default::default() };
+                if let Some(fill) = path.fill() {
+                    paint.set_color_rgba8(255, 255, 255, (fill.opacity().get() * 255.0).round() as u8);
+                    let rule = match fill.rule() {
+                        usvg::FillRule::NonZero => tiny_skia::FillRule::Winding,
+                        usvg::FillRule::EvenOdd => tiny_skia::FillRule::EvenOdd,
+                    };
+                    pixmap.fill_path(path.data(), &paint, rule, transform, None);
+                }
+                if let Some(stroke) = path.stroke() {
+                    paint.set_color_rgba8(255, 255, 255, (stroke.opacity().get() * 255.0).round() as u8);
+                    pixmap.stroke_path(path.data(), &paint, &stroke.to_tiny_skia(), transform, None);
+                }
+            }
+            // The vendored icon set contains only paths. Reject image/text content rather than
+            // invoking fonts, external resource loaders or a second rendering stack.
+            _ => return false,
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn every_downloaded_svg_renders_at_small_and_high_dpi_sizes_without_fonts() {
+        for name in ALL {
+            let (_, svg) = assets::get(name).unwrap();
+            let tree = usvg::Tree::from_data(svg, &usvg::Options::default()).unwrap();
+            assert_eq!((tree.size().width(), tree.size().height()), (24.0, 24.0), "{name}");
+            for pixels in [12, 18, 32, 64] {
+                let image = rasterize(svg, pixels).unwrap_or_else(|| panic!("cannot render {name}"));
+                assert_eq!(image.size, [pixels as usize, pixels as usize]);
+                assert!(image.pixels.iter().any(|p| p.a() > 0), "empty {name} at {pixels}");
+                assert!(image.pixels.iter().all(|p| p.r() == p.a() && p.g() == p.a() && p.b() == p.a()), "tint mask {name}");
+            }
+        }
+    }
+    #[test]
+    fn texture_cache_is_bounded_across_ui_scales() {
+        let ctx = Context::default();
+        for scale in 1..=3 {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                for name in ALL {
+                    assert!(paint(
+                        ui.painter(),
+                        Rect::from_min_size(pos2(10.0, 10.0), vec2(16.0 * scale as f32, 16.0 * scale as f32)),
+                        name,
+                        Color32::RED
+                    ));
+                }
+            });
+            output.textures_delta.clear();
+            assert!(ctx.data(|data| data.get_temp::<Cache>(Id::unique("purpose-lucide-cache")).unwrap().entries.len()) <= CACHE_LIMIT);
+        }
+        assert!(!paint(&ctx.debug_painter(), Rect::EVERYTHING, "not-an-icon", Color32::WHITE));
+    }
+}

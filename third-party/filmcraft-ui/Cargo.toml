@@ -10,6 +10,7 @@ rust-version = "1.95"
 unsafe_code = "forbid"
 
 [dependencies]
+figcraft-ui-icons = { path = "../../crates/ui-icons" }
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0", features = ["serde", "native-windows"] }
 filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
 filmcraft-geom = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }

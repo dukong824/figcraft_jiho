@@ -249,20 +249,13 @@ fn floating_menu(ctx: &egui::Context, selection: &Selection, video: &super::mode
                     }
                 });
                 ui.separator();
-                for (mark, label, tip) in [
-                    (Mark::Bold, "B", "굵게 · Ctrl+B"),
-                    (Mark::Italic, "I", "기울임 · Ctrl+I"),
-                    (Mark::Underline, "U", "밑줄 · Ctrl+U"),
-                    (Mark::Strike, "S", "취소선"),
+                for (mark, icon, tip) in [
+                    (Mark::Bold, style::Icon::Bold, "굵게 · Ctrl+B"),
+                    (Mark::Italic, style::Icon::Italic, "기울임 · Ctrl+I"),
+                    (Mark::Underline, style::Icon::Underline, "밑줄 · Ctrl+U"),
+                    (Mark::Strike, style::Icon::Strike, "취소선"),
                 ] {
-                    let mut text = RichText::new(label).size(15.0);
-                    text = match mark {
-                        Mark::Bold => text.strong(),
-                        Mark::Italic => text.italics(),
-                        Mark::Underline => text.underline(),
-                        Mark::Strike => text.strikethrough(),
-                    };
-                    if ui.selectable_label(video.script_rich.all(selection.range.clone(), |s| mark.current(s)), text).on_hover_text(tip).clicked() {
+                    if style::icon_toggle(ui, icon, video.script_rich.all(selection.range.clone(), |s| mark.current(s)), 26.0, tip).clicked() {
                         action = Some(Format::Mark(mark));
                     }
                 }
@@ -279,10 +272,10 @@ fn floating_menu(ctx: &egui::Context, selection: &Selection, video: &super::mode
                 if ui.add(egui::DragValue::new(&mut height).range(1.0..=2.5).speed(0.05).fixed_decimals(1)).changed() {
                     action = Some(Format::Leading(height));
                 }
-                if ui.small_button("←").on_hover_text("내어쓰기 · Shift+Tab").clicked() {
+                if style::icon_button(ui, style::Icon::Outdent, 26.0, "내어쓰기 · Shift+Tab").clicked() {
                     action = Some(Format::Indent(true));
                 }
-                if ui.small_button("→").on_hover_text("들여쓰기 · Tab").clicked() {
+                if style::icon_button(ui, style::Icon::Indent, 26.0, "들여쓰기 · Tab").clicked() {
                     action = Some(Format::Indent(false));
                 }
             });

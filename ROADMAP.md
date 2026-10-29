@@ -21,7 +21,7 @@ editor without Home, an embedded FilmCraft video editor, browser-style
 workspace tabs and window controls, and an optional Codex CLI assistant. This does not change
 the FigCraft parity estimates below. See
 [video maker](docs/video-maker.md).
-The video maker now uses a restrained desktop document layout with original drawn icons,
+The video maker now uses a restrained desktop document layout with a shared licensed Lucide icon set,
 a freeform script document, and a switch between filename list and thumbnail tile views.
 The sidebar now pins history/trash and an optional Codex side view with CLI login.
 History opens a full-page searchable table and restores native FilmCraft project snapshots.
@@ -30,8 +30,9 @@ Video expansion is independent, titles are shared, and the embedded editor prese
 Channel and video actions now share rename/trash/restore behaviour. All right-side views begin
 below the browser bar, Codex has an upward-growing composer and account-discovered model,
 reasoning and speed controls. Script images resize in place; canvas and UI zoom are separate.
-Settings select an incremental project backup folder. Desktop fonts, icons and popup details
-are refined without changing the workspace structure.
+Settings select an incremental project backup folder. The shell, design tools and FilmCraft editor now share Lucide SVG glyphs with DPI-aware rendering
+and a bounded texture cache; hovered tree rows replace their glyph rather than overpainting it.
+Desktop fonts and popup details are refined without changing the workspace structure.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
 The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
 login screen. Library media can be dropped into sidebar destinations, scripts have typography

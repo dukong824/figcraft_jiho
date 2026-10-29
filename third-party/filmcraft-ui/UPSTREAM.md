@@ -18,3 +18,7 @@ editor controls and F11/Esc act on the same window.
 
 The embedded header retains its fullscreen button in narrow workspaces, with menu clipping
 reserving its hit area; other compact-header quick actions remain in their menus.
+
+Purpose mode uses the host-enabled, shared Lucide SVG icon renderer (ISC / Feather MIT).
+The original standalone drawings and icon action identifiers remain available. Lucide sources
+and notices are pinned in `assets/ui/lucide/` and shipped in the installer.

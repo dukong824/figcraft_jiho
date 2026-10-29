@@ -1,3 +1,22 @@
+## Purpose Lucide icon replacement — 2026-10-29
+
+- Downloaded 195 unmodified SVGs from Lucide 1.64.0 at revision
+  `be09619c1c1124ad09c19fc3e87ee3b939409bbd`; checked Git blob identities and retained
+  per-file SHA-256 checksums. ISC and Feather MIT notices ship with the installer.
+- 113 desktop tests passed, including real hover/press/release events proving a tree row draws
+  one glyph and retains its folding hit target. The shared renderer is exercised at small and
+  high-DPI sizes, with a bounded texture cache and premultiplied tint masks.
+- 824 UI tests passed (1 ignored) and both icon renderer tests passed for all 195 SVGs at
+  12/18/32/64px. Workspace clippy with warnings denied, dependency layers, asset attribution,
+  WASM and plugin gates passed. PowerShell syntax and GUI-probe C# compilation passed.
+- Inspected native Vulkan captures of sidebar hover, window controls, script formatting,
+  Codex composer/menu, FigCraft tools and FilmCraft timeline/monitor tools using the shared set.
+  Only synthetic project data is used; screenshots are not retouched.
+- Full CI attempted: workspace linting passed; the unchanged engine board-table row-growth
+  test still fails (122 to 122; 1391 passed, 1 failed, 2 ignored). An earlier attempt exhausted
+  cloud disk space; scoped `cargo clean` recovered the compiler artifacts and the checks were
+  restarted. Source/project data was not removed. A clean full CI result is not claimed.
+
 ## Purpose desktop refinement — 2026-10-29
 
 - 112 desktop tests passed, including channel rename/trash/mixed restoration, image width and

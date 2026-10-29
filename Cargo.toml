@@ -29,6 +29,7 @@ figcraft-tools = { path = "crates/tools" }
 figcraft-collab = { path = "crates/collab" }
 figcraft-engine = { path = "crates/engine" }
 figcraft-ui-egui = { path = "crates/ui-egui" }
+figcraft-ui-icons = { path = "crates/ui-icons" }
 figcraft-mcp = { path = "crates/mcp" }
 figcraft-collab-net = { path = "crates/collab-net" }
 figcraft-plugin = { path = "crates/plugin" }

@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$version = '0.1.7'
+$version = '0.1.8'
 $ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
 $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
 $ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
@@ -66,6 +66,11 @@ foreach ($name in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'UPSTREAM.md')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "third-party/filmcraft-ui/$name") -Destination $filmcraftNotices
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/filmcraft-ui/licenses') -Destination $filmcraftNotices -Recurse
+$iconNotices = Join-Path $stage 'licenses/lucide'
+New-Item -ItemType Directory -Path $iconNotices -Force | Out-Null
+foreach ($name in @('LICENSE.txt', 'SOURCE.json')) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot "assets/ui/lucide/$name") -Destination $iconNotices
+}
 $markdownNotices = Join-Path $stage 'licenses/pulldown-cmark'
 New-Item -ItemType Directory -Path $markdownNotices -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/pulldown-cmark/LICENSE') -Destination $markdownNotices

@@ -1,5 +1,20 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: one licensed Lucide icon pack
+
+At the owner's request, download the unmodified Lucide 1.64.0 SVG sources from pinned revision
+`be09619c1c1124ad09c19fc3e87ee3b939409bbd`, verify Git blob hashes and record SHA-256 checksums.
+Retain the complete ISC/Feather MIT notice and distribute it in the Windows installer.
+
+A small L6 `figcraft-ui-icons` crate rasterises the shared 24-unit glyphs at the current display
+scale and applies the caller's tint. Clip to the requested icon box, avoid font glyph substitution
+and bound the per-context texture cache. Map host navigation/window/menu/format/chat controls
+and the embedded design/editor icon enums to the same sources. Standalone FigCraft keeps its
+original renderer. Tree hover chooses one glyph before painting so the folding chevron replaces
+the channel/video icon instead of drawing over it. Add render/scale/cache tests for the asset
+set and real pointer events proving a hovered tree row contains one glyph and its toggle works.
+Verification and any unrelated full-CI failures are recorded in VALIDATION.md.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: reconcile options on automatic model selection
 
 When switching to the catalog default or entering a model ID, discard reasoning/speed options

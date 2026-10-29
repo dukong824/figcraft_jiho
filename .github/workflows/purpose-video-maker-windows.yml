@@ -38,7 +38,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $dist = 'dist/purpose-video-maker'
-          $stage = Join-Path $dist 'Purpose-video-maker-0.1.7-windows-x64'
+          $stage = Join-Path $dist 'Purpose-video-maker-0.1.8-windows-x64'
           & (Join-Path $stage 'codex/codex.exe') --version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
           $ffmpeg = Join-Path $stage 'ffmpeg/bin/ffmpeg.exe'
@@ -48,7 +48,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled H.264 encoder failed' }
           $codec = (& $ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $sample).Trim()
           if ($codec -ne 'h264') { throw "Unexpected codec: $codec" }
-          $setup = Join-Path $dist 'Purpose-video-maker-0.1.7-windows-x64-setup.exe'
+          $setup = Join-Path $dist 'Purpose-video-maker-0.1.8-windows-x64-setup.exe'
           $installed = Join-Path $env:RUNNER_TEMP 'purpose-installed'
           $process = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installed") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
@@ -56,6 +56,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installed application failed' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'ffmpeg/bin/ffmpeg.exe'))) { throw 'Installed FFmpeg missing' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'licenses/filmcraft/NOTICE'))) { throw 'FilmCraft notice missing' }
+          if (-not (Test-Path -LiteralPath (Join-Path $installed 'licenses/lucide/LICENSE.txt'))) { throw 'Lucide notice missing' }
           ./packaging/purpose-video-maker/smoke-gui.ps1 -Executable (Join-Path $installed 'purpose-video-maker.exe') -ProjectDirectory (Join-Path $env:RUNNER_TEMP 'purpose-gui-smoke')
       - name: Publish installer on GitHub Releases
         shell: pwsh
@@ -72,7 +73,7 @@ jobs:
           @"
           Windows x64 설치 파일입니다. 아래 setup.exe를 다운로드해 실행하세요.
           FFmpeg와 Codex CLI가 포함되어 있습니다.
-          채널 메뉴, 오른쪽 사이드 보기, Codex 모델·추론·빠른 생성, 이미지 크기 조절, 자동 백업과 데스크톱 메뉴 디자인을 개선했습니다.
+          사이드바·창 버튼·서식·Codex·디자인·편집 아이콘을 Lucide로 통일하고 호버 시 선이 겹쳐 그려지는 문제를 수정했습니다.
 
           Commit: $env:GITHUB_SHA
           SHA-256: $sha256

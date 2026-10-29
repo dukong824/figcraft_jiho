@@ -235,6 +235,12 @@ impl Pen16<'_> {
 
 /// Paint `icon` centred in `rect`.
 pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
+    if figcraft_ui_icons::enabled(painter.ctx())
+        && let Some(name) = lucide(icon)
+        && figcraft_ui_icons::paint(painter, rect, name, color)
+    {
+        return;
+    }
     let pen = Pen16 { painter, rect, color, width: 1.25 };
     use Icon::*;
     match icon {
@@ -1003,5 +1009,109 @@ mod tests {
                 assert!((g1 - g2).abs() < 1e-3 && g1 >= 2.0, "{ppp}x size {size}: gaps {g1} and {g2} px");
             }
         }
+    }
+}
+
+fn lucide(icon: Icon) -> Option<&'static str> {
+    match icon {
+        Icon::Selection => Some("mouse-pointer-2"),
+        Icon::TrackSelectFwd => Some("list-end"),
+        Icon::TrackSelectBack => Some("list-start"),
+        Icon::Ripple => Some("between-horizontal-start"),
+        Icon::Rolling => Some("move-horizontal"),
+        Icon::RateStretch => Some("scaling"),
+        Icon::Remix => Some("audio-lines"),
+        Icon::Razor => Some("scissors"),
+        Icon::Slip => Some("move-horizontal"),
+        Icon::Slide => Some("move-horizontal"),
+        Icon::Pen => Some("pen-tool"),
+        Icon::Rectangle => Some("square"),
+        Icon::Ellipse => Some("circle"),
+        Icon::Hand => Some("hand"),
+        Icon::Zoom => Some("zoom-in"),
+        Icon::Type => Some("type"),
+        Icon::Play => Some("play"),
+        Icon::Pause => Some("pause"),
+        Icon::StepBack => Some("step-back"),
+        Icon::StepFwd => Some("step-forward"),
+        Icon::GoToIn => Some("skip-back"),
+        Icon::GoToOut => Some("skip-forward"),
+        Icon::MarkIn => Some("log-in"),
+        Icon::MarkOut => Some("log-out"),
+        Icon::Marker => Some("bookmark"),
+        Icon::Insert => Some("arrow-down-to-line"),
+        Icon::Overwrite => Some("replace"),
+        Icon::Lift => Some("arrow-up-from-line"),
+        Icon::Extract => Some("scissors"),
+        Icon::Camera => Some("camera"),
+        Icon::Loop => Some("repeat"),
+        Icon::Wrench => Some("wrench"),
+        Icon::Plus => Some("plus"),
+        Icon::Eye => Some("eye"),
+        Icon::EyeOff => Some("eye-off"),
+        Icon::Speaker => Some("volume-2"),
+        Icon::Mute => Some("volume-x"),
+        Icon::Lock => Some("lock-keyhole"),
+        Icon::Unlock => Some("lock-keyhole-open"),
+        Icon::SyncLock => Some("link"),
+        Icon::Mic => Some("mic"),
+        Icon::Folder => Some("folder"),
+        Icon::Film => Some("film"),
+        Icon::Sequence => Some("clapperboard"),
+        Icon::Audio => Some("audio-lines"),
+        Icon::Image => Some("image"),
+        Icon::Search => Some("search"),
+        Icon::ListView => Some("list"),
+        Icon::IconView => Some("layout-grid"),
+        Icon::Freeform => Some("layout-dashboard"),
+        Icon::NewItem => Some("file-plus"),
+        Icon::Trash => Some("trash"),
+        Icon::Home => Some("house"),
+        Icon::Workspaces => Some("panels-top-left"),
+        Icon::Hamburger => Some("menu"),
+        Icon::ChevronDown => Some("chevron-down"),
+        Icon::ChevronRight => Some("chevron-right"),
+        Icon::Magnet => Some("magnet"),
+        Icon::Link => Some("link"),
+        Icon::Keyframe => Some("diamond"),
+        Icon::Stopwatch => Some("timer"),
+        Icon::Fx => Some("wand-sparkles"),
+        Icon::Reset => Some("rotate-ccw"),
+        Icon::Close => Some("x"),
+        Icon::Fullscreen => Some("maximize"),
+        Icon::Export => Some("upload"),
+        Icon::Import => Some("download"),
+        Icon::Gear => Some("settings"),
+        Icon::Info => Some("info"),
+        Icon::Captions => Some("captions"),
+        Icon::Adjust => Some("sliders-horizontal"),
+        Icon::Nest => Some("layers"),
+        Icon::Undo => Some("undo-2"),
+        Icon::Redo => Some("redo-2"),
+        Icon::Bell => Some("bell"),
+        Icon::Chat => Some("message-circle"),
+        Icon::Globe => Some("globe"),
+        Icon::Code => Some("code-xml"),
+        Icon::Sparkle => Some("sparkles"),
+        Icon::Grid => Some("grid-2x2"),
+        Icon::Square => Some("square"),
+        Icon::Proxy => Some("picture-in-picture-2"),
+        Icon::Offline => Some("unlink"),
+        Icon::TrackMaskBack => Some("rewind"),
+        Icon::TrackMaskBackFrame => Some("step-back"),
+        Icon::TrackMaskFwdFrame => Some("step-forward"),
+        Icon::TrackMaskFwd => Some("fast-forward"),
+        Icon::SortIcons => Some("list-filter"),
+        Icon::Automate => Some("list-video"),
+        Icon::Star => Some("star"),
+        Icon::ChevronLeft => Some("chevron-left"),
+        Icon::ArrowUp => Some("arrow-up"),
+        Icon::Drive => Some("hard-drive"),
+        Icon::Network => Some("network"),
+        Icon::Clock => Some("clock"),
+        Icon::Monitor => Some("monitor"),
+        Icon::Sun => Some("sun"),
+        Icon::Moon => Some("moon"),
+        Icon::Eyedropper => Some("pipette"),
     }
 }

@@ -22,6 +22,7 @@ purpose-branding = []
 workspace = true
 
 [dependencies]
+figcraft-ui-icons = { workspace = true }
 figcraft-engine = { workspace = true }
 figcraft-ui-egui = { workspace = true }
 figcraft-collab-net = { workspace = true }

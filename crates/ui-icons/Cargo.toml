@@ -1,0 +1,15 @@
+[package]
+name = "figcraft-ui-icons"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Embedded, licensed Lucide SVG icons for the Purpose desktop editors"
+
+[lints]
+workspace = true
+
+[dependencies]
+egui = { workspace = true }
+usvg = { workspace = true }
+tiny-skia = { workspace = true }

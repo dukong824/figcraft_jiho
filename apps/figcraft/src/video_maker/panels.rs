@@ -32,7 +32,8 @@ impl VideoMaker {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         close = style::icon_button(ui, Icon::Close, 26.0, "사이드 보기 닫기").clicked();
                         if view == SideView::Codex {
-                            ui.menu_button(RichText::new("⋯").size(18.0).color(style::MUTED), |ui| {
+                            let more = style::icon_button(ui, Icon::More, 26.0, "Codex 메뉴");
+                            egui::Popup::menu(&more).show(|ui| {
                                 if ui.button("연결 다시 확인").clicked() {
                                     self.refresh_auth();
                                     ui.close();
@@ -248,7 +249,7 @@ impl VideoMaker {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if let Some(job) = &self.chat_job {
                                 if job.video_id == video_id {
-                                    if ui.button("중지 ■").clicked() {
+                                    if style::round_button(ui, Icon::Stop, true, "응답 중지").clicked() {
                                         job.cancel();
                                     }
                                 } else {
@@ -256,16 +257,7 @@ impl VideoMaker {
                                 }
                             } else {
                                 let enabled = !self.prompt.trim().is_empty();
-                                send = ui
-                                    .add_enabled(
-                                        enabled,
-                                        egui::Button::new(RichText::new("↑").size(19.0).color(egui::Color32::WHITE))
-                                            .fill(style::TEXT)
-                                            .min_size(vec2(32.0, 30.0))
-                                            .corner_radius(16),
-                                    )
-                                    .on_hover_text("보내기 · Enter / 줄바꿈 · Shift+Enter")
-                                    .clicked()
+                                send = style::round_button(ui, Icon::Send, enabled, "보내기 · Enter / 줄바꿈 · Shift+Enter").clicked() && enabled
                                     || enter && enabled;
                             }
                         });
@@ -402,15 +394,8 @@ impl VideoMaker {
         } else {
             &before.model
         });
-        let mut label_job = egui::text::LayoutJob::simple(
-            format!("{label} ⌄"),
-            egui::FontId::proportional(11.0),
-            style::TEXT,
-            (ui.available_width() - 154.0).max(64.0),
-        );
-        label_job.wrap.max_rows = 1;
-        label_job.wrap.break_anywhere = true;
-        ui.menu_button(label_job, |ui| {
+        let model_button = style::dropdown(ui, label, (ui.available_width() - 188.0).max(42.0));
+        egui::Popup::menu(&model_button).show(|ui| {
             ui.set_min_width(210.0);
             if self.catalog_job.is_some() {
                 ui.label("모델 불러오는 중…");
@@ -438,7 +423,8 @@ impl VideoMaker {
                 self.refresh_catalog();
             }
         });
-        ui.menu_button(RichText::new(super::codex_options::effort_label(&before.effort)).size(11.0), |ui| {
+        let effort_button = style::dropdown(ui, super::codex_options::effort_label(&before.effort), 60.0);
+        egui::Popup::menu(&effort_button).show(|ui| {
             if ui.selectable_label(before.effort.is_empty(), "자동").clicked() {
                 self.store.data.codex_settings.effort.clear();
                 ui.close();

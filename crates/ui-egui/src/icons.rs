@@ -1,5 +1,6 @@
 //! FigCraft's icon set, drawn in code from simple primitives on a 16×16 grid. Original artwork
-//! (MIT OR Apache-2.0): no third-party icons are used anywhere.
+//! (MIT OR Apache-2.0) for standalone FigCraft. Purpose mode uses the licensed Lucide SVG pack
+//! through `figcraft-ui-icons`; the original artwork remains the standalone/default renderer.
 //!
 //! The grid is pixel-exact at 16 px: 1-unit strokes sit on half coordinates (pixel centres) and
 //! fills on whole ones. Larger boxes scale by whole steps and smaller ones are hinted: straight

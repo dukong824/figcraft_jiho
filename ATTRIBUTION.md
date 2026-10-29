@@ -72,3 +72,5 @@ egui's default fonts (compiled into the `egui`/`epaint` crates) keep their own l
 | Path | Author / source | License | Notes |
 |---|---|---|---|
 | `examples/jiho/Papierwerk.figcraft` | FigCraft Jiho contributors, original procedural `filter-source.png` landscape and plain backdrop | MIT OR Apache-2.0 | Editable outward-paper example; no third-party images. Papierwerk algorithm attribution and MIT license: `third-party/papierwerk` |
+
+| `assets/ui/lucide/` (all SVGs, `SOURCE.json`, `LICENSE.txt`) | Lucide Icons and Contributors; Cole Bemis for Feather-derived icons | [Lucide 1.64.0](https://github.com/lucide-icons/lucide/tree/be09619c1c1124ad09c19fc3e87ee3b939409bbd/icons), unmodified sources with pinned Git blob and SHA-256 verification in `SOURCE.json` | ISC, with the upstream MIT notice for Feather-derived icons; full licence in `assets/ui/lucide/LICENSE.txt` | User-requested replacement of Purpose video maker shell/design/edit controls. Embedded offline; original app logo retained. |

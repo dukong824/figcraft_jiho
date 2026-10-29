@@ -31,6 +31,7 @@ impl VideoMaker {
             ctx.request_repaint();
             return false;
         }
+        figcraft_ui_icons::set_enabled(&ctx, true);
         style::configure(&ctx);
         ui.set_style(ctx.global_style());
         #[cfg(not(target_os = "macos"))]
@@ -805,7 +806,7 @@ fn item_actions(
         if more.hovered() {
             ui.painter().rect_filled(rect, 4, style::SELECTED);
         }
-        ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, "⋯", egui::FontId::proportional(20.0), style::MUTED);
+        style::paint_icon(ui.painter(), rect.shrink(4.0), Icon::More, style::MUTED);
         egui::Popup::from_toggle_button_response(&more).id(menu_id).show(|ui| menu(ui, rename, trashed));
     }
     response.context_menu(|ui| menu(ui, rename, trashed));
