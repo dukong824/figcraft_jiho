@@ -13,8 +13,10 @@ public static class PurposeWindowCheck {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
     [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     public delegate bool EnumWindow(IntPtr window, IntPtr data);
@@ -58,6 +60,12 @@ public static class PurposeWindowCheck {
         double scale = GetDpiForWindow(window) / 96.0;
         Click(window, (int)(90 * scale), (int)(423 * scale));
     }
+    public static void FitForTest(IntPtr window, Rect screen) {
+        var normal = Bounds(window);
+        int width = Math.Min(normal.Right - normal.Left, (int)((screen.Right - screen.Left) * 0.9));
+        int height = Math.Min(normal.Bottom - normal.Top, (int)((screen.Bottom - screen.Top) * 0.85));
+        if (!SetWindowPos(window, IntPtr.Zero, screen.Left + 24, screen.Top + 24, width, height, 0x14)) throw new Exception("SetWindowPos failed");
+    }
     public static void EditorFullscreen(IntPtr window, bool fullscreen) {
         Rect client; if (!GetClientRect(window, out client)) throw new Exception("GetClientRect failed");
         double scale = GetDpiForWindow(window) / 96.0;
@@ -80,6 +88,8 @@ function Wait-Bounds($Window, $Expected) {
 $env:PURPOSE_PROJECTS_DIR = $ProjectDirectory
 $previousLogLevel = $env:RUST_LOG
 $env:RUST_LOG = 'info'
+$previousDpi = [PurposeWindowCheck]::SetThreadDpiAwarenessContext([IntPtr](-4))
+if ($previousDpi -eq [IntPtr]::Zero) { throw 'Cannot enable physical-pixel DPI coordinates for the GUI probe' }
 New-Item -ItemType Directory -Path $ProjectDirectory -Force | Out-Null
 $startupLog = Join-Path $ProjectDirectory 'startup.log'
 $app = Start-Process -FilePath $Executable -PassThru -RedirectStandardError $startupLog
@@ -92,7 +102,7 @@ try {
         $window = [PurposeWindowCheck]::Find($app.Id)
     } while ($window -eq 0 -and $timer.Elapsed.TotalSeconds -lt 30)
     if ($window -eq 0) { throw 'Installed GUI has no main window' }
-    Write-Output "Testing window: $([PurposeWindowCheck]::Title($window)); handle=$window"
+    Write-Output "Testing window: $([PurposeWindowCheck]::Title($window)); handle=$window; DPI=$([PurposeWindowCheck]::GetDpiForWindow($window))"
     $timer.Restart()
     do {
         $bigIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]1, [IntPtr]0)
@@ -105,17 +115,25 @@ try {
         $smallIcon = [PurposeWindowCheck]::SendMessage($window, 0x7F, [IntPtr]0, [IntPtr]0)
         throw "Windows taskbar has no explicit large application icon; window=$window; small=$smallIcon"
     }
-    $normal = [PurposeWindowCheck]::Bounds($window)
     $screen = [PurposeWindowCheck]::Screen($window)
+    [PurposeWindowCheck]::FitForTest($window, $screen)
+    Start-Sleep -Milliseconds 500
+    $normal = [PurposeWindowCheck]::Bounds($window)
+    Write-Output "Physical normal bounds: $($normal.Left),$($normal.Top),$($normal.Right),$($normal.Bottom)"
+    Write-Output "Physical monitor bounds: $($screen.Left),$($screen.Top),$($screen.Right),$($screen.Bottom)"
     [PurposeWindowCheck]::OpenEditor($window)
     Start-Sleep -Seconds 1
+    Write-Output 'Entering fullscreen with the FilmCraft button'
     [PurposeWindowCheck]::EditorFullscreen($window, $false)
     Wait-Bounds $window $screen
     Start-Sleep -Milliseconds 300
+    Write-Output 'Restoring with the FilmCraft button'
     [PurposeWindowCheck]::EditorFullscreen($window, $true)
     Wait-Bounds $window $normal
+    Write-Output 'Entering fullscreen with F11'
     [PurposeWindowCheck]::F11($window)
     Wait-Bounds $window $screen
+    Write-Output 'Restoring with Esc'
     [PurposeWindowCheck]::Escape($window)
     Wait-Bounds $window $normal
     $null = $app.CloseMainWindow()
@@ -127,4 +145,5 @@ try {
     if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
     Remove-Item Env:PURPOSE_PROJECTS_DIR
     $env:RUST_LOG = $previousLogLevel
+    $null = [PurposeWindowCheck]::SetThreadDpiAwarenessContext($previousDpi)
 }

@@ -1,5 +1,14 @@
 # Local extension devlog
 
+## 2026-10-29 — M-PURPOSE-VIDEO: physical-pixel Windows GUI probing
+
+The 0.1.6 Windows build, installation and editor startup succeeded, but the pointer-based
+fullscreen probe mixed DPI-virtualized client bounds with the target window's physical DPI.
+Make the probe thread per-monitor DPI aware so button clicks and geometry checks use the same
+physical pixels, fit the test window inside the CI monitor before clicking its rightmost control,
+allow the initial font passes to finish, and label each transition in the log.
+The failed probe did not publish the installer; application sources are unchanged by this fix.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: retain fullscreen in compact editor headers
 
 Keep the embedded FilmCraft fullscreen control visible even below 1100pt, where the rest of the
