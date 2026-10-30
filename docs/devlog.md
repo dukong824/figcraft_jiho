@@ -352,3 +352,7 @@ the fullscreen control keeps its own reserved space when a video title is long.
 
 Native MP3 review also keeps PATH-based FFmpeg discovery when no bundled binary exists;
 yt-dlp only receives --ffmpeg-location for an existing file. Windows retains its bundled path.
+
+Windows compilation and the installed helper smoke passed; packaging exposed the removed Deno
+license CLI. Replace it with the original pinned MIT / V8 BSD / TypeScript Apache notices and
+retain the actual version execution probe. No application implementation changed in this fix.

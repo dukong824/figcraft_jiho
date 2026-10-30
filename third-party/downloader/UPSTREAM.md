@@ -2,14 +2,14 @@
 
 The Windows installer downloads the following original distributions with pinned SHA-256 checks.
 No implementation code is vendored in this directory. `packaging/purpose-video-maker/downloader.ps1`
-is the authoritative URL/hash list and keeps the upstream packages and complete notices together.
+is the authoritative URL/hash list and keeps the upstream packages and upstream notices together.
 
 | Component | Version | Source | Licence |
 | --- | --- | --- | --- |
 | CPython Windows embeddable x64 | 3.14.10 | https://www.python.org/downloads/release/python-31410/ | PSF-2.0 and bundled notices |
 | yt-dlp pure Python wheel | 2026.10.26 | https://pypi.org/project/yt-dlp/2026.10.26/ | Unlicense |
 | yt-dlp-ejs wheel | 0.8.0 | https://pypi.org/project/yt-dlp-ejs/0.8.0/ | Unlicense, bundled ISC/MIT notices |
-| Deno Windows x64 | 2.9.8 | https://github.com/denoland/deno/releases/tag/v2.9.8 | MIT and `deno license` third-party notices |
+| Deno Windows x64 | 2.9.8 | https://github.com/denoland/deno/releases/tag/v2.9.8 | MIT, V8 BSD and TypeScript Apache-2.0 notices |
 
 The PyInstaller `yt-dlp.exe` release includes optional GPL components. It is **not** distributed.
 The official wheels above contain only Unlicense code (and permissive EJS notices); optional
@@ -24,3 +24,16 @@ itself at app startup. Updating extractor/runtime versions requires a new review
 
 The app never passes URLs through a shell or supplies browser cookies. Website access restrictions,
 login-only/DRM content and extraction changes can prevent individual links from downloading.
+
+## Pinned Deno notices
+
+Deno 2.9.8 has no `license` subcommand or `--license` flag. These upstream files are
+copied unchanged into the installer instead (notices only, no implementation code):
+
+- `Deno-LICENSE.txt`: https://github.com/denoland/deno/blob/v2.9.8/LICENSE.md
+- `Rusty-V8-LICENSE.txt`: https://github.com/denoland/rusty_v8/blob/v150.4.0/LICENSE
+- `V8-LICENSE.txt`: https://github.com/v8/v8/blob/15.0.245.2/LICENSE
+- `TypeScript-LICENSE.txt`: https://github.com/microsoft/TypeScript/blob/v6.0.3/LICENSE.txt
+
+The runtime reports V8 15.0.245.2 and TypeScript 6.0.3; its lockfile pins Rusty V8 150.4.0.
+Deno and its dependency source are available through the pinned tag and Cargo.lock above.

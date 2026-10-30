@@ -9,7 +9,7 @@
   owned files, historical and inline asset references, persisted cleanup and traversal/symlink
   refusal; purged media not reimporting through native archived references.
 - Official Codex 0.165.0 helper and Deno archive hashes match GitHub release digests. Python and
-  pure yt-dlp/EJS wheel hashes were independently downloaded and checked. Complete original
+  pure yt-dlp/EJS wheel hashes were independently downloaded and checked. Original upstream
   notices are kept by packaging; upstream's GPL-containing PyInstaller EXE is not redistributed.
 - Executed real local HTTP MP4 download and MP3 conversion with the pinned yt-dlp wheel and
   FFmpeg, then drove the native app to download and register both sample.mp4 and sample.mp3 in its chosen library.

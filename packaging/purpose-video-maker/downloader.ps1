@@ -28,8 +28,12 @@ New-Item -ItemType Directory -Path $notices -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $python 'LICENSE.txt') -Destination (Join-Path $notices 'Python-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $packages 'yt_dlp-2026.10.26.dist-info/licenses/LICENSE') -Destination (Join-Path $notices 'yt-dlp-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $packages 'yt_dlp_ejs-0.8.0.dist-info/licenses/LICENSE') -Destination (Join-Path $notices 'yt-dlp-ejs-LICENSE.txt')
-& (Join-Path $tools 'deno.exe') license | Set-Content -LiteralPath (Join-Path $notices 'Deno-LICENSE.txt') -Encoding utf8
-if ($LASTEXITCODE -ne 0) { throw 'Deno license capture failed' }
+# Deno 2.9 has no license subcommand/flag. Distribute the unchanged upstream
+# notices pinned to the runtime and its V8 / TypeScript versions instead.
+$noticeSource = Join-Path $PSScriptRoot '../../third-party/downloader'
+foreach ($name in @('Deno-LICENSE.txt', 'Rusty-V8-LICENSE.txt', 'V8-LICENSE.txt', 'TypeScript-LICENSE.txt', 'UPSTREAM.md')) {
+    Copy-Item -LiteralPath (Join-Path $noticeSource $name) -Destination $notices
+}
 $downloads | ForEach-Object { "$($_.Name)`n$($_.Url)`nSHA256: $($_.Sha)`n" } | Set-Content -LiteralPath (Join-Path $notices 'SOURCE.txt') -Encoding utf8
 & (Join-Path $python 'python.exe') -I -m yt_dlp --version
 if ($LASTEXITCODE -ne 0) { throw 'Bundled yt-dlp failed' }
