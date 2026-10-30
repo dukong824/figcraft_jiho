@@ -346,3 +346,6 @@ Root clear is opaque white, shell dividers have one owner, tab text/close/add sh
 center, and a one-pixel brand-row overflow no longer grows the sidebar each frame. Restore inset
 search background/equal gaps, use the requested footer order, move Settings beside the brand,
 increase document title top padding and add Design fullscreen while removing the breadcrumb Codex button.
+
+Final native review also fixes breadcrumb text alignment inside its reserved full-width hit box;
+the fullscreen control keeps its own reserved space when a video title is long.

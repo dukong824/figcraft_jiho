@@ -602,10 +602,19 @@ impl VideoMaker {
                     let (rect, _) = ui.allocate_exact_size(vec2(17.0, 24.0), Sense::hover());
                     style::paint_icon(ui.painter(), Rect::from_center_size(rect.center(), vec2(17.0, 17.0)), Icon::Channel, style::MUTED);
                     let reserve = if self.section_is_design() { 38.0 } else { 0.0 };
-                    ui.add_sized(
-                        [(ui.available_width() - reserve - 8.0).max(20.0), 28.0],
-                        egui::Label::new(RichText::new(crumb).size(figcraft_ui_icons::font_size(15.0))).truncate().halign(egui::Align::Min),
+                    let (label_rect, label_response) =
+                        ui.allocate_exact_size(vec2((ui.available_width() - reserve - 8.0).max(20.0), 28.0), Sense::hover());
+                    let mut job = egui::text::LayoutJob::simple_singleline(
+                        crumb.clone(),
+                        egui::FontId::proportional(figcraft_ui_icons::font_size(15.0)),
+                        style::TEXT,
                     );
+                    job.wrap.max_width = label_rect.width();
+                    job.wrap.max_rows = 1;
+                    job.wrap.break_anywhere = true;
+                    let galley = ui.fonts_mut(|f| f.layout_job(job));
+                    ui.painter().galley(pos2(label_rect.left(), label_rect.center().y - galley.size().y / 2.0), galley, style::TEXT);
+                    label_response.on_hover_text(crumb);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if self.section_is_design() {
                             let full = ui.ctx().data(|d| d.get_temp::<bool>(egui::Id::unique("purpose.fullscreen-active")).unwrap_or(false));
