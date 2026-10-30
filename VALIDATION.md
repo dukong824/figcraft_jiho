@@ -1,11 +1,11 @@
 ## Purpose runtime, downloader and page fixes — 2026-10-30
 
-- 143 desktop tests, 4 icon/font-policy tests and 824 shared UI tests passed (1 shared UI test
+- 144 desktop tests, 4 icon/font-policy tests and 824 shared UI tests passed (1 shared UI test
   ignored). Workspace/all-target Clippy with warnings denied, layers, asset attribution, WASM
   and all four plugin builds passed. The previously excluded engine board-table failure remains
   outside this task; no clean full engine test run is claimed.
 - Added regression coverage for text galleys growing while browser/sidebar/header geometry and
-  viewport zoom stay fixed; scoped font restoration; URL/path validation; permanent deletion of
+  viewport zoom stay fixed; scoped font restoration; URL/path validation; full-queue downloader shutdown; permanent deletion of
   owned files, historical and inline asset references, persisted cleanup and traversal/symlink
   refusal; purged media not reimporting through native archived references.
 - Official Codex 0.165.0 helper and Deno archive hashes match GitHub release digests. Python and

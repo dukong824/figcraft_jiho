@@ -36,7 +36,7 @@ pub struct Controller {
     progress: f32,
 }
 struct Job {
-    events: mpsc::Receiver<Event>,
+    events: Option<mpsc::Receiver<Event>>,
     cancel: Arc<AtomicBool>,
     video: u64,
     directory: PathBuf,
@@ -46,6 +46,9 @@ struct Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Relaxed);
+        // A minimized window may leave the bounded queue full. Release it before
+        // joining so the final result sender can exit during shutdown.
+        self.events.take();
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -281,7 +284,7 @@ impl VideoMaker {
             let _ = tx.send(Event::Done(result));
             ctx.request_repaint();
         });
-        self.downloader.job = Some(Job { events, cancel, video, directory, started: Instant::now(), worker: Some(worker) });
+        self.downloader.job = Some(Job { events: Some(events), cancel, video, directory, started: Instant::now(), worker: Some(worker) });
         self.downloader.completed = None;
         self.downloader.error.clear();
         self.downloader.status = "영상 정보를 확인하는 중…".into();
@@ -290,9 +293,11 @@ impl VideoMaker {
     }
     pub(super) fn poll_downloader(&mut self, ctx: &egui::Context) {
         let mut done = None;
-        if let Some(job) = &self.downloader.job {
+        if let Some(job) = &self.downloader.job
+            && let Some(events) = &job.events
+        {
             loop {
-                match job.events.try_recv() {
+                match events.try_recv() {
                     Ok(Event::Progress(value, status)) => {
                         self.downloader.progress = value;
                         self.downloader.status = status;
@@ -475,6 +480,28 @@ impl VideoMaker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shutdown_releases_a_full_progress_queue_before_joining_the_worker() {
+        let (tx, events) = mpsc::sync_channel(1);
+        tx.send(Event::Progress(0.5, "fixture".into())).unwrap();
+        let worker = std::thread::spawn(move || {
+            let _ = tx.send(Event::Done(Err("fixture".into())));
+        });
+        let job = Job {
+            events: Some(events),
+            cancel: Arc::new(AtomicBool::new(false)),
+            video: 1,
+            directory: PathBuf::new(),
+            started: Instant::now(),
+            worker: Some(worker),
+        };
+        let (done, completed) = mpsc::channel();
+        std::thread::spawn(move || {
+            drop(job);
+            let _ = done.send(());
+        });
+        completed.recv_timeout(Duration::from_secs(2)).expect("shutdown must unblock the terminal sender");
+    }
     #[test]
     fn links_are_http_only_and_never_command_arguments() {
         assert!(validate_url("file:///etc/passwd").is_err());

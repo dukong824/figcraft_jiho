@@ -356,3 +356,6 @@ yt-dlp only receives --ffmpeg-location for an existing file. Windows retains its
 Windows compilation and the installed helper smoke passed; packaging exposed the removed Deno
 license CLI. Replace it with the original pinned MIT / V8 BSD / TypeScript Apache notices and
 retain the actual version execution probe. No application implementation changed in this fix.
+
+Downloader shutdown releases its bounded progress receiver before joining the worker, so closing a
+minimized app with a full queue cannot deadlock. A deterministic saturated-queue regression covers it.
