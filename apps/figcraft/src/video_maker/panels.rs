@@ -6,6 +6,9 @@ use egui::{RichText, TextEdit, vec2};
 
 impl VideoMaker {
     pub(super) fn side_panel(&mut self, ui: &mut egui::Ui) {
+        if self.side_view.is_none() {
+            ui.ctx().data_mut(|d| d.remove::<egui::Rect>(egui::Id::unique("purpose-codex-bounds")));
+        }
         let Some(view) = self.side_view else { return };
         let mut close = false;
         egui::Panel::right("purpose-side-view")
@@ -61,8 +64,9 @@ impl VideoMaker {
                     SideView::Codex => self.codex_contents(ui),
                 }
                 let r = ui.max_rect();
+                ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose-codex-bounds"), r.expand2(vec2(18.0, 6.0))));
                 let x = r.left() - 18.0;
-                ui.painter().line_segment([egui::pos2(x, r.top() - 6.0), egui::pos2(x, r.bottom() + 16.0)], style::border(ui.ctx()));
+                self.dividers.push((egui::pos2(x, r.top() - 6.0), egui::pos2(x, r.bottom() + 16.0)));
             });
         if close {
             self.side_view = None;
@@ -85,11 +89,11 @@ impl VideoMaker {
         let rect = ui.available_rect_before_wrap();
         let text_height = ui.fonts_mut(|f| f.layout_job(composer_text(&self.prompt, (rect.width() - 32.0).max(60.0)))).size().y;
         let drop_hover = self.attachment_drop(ui, video_id, rect);
-        let has_attachments = self.chat_attachments.get(&video_id).is_some_and(|a| !a.is_empty());
+        let pasting = self.pastes.iter().any(|p| p.video == video_id && p.attach);
+        let has_attachments = self.chat_attachments.get(&video_id).is_some_and(|a| !a.is_empty()) || pasting;
         let attachment_height = if has_attachments { 44.0 } else { 0.0 };
         let composer = composer_rect(rect, text_height.max(44.0) + attachment_height);
         let conversation = egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), (composer.top() - 12.0).max(rect.top())));
-        let mut append = None;
         ui.scope_builder(egui::UiBuilder::new().max_rect(conversation), |ui| {
             egui::ScrollArea::vertical().id_salt(("codex-conversation", video_id)).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
                 ui.set_width(conversation.width() - 8.0);
@@ -218,16 +222,6 @@ impl VideoMaker {
                                     });
                                 }
                             }
-                            if running != Some(index) && !message.text.is_empty() {
-                                ui.horizontal(|ui| {
-                                    if ui.small_button("복사").clicked() {
-                                        ui.ctx().copy_text(message.text.clone());
-                                    }
-                                    if !message.error && !message.cancelled && ui.small_button("대본에 추가").clicked() {
-                                        append = Some(message.text.clone());
-                                    }
-                                });
-                            }
                         }
                     });
                 }
@@ -291,21 +285,12 @@ impl VideoMaker {
                         style::round_button(ui, Icon::Stop, false, "다른 영상에서 작업 중");
                     }
                 } else {
-                    let enabled = !self.prompt.trim().is_empty() || has_attachments;
+                    let enabled = (!self.prompt.trim().is_empty() || has_attachments) && !pasting;
                     send = style::round_button(ui, Icon::Send, enabled, "보내기 · Enter / 줄바꿈 · Shift+Enter").clicked() && enabled
                         || enter && enabled;
                 }
             });
         });
-        if let Some(text) = append {
-            if let Some(video) = self.store.data.selected_mut() {
-                if !video.script_body.is_empty() {
-                    video.script_body.push_str("\n\n");
-                }
-                video.script_body.push_str(&text);
-            }
-            self.save();
-        }
         if send {
             self.ask_codex(if self.prompt.trim().is_empty() { "첨부한 자료를 확인해 주세요.".into() } else { self.prompt.clone() });
         }

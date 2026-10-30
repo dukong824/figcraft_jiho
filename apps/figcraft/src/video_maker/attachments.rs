@@ -108,6 +108,10 @@ impl VideoMaker {
             .id_salt(("attachment-chips", video))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    if self.pastes.iter().any(|p| p.video == video && p.attach) {
+                        ui.spinner();
+                        ui.label("이미지 준비 중…");
+                    }
                     for (index, a) in attachments.iter().enumerate() {
                         egui::Frame::NONE.fill(style::SIDEBAR).corner_radius(6).inner_margin(egui::Margin::symmetric(7, 3)).show(ui, |ui| {
                             ui.horizontal(|ui| {
@@ -144,7 +148,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn attachments_reach_real_cli_arguments_prompt_and_persisted_conversation() {
-        use std::{fs, os::unix::fs::PermissionsExt, time::Duration};
+        use std::{fs, time::Duration};
         let root = std::env::temp_dir().join(format!("purpose-attach-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let mut maker = VideoMaker::at(root.clone()).unwrap();
@@ -161,20 +165,7 @@ mod tests {
             duration: 5.0,
             has_audio: false,
         });
-        let cli = root.join("codex-fixture");
-        fs::write(
-            &cli,
-            format!(
-                r#"#!/bin/sh
-printf '%s\n' "$@" > '{}'
-cat > '{}'
-"#,
-                root.join("args").display(),
-                root.join("stdin").display()
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+        let cli = super::super::codex_session::tests::fixture_cli(&root, "normal");
         maker.store.data.codex_path = Some(cli);
         maker.authenticated = Some(true);
         maker.attach_source(video, video, 3);
@@ -190,10 +181,11 @@ cat > '{}'
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(maker.chat_job.is_none());
-        let args = fs::read_to_string(root.join("args")).unwrap();
-        assert!(args.lines().any(|s| s == "--image"));
-        assert!(args.contains(file.to_str().unwrap()));
-        assert!(fs::read_to_string(root.join("stdin")).unwrap().contains("장면 레퍼런스.png"));
+        let args = fs::read_to_string(root.join("args.txt")).unwrap();
+        assert!(args.lines().any(|s| s == "app-server"));
+        let protocol = fs::read_to_string(root.join("request.txt")).unwrap();
+        assert!(protocol.contains("localImage") && protocol.contains(file.to_str().unwrap()));
+        assert!(fs::read_to_string(root.join("request.txt")).unwrap().contains("장면 레퍼런스.png"));
         maker.chats.clear();
         assert_eq!(maker.conversation(video).messages[0].attachments[0].id, 3);
         assert!(!maker.chat_attachments.contains_key(&video));

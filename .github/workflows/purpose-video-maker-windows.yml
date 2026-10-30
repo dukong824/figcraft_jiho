@@ -38,7 +38,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $dist = 'dist/purpose-video-maker'
-          $stage = Join-Path $dist 'Purpose-video-maker-0.1.11-windows-x64'
+          $stage = Join-Path $dist 'Purpose-video-maker-0.1.12-windows-x64'
           & (Join-Path $stage 'codex/codex.exe') --version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
           $ffmpeg = Join-Path $stage 'ffmpeg/bin/ffmpeg.exe'
@@ -48,7 +48,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled H.264 encoder failed' }
           $codec = (& $ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $sample).Trim()
           if ($codec -ne 'h264') { throw "Unexpected codec: $codec" }
-          $setup = Join-Path $dist 'Purpose-video-maker-0.1.11-windows-x64-setup.exe'
+          $setup = Join-Path $dist 'Purpose-video-maker-0.1.12-windows-x64-setup.exe'
           $installed = Join-Path $env:RUNNER_TEMP 'purpose-installed'
           $process = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installed") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
@@ -82,6 +82,7 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'ffmpeg/bin/ffmpeg.exe'))) { throw 'Installed FFmpeg missing' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'licenses/filmcraft/NOTICE'))) { throw 'FilmCraft notice missing' }
           if (-not (Test-Path -LiteralPath (Join-Path $installed 'licenses/lucide/LICENSE.txt'))) { throw 'Lucide notice missing' }
+          ./packaging/purpose-video-maker/smoke-codex.ps1 -Installed $installed
           ./packaging/purpose-video-maker/smoke-downloader.ps1 -Installed $installed -Sample $sample
           ./packaging/purpose-video-maker/smoke-gui.ps1 -Executable (Join-Path $installed 'purpose-video-maker.exe') -ProjectDirectory (Join-Path $env:RUNNER_TEMP 'purpose-gui-smoke')
       - name: Publish installer on GitHub Releases
@@ -99,7 +100,7 @@ jobs:
           @"
           Windows x64 설치 파일입니다. 아래 setup.exe를 다운로드해 실행하세요.
           FFmpeg와 Codex CLI가 포함되어 있습니다.
-          Codex 도구 실행 파일 누락을 수정하고, 영상·MP3를 라이브러리에 넣는 Video Downloader 페이지를 추가했습니다. 휴지통 페이지와 확인 후 영구 삭제, 텍스트 전용 크기 설정, 디자인 전체화면을 지원하며 탭 정렬·사이드바 여백·배율별 경계선을 정리했습니다.
+          휴지통 다중 선택, 라이브러리·Codex 이미지 붙여넣기, Codex 작업 승인·거절 창을 추가했습니다. 가이드는 한 페이지의 공통·채널별 토글로 바꾸고, Video Downloader 화면·문서 여백·배율별 구분선을 개선했습니다.
 
           Commit: $env:GITHUB_SHA
           SHA-256: $sha256

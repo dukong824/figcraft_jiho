@@ -25,6 +25,7 @@ enum Format {
 #[derive(Default)]
 pub struct Controller {
     url: String,
+    target_query: String,
     pub target: Option<u64>,
     format: Format,
     job: Option<Job>,
@@ -369,7 +370,7 @@ impl VideoMaker {
     }
     pub(super) fn downloader_page(&mut self, ui: &mut egui::Ui) {
         egui::ScrollArea::vertical().id_salt("downloader-page").auto_shrink([false, false]).show(ui, |ui| {
-            let (width, left) = style::page_width(ui, false);
+            let (width, left) = style::page_width(ui, true);
             ui.add_space(style::PAGE_TOP);
             ui.horizontal(|ui| {
                 ui.add_space(left);
@@ -378,97 +379,194 @@ impl VideoMaker {
                     ui.label(style::heading("Video Downloader", style::PAGE_TITLE));
                     ui.add_space(style::TITLE_GAP);
                     let busy = self.download_busy();
-                    ui.add_enabled_ui(!busy && self.downloader.retry.is_none(), |ui| {
-                        ui.label(RichText::new("영상 링크").strong());
-                        egui::Frame::NONE.fill(style::SIDEBAR).corner_radius(7).inner_margin(12.0).show(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.downloader.url)
-                                    .desired_width(f32::INFINITY)
-                                    .hint_text("https://www.youtube.com/watch?v=…")
-                                    .frame(egui::Frame::NONE),
-                            );
-                        });
-                        ui.add_space(14.0);
-                        ui.horizontal(|ui| {
-                            ui.label("다운로드 형식");
-                            if style::filter_tab(ui, "영상 · MP4", self.downloader.format == Format::Video).clicked() {
-                                self.downloader.format = Format::Video;
-                            }
-                            if style::filter_tab(ui, "오디오 · MP3", self.downloader.format == Format::Mp3).clicked() {
-                                self.downloader.format = Format::Mp3;
-                            }
-                        });
-                        ui.add_space(10.0);
-                        ui.label(RichText::new("저장할 라이브러리").strong());
-                        let selected = self
-                            .store
-                            .data
-                            .channels
-                            .iter()
-                            .flat_map(|c| c.videos.iter().map(move |v| (v.id, format!("{} / {}", c.name, v.name))))
-                            .find(|(id, _)| Some(*id) == self.downloader.target)
-                            .map_or("영상 선택".into(), |(_, name)| name);
-                        let destination = style::dropdown(ui, &selected, width.min(460.0) - 28.0);
-                        egui::Popup::menu(&destination).show(|ui| {
-                            for channel in &self.store.data.channels {
-                                for video in &channel.videos {
-                                    if ui
-                                        .selectable_value(&mut self.downloader.target, Some(video.id), format!("{} / {}", channel.name, video.name))
-                                        .clicked()
-                                    {
-                                        ui.close();
+                    egui::Frame::NONE.fill(style::SURFACE).stroke(style::border(ui.ctx())).corner_radius(10).inner_margin(24.0).show(ui, |ui| {
+                        ui.set_width((width - 48.0).max(80.0));
+                        ui.add_enabled_ui(!busy && self.downloader.retry.is_none(), |ui| {
+                            ui.label(RichText::new("영상 링크").strong());
+                            ui.add_space(4.0);
+                            egui::Frame::NONE.fill(style::SIDEBAR).corner_radius(7).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let id = ui.make_persistent_id("download-url");
+                                    let w = (ui.available_width() - 40.0).max(30.0);
+                                    ui.add_sized(
+                                        [w, 30.0],
+                                        egui::TextEdit::singleline(&mut self.downloader.url)
+                                            .id(id)
+                                            .font(egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)))
+                                            .hint_text("영상 URL을 붙여넣으세요")
+                                            .frame(egui::Frame::NONE)
+                                            .margin(egui::Margin::ZERO),
+                                    );
+                                    if style::icon_button(ui, style::Icon::Paste, 28.0, "링크 붙여넣기").clicked() {
+                                        ui.memory_mut(|m| m.request_focus(id));
+                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                                     }
+                                });
+                            });
+                            ui.add_space(20.0);
+                            ui.label(RichText::new("다운로드 형식").strong());
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                let w = ((ui.available_width() - 12.0) / 2.0).max(30.0);
+                                ui.spacing_mut().item_spacing.x = 12.0;
+                                if format_choice(ui, w, style::Icon::Video, "영상", "MP4", self.downloader.format == Format::Video).clicked() {
+                                    self.downloader.format = Format::Video;
                                 }
+                                if format_choice(ui, w, style::Icon::Audio, "오디오", "MP3", self.downloader.format == Format::Mp3).clicked() {
+                                    self.downloader.format = Format::Mp3;
+                                }
+                            });
+                            ui.add_space(20.0);
+                            ui.label(RichText::new("저장할 라이브러리").strong());
+                            ui.add_space(4.0);
+                            let selected = self
+                                .store
+                                .data
+                                .channels
+                                .iter()
+                                .find_map(|c| {
+                                    c.videos.iter().find(|v| Some(v.id) == self.downloader.target).map(|v| format!("{} / {}", c.name, v.name))
+                                })
+                                .unwrap_or("영상 선택".into());
+                            let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), egui::Sense::click());
+                            ui.painter().rect_filled(rect, 7, if response.hovered() { style::SIDEBAR } else { style::SURFACE });
+                            ui.painter().rect_stroke(rect, 7, style::border(ui.ctx()), egui::StrokeKind::Inside);
+                            style::paint_icon(
+                                ui.painter(),
+                                egui::Rect::from_center_size(egui::pos2(rect.left() + 22.0, rect.center().y), vec2(18.0, 18.0)),
+                                style::Icon::Library,
+                                style::MUTED,
+                            );
+                            let mut text = egui::text::LayoutJob::simple_singleline(
+                                selected,
+                                egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)),
+                                style::TEXT,
+                            );
+                            text.wrap.max_width = (rect.width() - 78.0).max(10.0);
+                            text.wrap.max_rows = 1;
+                            let text = ui.fonts_mut(|f| f.layout_job(text));
+                            ui.painter().galley(egui::pos2(rect.left() + 40.0, rect.center().y - text.size().y / 2.0), text, style::TEXT);
+                            style::paint_icon(
+                                ui.painter(),
+                                egui::Rect::from_center_size(egui::pos2(rect.right() - 20.0, rect.center().y), vec2(14.0, 14.0)),
+                                style::Icon::ChevronDown,
+                                style::MUTED,
+                            );
+                            egui::Popup::menu(&response).show(|ui| {
+                                ui.set_width((width - 62.0).clamp(160.0, 660.0));
+                                style::search_field(ui, &mut self.downloader.target_query, ui.available_width(), "채널 또는 영상 검색");
+                                ui.add_space(6.0);
+                                let query = self.downloader.target_query.to_lowercase();
+                                egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                                    for channel in &self.store.data.channels {
+                                        let videos: Vec<_> = channel
+                                            .videos
+                                            .iter()
+                                            .filter(|v| {
+                                                query.is_empty()
+                                                    || channel.name.to_lowercase().contains(&query)
+                                                    || v.name.to_lowercase().contains(&query)
+                                            })
+                                            .collect();
+                                        if videos.is_empty() {
+                                            continue;
+                                        }
+                                        ui.label(RichText::new(&channel.name).small().color(style::MUTED));
+                                        for video in videos {
+                                            if style::nav_row(ui, &video.name, style::Icon::Video, self.downloader.target == Some(video.id), 0.0)
+                                                .clicked()
+                                            {
+                                                self.downloader.target = Some(video.id);
+                                                ui.close();
+                                            }
+                                        }
+                                        ui.add_space(6.0);
+                                    }
+                                });
+                            });
+                        });
+                        ui.add_space(20.0);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if self.downloader.retry.is_some() {
+                                if !busy && style::action_button(ui, "라이브러리에 다시 추가", true).clicked() {
+                                    self.retry_download_import();
+                                }
+                            } else if ui
+                                .add_enabled_ui(!busy && !self.downloader.url.trim().is_empty() && self.downloader.target.is_some(), |ui| {
+                                    style::action_button(ui, "다운로드", true)
+                                })
+                                .inner
+                                .clicked()
+                                && let Err(e) = self.start_download(ui.ctx())
+                            {
+                                self.downloader.error = e;
                             }
                         });
                     });
-                    ui.add_space(22.0);
-                    if busy {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(&self.downloader.status);
-                            if let Some(job) = &self.downloader.job {
-                                ui.label(
-                                    RichText::new(format!("{}:{:02}", job.started.elapsed().as_secs() / 60, job.started.elapsed().as_secs() % 60))
-                                        .color(style::MUTED),
-                                );
-                                if style::action_button(ui, "취소", false).clicked() {
-                                    job.cancel.store(true, Ordering::Relaxed);
-                                }
-                            }
-                        });
-                        ui.add(egui::ProgressBar::new(self.downloader.progress).desired_width(width).desired_height(4.0));
-                        self.import_progress(ui);
-                    } else if self.downloader.retry.is_some() {
-                        ui.horizontal(|ui| {
-                            if style::action_button(ui, "라이브러리에 다시 추가", true).clicked() {
-                                self.retry_download_import();
-                            }
-                            if style::action_button(ui, "다운로드 파일 지우기", false).clicked()
-                                && let Some((_, _, _, dir)) = self.downloader.retry.take()
-                            {
-                                std::thread::spawn(move || {
-                                    let _ = fs::remove_dir_all(dir);
+                    if busy || self.downloader.completed.is_some() || !self.downloader.error.is_empty() {
+                        ui.add_space(16.0);
+                        egui::Frame::NONE.fill(style::SURFACE).stroke(style::border(ui.ctx())).corner_radius(10).inner_margin(20.0).show(ui, |ui| {
+                            ui.set_width((width - 40.0).max(80.0));
+                            if busy {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(
+                                        RichText::new(if self.downloader.job.is_some() {
+                                            "다운로드 중"
+                                        } else {
+                                            "라이브러리에 추가 중"
+                                        })
+                                        .strong(),
+                                    );
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if let Some(job) = &self.downloader.job {
+                                            if style::action_button(ui, "취소", false).clicked() {
+                                                job.cancel.store(true, Ordering::Relaxed);
+                                            }
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "{}:{:02}",
+                                                    job.started.elapsed().as_secs() / 60,
+                                                    job.started.elapsed().as_secs() % 60
+                                                ))
+                                                .small()
+                                                .color(style::MUTED),
+                                            );
+                                        }
+                                    });
                                 });
-                            }
-                        });
-                    } else if style::action_button(ui, "다운로드", true).clicked()
-                        && let Err(e) = self.start_download(ui.ctx())
-                    {
-                        self.downloader.error = e;
-                    }
-                    if !self.downloader.error.is_empty() {
-                        ui.add_space(14.0);
-                        egui::Frame::NONE.fill(style::SIDEBAR).corner_radius(7).inner_margin(14.0).show(ui, |ui| {
-                            ui.label(RichText::new(&self.downloader.error).color(style::TEXT));
-                        });
-                    }
-                    if let Some(video) = self.downloader.completed {
-                        ui.add_space(14.0);
-                        ui.horizontal(|ui| {
-                            ui.label("라이브러리에 추가했습니다");
-                            if style::action_button(ui, "라이브러리 열기", false).clicked() {
-                                self.navigate(Route::Video { video_id: video, section: Section::Library });
+                                ui.add_space(10.0);
+                                ui.label(RichText::new(&self.downloader.status).small().color(style::MUTED));
+                                ui.add_space(8.0);
+                                ui.add(egui::ProgressBar::new(self.downloader.progress).desired_width(ui.available_width()).desired_height(4.0));
+                            } else if !self.downloader.error.is_empty() {
+                                ui.label(RichText::new("다운로드를 완료하지 못했습니다").strong());
+                                ui.add_space(8.0);
+                                egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
+                                    ui.add(
+                                        egui::Label::new(RichText::new(&self.downloader.error).small().color(style::MUTED)).wrap().selectable(true),
+                                    );
+                                });
+                                if self.downloader.retry.is_some() {
+                                    ui.add_space(10.0);
+                                    if style::action_button(ui, "임시 파일 지우기", false).clicked()
+                                        && let Some((_, _, _, dir)) = self.downloader.retry.take()
+                                    {
+                                        std::thread::spawn(move || {
+                                            let _ = fs::remove_dir_all(dir);
+                                        });
+                                        self.downloader.error.clear();
+                                    }
+                                }
+                            } else if let Some(video) = self.downloader.completed {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("라이브러리에 추가했습니다").strong());
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if style::action_button(ui, "라이브러리 열기", false).clicked() {
+                                            self.navigate(Route::Video { video_id: video, section: Section::Library });
+                                        }
+                                    });
+                                });
                             }
                         });
                     }
@@ -476,6 +574,43 @@ impl VideoMaker {
             });
         });
     }
+}
+fn format_choice(ui: &mut egui::Ui, width: f32, icon: style::Icon, title: &str, extension: &str, selected: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 62.0), egui::Sense::click());
+    ui.painter().rect_filled(rect, 7, if selected { style::SIDEBAR } else { style::SURFACE });
+    ui.painter().rect_stroke(
+        rect,
+        7,
+        egui::Stroke::new(1.0 / ui.ctx().pixels_per_point(), if selected { style::MUTED } else { style::BORDER }),
+        egui::StrokeKind::Inside,
+    );
+    style::paint_icon(
+        ui.painter(),
+        egui::Rect::from_center_size(egui::pos2(rect.left() + 24.0, rect.center().y), vec2(20.0, 20.0)),
+        icon,
+        style::MUTED,
+    );
+    ui.painter().text(
+        egui::pos2(rect.left() + 44.0, rect.center().y - 9.0),
+        egui::Align2::LEFT_CENTER,
+        title,
+        egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)),
+        style::TEXT,
+    );
+    ui.painter().text(
+        egui::pos2(rect.left() + 44.0, rect.center().y + 12.0),
+        egui::Align2::LEFT_CENTER,
+        extension,
+        egui::FontId::proportional(figcraft_ui_icons::font_size(11.0)),
+        style::MUTED,
+    );
+    let center = egui::pos2(rect.right() - 22.0, rect.center().y);
+    ui.painter().circle_stroke(center, 7.0, egui::Stroke::new(1.2, if selected { style::TEXT } else { style::BORDER }));
+    if selected {
+        ui.painter().circle_filled(center, 3.5, style::TEXT);
+    }
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::RadioButton, true, title));
+    response
 }
 #[cfg(test)]
 mod tests {

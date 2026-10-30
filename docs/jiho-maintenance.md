@@ -97,7 +97,7 @@ Purpose의 Codex는 작업별 전용 MCP를 통해 실제 FigCraft/FilmCraft 명
 정리/가져오기/재연결은 실제 명령을 사용하되 기존 History를 보존합니다. 원본 제거·중복 정리는
 보관 bin으로 이동해 클립 참조를 지키고, 사용자 Clear/Undo/Redo에 의한 자료 상태 변경만
 라이브러리에 반영합니다. Codex 첨부는 영상/자료 ID로 저장하고, 현재 작업의 대상 영상은
-변경하지 않습니다. 이미지 입력은 공식 CLI의 --image를 사용합니다.
+변경하지 않습니다. 이미지 입력은 공식 app-server의 `localImage`를 사용합니다.
 
 
 ## Purpose 0.1.11 runtime and deletion rules
@@ -115,3 +115,22 @@ Codex CLI와 code-mode-host는 같은 버전/출처/체크섬으로 배포하고
 저장한 뒤 소유 경로에서만 백그라운드 삭제합니다. 실패/종료 후 재시도하며 심볼릭 링크와
 경로 이탈은 거부합니다. purged_assets 경로는 네이티브 소스 역가져오기 대상에서 제외해야 합니다.
 일반 기록 retention은 여전히 미참조 .fcproj 스냅샷만 정리합니다.
+
+
+## Purpose 0.1.12 approvals, paste and separators
+
+채팅은 공식 Codex app-server의 stdio JSON-RPC를 사용합니다. 서버가 요청한 승인 ID와
+원래 영상에 연결된 응답 채널을 유지하며, UI의 명시적 결정 전에는 응답하지 않습니다.
+중지/완료 시 대기 요청을 폐기합니다. read-only sandbox와 guide-gated 앱 MCP 경계를
+유지하고, 네트워크/읽기 권한은 요청한 turn 범위로만 승인합니다. 일반 파일 쓰기 권한을
+허용하거나 대본/가이드를 도구로 수정하게 바꾸지 마세요. 설치 검사는 별도 CODEX_HOME의
+initialize/thread-start까지만 실행하며 실제 유료 모델 turn을 시작하지 않습니다.
+
+클립보드 이미지는 네이티브 PasteImage 이벤트로 받아 별도 작업 스레드에서 PNG로 저장합니다.
+Color32의 premultiplied alpha는 저장 전에 unpremultiply하며, 자료 ID를 먼저 저장하고 최초
+영상/대화에 등록합니다. 탭 전환·취소·종료·영구 삭제와 대기 작업의 소유권을 유지하세요.
+
+사이드바/제목줄/오른쪽 패널 구분선은 마지막 shell mesh pass에서 물리 1픽셀 사각형으로
+그립니다. 이 선을 antialias stroke로 바꾸거나 각 패널 배경 아래에서 그리지 마세요.
+모달·팝업보다 낮은 Middle 레이어를 사용합니다. 문서 상단 여백은 DOCUMENT_TOP,
+목록/다운로더 여백은 PAGE_TOP을 공통으로 사용합니다.

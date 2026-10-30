@@ -205,32 +205,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn selected_cli_handles_login_and_chat_output() {
-        use std::os::unix::fs::PermissionsExt;
         let root = std::env::temp_dir().join(format!("purpose-fake-codex-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
-        let cli = root.join("codex");
-        std::fs::write(
-            &cli,
-            r##"#!/bin/sh
-cd "$(dirname "$0")"
-if [ "$1" = login ]; then
-  if [ "$2" = status ]; then if test -f logged-in; then echo 'Logged in using ChatGPT'; exit 0; else exit 1; fi; fi
-  echo 'http://localhost:1455/auth/callback'
-  touch logged-in
-  exit 0
-fi
-printf '%s\n' "$@" > args.txt
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = --output-last-message ]; then shift; output="$1"; fi
-  shift
-done
-cat > request.txt
-echo '수정된 대본' > "$output"
-"##,
-        )
-        .unwrap();
-        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let cli = super::super::codex_session::tests::fixture_cli(&root, "normal");
         assert!(!super::status(&cli).unwrap());
         let mut login = super::Login::start(&cli, false).unwrap();
         assert!(login.lines.recv_timeout(std::time::Duration::from_secs(2)).unwrap().contains("localhost"));
@@ -262,10 +240,12 @@ echo '수정된 대본' > "$output"
         assert!(maker.chat_job.is_none());
         assert_eq!(maker.conversation(id).messages[1].text.trim(), "수정된 대본");
         assert!(std::fs::read_to_string(root.join("request.txt")).unwrap().contains("내 대본 수정"));
-        let args = std::fs::read_to_string(root.join("args.txt")).unwrap();
-        assert!(args.contains("--model\ntest-model\n"));
-        assert!(args.contains("model_reasoning_effort=\"high\""));
-        assert!(args.contains("service_tier=\"fast\""));
+        let protocol: Vec<serde_json::Value> =
+            std::fs::read_to_string(root.join("request.txt")).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+        let thread = protocol.iter().find(|v| v["method"] == "thread/start").unwrap();
+        assert_eq!(thread["params"]["model"], "test-model");
+        assert_eq!(thread["params"]["serviceTier"], "fast");
+        assert_eq!(protocol.iter().find(|v| v["method"] == "turn/start").unwrap()["params"]["effort"], "high");
         let mut reopened = super::super::VideoMaker::at(root.join("projects")).unwrap();
         assert_eq!(reopened.conversation(id).messages.len(), 2);
         drop(login);

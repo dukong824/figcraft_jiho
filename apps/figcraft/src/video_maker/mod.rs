@@ -1,12 +1,16 @@
 //! Purpose video maker: a local channel/video workspace around the FigCraft editor.
+mod approvals;
 mod backup;
 mod branding;
 mod chat;
 mod codex;
 mod codex_options;
+mod codex_session;
 mod document;
 mod interactions;
+mod pasted;
 mod rich_script;
+mod selection;
 mod settings;
 #[cfg(windows)]
 pub use branding::set_windows_icons;
@@ -15,6 +19,7 @@ mod agent;
 mod agent_transport;
 mod appearance;
 mod attachments;
+mod dividers;
 mod downloader;
 mod film;
 mod film_audio;
@@ -62,7 +67,12 @@ pub struct VideoMaker {
     catalog_job: Option<Receiver<Result<Vec<codex_options::Model>, String>>>,
     catalog_error: String,
     settings_open: bool,
-    trash_confirm: Option<trash::Item>,
+    trash_confirm: Option<Vec<trash::Item>>,
+    trash_selection: selection::Selection<trash::Item>,
+    guide_open: HashSet<Option<u64>>,
+    dividers: Vec<(egui::Pos2, egui::Pos2)>,
+    pastes: Vec<pasted::Pending>,
+    approvals: Vec<approvals::Request>,
     purge: trash::Cleanup,
     downloader: downloader::Controller,
     trash_query: String,
@@ -172,6 +182,11 @@ impl VideoMaker {
             catalog_error: String::new(),
             settings_open: false,
             trash_confirm: None,
+            trash_selection: Default::default(),
+            guide_open: HashSet::from([None]),
+            dividers: Vec::new(),
+            pastes: Vec::new(),
+            approvals: Vec::new(),
             purge: Default::default(),
             downloader: Default::default(),
             trash_query: String::new(),
@@ -480,6 +495,7 @@ impl VideoMaker {
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
         self.poll_retention(ctx);
+        self.poll_pastes(ctx);
         self.poll_imports(ctx);
         self.poll_downloader(ctx);
         self.poll_purge(ctx);

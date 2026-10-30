@@ -1,3 +1,29 @@
+## Purpose approvals, clipboard and page details — 2026-10-31
+
+- 148 desktop tests passed, 1 ignored subprocess-fixture entry point. Workspace/all-target Clippy
+  with warnings denied, formatting, dependency layers, asset attribution, WASM and four plugin
+  builds passed. The previously excluded engine board-table failure was not rerun or changed.
+- Integration tests drive a real stdio child fixture through initialize/thread/start/turn/start,
+  wait for two explicit user decisions, preserve string/numeric request IDs and route the responses
+  to their original requests. Cover images/model/effort/speed settings, cancellation and cleanup.
+  Unit coverage includes identity-based range/marquee selection, atomic multi-delete with parent/
+  child items and stale-selection rollback, physical-pixel divider snapping at 28 DPI/zoom pairs,
+  actual PNG encoding with alpha and registration in the original video after navigation.
+- Official pinned Codex 0.165.0 accepted initialize and read-only thread/start with the granular
+  user approval policy. The new PowerShell installed-protocol probe passed locally against this
+  official binary with a fresh CODEX_HOME. No authenticated model conversation or paid turn was used.
+- Native Vulkan GUI: pasted a real OS clipboard PNG into Library and Codex; observed durable source
+  registration and the composer attachment. Approved the network request and denied the concurrent
+  command request in actual modal dialogs; inspected the resulting exact-ID JSON responses and answer.
+  The approval backend is synthetic in this interactive test; the official protocol handshake is real.
+- Native screenshots inspected: trash Shift range and drag marquee with 3 selected rows, bulk restore
+  and delete confirmation; one-page expanded guide toggles; downloader form; brand gear hidden/shown
+  by hover; no answer action buttons; matching 120pt Script/Guide document padding. Pixel inspection
+  confirms continuous single-pixel sidebar/header dividers at normal, zoomed-in and zoomed-out scales.
+- Windows publication is gated on clean installation and the installed official app-server handshake,
+  existing helper/MCP/media/downloader/fullscreen/icon/clean-exit checks. Installer EXE remains the
+  only release asset.
+
 ## Purpose runtime, downloader and page fixes — 2026-10-30
 
 - 144 desktop tests, 4 icon/font-policy tests and 824 shared UI tests passed (1 shared UI test

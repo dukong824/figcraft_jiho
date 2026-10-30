@@ -37,6 +37,7 @@ struct WindowGeometry {
 
 impl VideoMaker {
     pub fn raw_input(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        self.paste_images(ctx, raw);
         let mut zoom = self.store.data.ui_zoom;
         if !zoom.is_finite() {
             zoom = 1.0;

@@ -185,6 +185,7 @@ impl eframe::App for App {
             })
         });
         if let Some(maker) = &mut self.video_maker {
+            maker.draw_dividers(&ctx);
             maker.window_requests(&ctx, frame);
         }
     }

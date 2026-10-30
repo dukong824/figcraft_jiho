@@ -350,7 +350,7 @@ impl VideoMaker {
         ui.visuals_mut().selection.stroke.color = egui::Color32::BLACK;
         egui::ScrollArea::vertical().id_salt(("purpose-script-scroll", video.id)).auto_shrink([false, false]).show(ui, |ui| {
             let (width, left) = style::page_width(ui, true);
-            ui.add_space(style::PAGE_TOP);
+            ui.add_space(style::DOCUMENT_TOP);
             ui.horizontal(|ui| {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {

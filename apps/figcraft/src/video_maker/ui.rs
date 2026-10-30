@@ -13,6 +13,7 @@ impl VideoMaker {
     pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
         let ctx = ui.ctx().clone();
         self.ui_context = Some(ctx.clone());
+        self.dividers.clear();
         ui.painter().rect_filled(ui.max_rect(), 0, style::SURFACE);
         log::debug!("Purpose root: max={:?} clip={:?} content={:?}", ui.max_rect(), ui.clip_rect(), ctx.content_rect());
         if !self.fonts_ready {
@@ -106,6 +107,7 @@ impl VideoMaker {
         }
         self.settings(&ctx);
         self.trash_confirmation(&ctx);
+        self.approval_dialog(&ctx);
         if !self.message.is_empty() {
             self.toast = Some((std::mem::take(&mut self.message), std::time::Instant::now()));
         }
@@ -272,7 +274,7 @@ impl VideoMaker {
                     }
                 });
                 let r = ui.max_rect().expand2(vec2(12.0, 5.0));
-                ui.painter().line_segment([r.left_bottom(), r.right_bottom()], style::border(ui.ctx()));
+                self.dividers.push((r.left_bottom(), r.right_bottom()));
             });
         if shortcut_close {
             close = self.tabs.items().find(|(_, _, _, active)| *active).map(|(index, _, _, _)| index);
@@ -351,8 +353,13 @@ impl VideoMaker {
                         [w, 30.0],
                         egui::Label::new(RichText::new("Purpose video maker").size(figcraft_ui_icons::font_size(15.0)).strong()).truncate(),
                     );
-                    if style::icon_button(ui, Icon::Settings, 26.0, "설정").clicked() {
-                        self.settings_open = true;
+                    let brand = Rect::from_min_size(egui::pos2(ui.max_rect().left(), ui.max_rect().top()), vec2(ui.max_rect().width(), 30.0));
+                    if ui.ctx().pointer_hover_pos().is_some_and(|p| brand.intersect(ui.clip_rect()).contains(p)) {
+                        if style::icon_button(ui, Icon::Settings, 26.0, "설정").clicked() {
+                            self.settings_open = true;
+                        }
+                    } else {
+                        ui.allocate_space(vec2(26.0, 26.0));
                     }
                 });
                 ui.add_space(14.0);
@@ -526,7 +533,7 @@ impl VideoMaker {
             self.store.data.expanded_videos = expanded;
             dirty = true;
         }
-        ui.painter().line_segment([panel.response.rect.right_top(), panel.response.rect.right_bottom()], style::border(ui.ctx()));
+        self.dividers.push((panel.response.rect.right_top(), panel.response.rect.right_bottom()));
         if new_channel {
             self.store.data.add_channel();
             dirty = true;
@@ -632,7 +639,7 @@ impl VideoMaker {
                     });
                 });
                 let r = ui.max_rect().expand2(vec2(22.0, 7.0));
-                ui.painter().line_segment([r.left_bottom(), r.right_bottom()], style::border(ui.ctx()));
+                self.dividers.push((r.left_bottom(), r.right_bottom()));
             });
         export
     }

@@ -79,6 +79,29 @@ pub(super) fn discard(data: &mut Workspace, item: Item) -> Result<Vec<u64>, Stri
     }
     Ok(videos)
 }
+fn discard_many(data: &mut Workspace, items: &[Item]) -> Result<Vec<u64>, String> {
+    let mut ordered = items.to_vec();
+    ordered.sort_by_key(|i| match i {
+        Item::Asset(..) => 0,
+        Item::Video(_) => 1,
+        Item::Channel(_) => 2,
+    });
+    ordered.dedup();
+    let previous = data.clone();
+    let mut videos = Vec::new();
+    for item in ordered {
+        match discard(data, item) {
+            Ok(ids) => videos.extend(ids),
+            Err(e) => {
+                *data = previous;
+                return Err(e);
+            }
+        }
+    }
+    videos.sort_unstable();
+    videos.dedup();
+    Ok(videos)
+}
 fn safe_filename(file: &str) -> Result<(), String> {
     let mut parts = Path::new(file).components();
     if matches!(parts.next(), Some(Component::Normal(_))) && parts.next().is_none() && !file.contains(['/', '\\']) {
@@ -157,6 +180,7 @@ impl VideoMaker {
             && self.purge.error.is_empty()
             && !self.imports.busy()
             && !self.download_busy()
+            && self.pastes.is_empty()
             && let Some(pending) = self.store.data.pending_deletions.first().cloned()
         {
             let root = self.store.root.clone();
@@ -187,8 +211,17 @@ impl VideoMaker {
         rows
     }
     pub(super) fn trash_page(&mut self, ui: &mut egui::Ui) {
-        let rows = self.trash_rows();
-        let mut restore = None;
+        let query = self.trash_query.to_lowercase();
+        let rows: Vec<_> = self
+            .trash_rows()
+            .into_iter()
+            .filter(|(_, name, path, _)| query.is_empty() || name.to_lowercase().contains(&query) || path.to_lowercase().contains(&query))
+            .collect();
+        let order: Vec<_> = rows.iter().map(|r| r.0).collect();
+        self.trash_selection.retain(&order);
+        let mut restore = Vec::new();
+        let mut confirm = Vec::new();
+        let busy = self.imports.busy() || self.download_busy() || !self.pastes.is_empty();
         egui::ScrollArea::vertical().id_salt("trash-page").auto_shrink([false, false]).show(ui, |ui| {
             let (width, left) = style::page_width(ui, false);
             ui.add_space(style::PAGE_TOP);
@@ -198,42 +231,108 @@ impl VideoMaker {
                     ui.set_width(width);
                     ui.label(style::heading("휴지통", style::PAGE_TITLE));
                     ui.add_space(style::TITLE_GAP);
-                    style::search_field(ui, &mut self.trash_query, width.min(320.0), "삭제된 항목 검색");
+                    ui.horizontal_wrapped(|ui| {
+                        style::search_field(ui, &mut self.trash_query, width.min(280.0), "삭제된 항목 검색");
+                        if !self.trash_selection.items.is_empty() {
+                            ui.label(RichText::new(format!("{}개 선택", self.trash_selection.items.len())).color(style::BLUE));
+                            if style::action_button(ui, "선택 복원", false).clicked() {
+                                restore = self.trash_selection.items.clone();
+                            }
+                            if ui.add_enabled_ui(!busy, |ui| style::action_button(ui, "선택 영구 삭제", false)).inner.clicked() {
+                                confirm = self.trash_selection.items.clone();
+                            }
+                            if style::icon_button(ui, Icon::Close, 28.0, "선택 해제").clicked() {
+                                self.trash_selection.items.clear();
+                            }
+                        }
+                    });
                     ui.add_space(12.0);
                     ui.separator();
-                    let query = self.trash_query.to_lowercase();
-                    let mut count = 0;
+                    let top = ui.cursor().top();
+                    let mut rects = Vec::new();
                     for (item, name, path, icon) in &rows {
-                        if !query.is_empty() && !name.to_lowercase().contains(&query) && !path.to_lowercase().contains(&query) {
-                            continue;
-                        }
-                        count += 1;
                         ui.push_id(format!("{item:?}"), |ui| {
-                            egui::Frame::NONE.inner_margin(egui::Margin::symmetric(8, 12)).show(ui, |ui| {
+                            let bg = ui.painter().add(egui::Shape::Noop);
+                            let row = egui::Frame::NONE.inner_margin(egui::Margin::symmetric(8, 12)).show(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    let (rect, _) = ui.allocate_exact_size(vec2(24.0, 32.0), egui::Sense::hover());
-                                    style::paint_icon(ui.painter(), rect.shrink(3.0), *icon, style::MUTED);
-                                    let text_width = (ui.available_width() - 180.0).max(30.0);
+                                    let (r, _) = ui.allocate_exact_size(vec2(24.0, 32.0), egui::Sense::hover());
+                                    style::paint_icon(ui.painter(), r.shrink(3.0), *icon, style::MUTED);
+                                    let action_width =
+                                        ui.fonts_mut(|f| {
+                                            f.layout_no_wrap(
+                                                "영구 삭제".into(),
+                                                egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)),
+                                                style::TEXT,
+                                            )
+                                        })
+                                        .size()
+                                        .x + 20.0;
+                                    let reserved = 78.0 + action_width.max(78.0) + 24.0;
+                                    let text_width = (ui.available_width() - reserved).max(20.0);
                                     ui.allocate_ui_with_layout(vec2(text_width, 38.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                                         ui.set_min_width(text_width);
                                         ui.add(egui::Label::new(RichText::new(name).strong()).truncate());
                                         ui.add(egui::Label::new(RichText::new(path).small().color(style::MUTED)).truncate());
                                     });
                                     if style::action_button(ui, "복원", false).clicked() {
-                                        restore = Some(*item);
+                                        restore = vec![*item];
                                     }
-                                    ui.add_enabled_ui(!self.imports.busy() && !self.download_busy(), |ui| {
-                                        if style::action_button(ui, "영구 삭제", false).on_hover_text("이 항목과 저장 파일을 삭제합니다").clicked()
-                                        {
-                                            self.trash_confirm = Some(*item);
-                                        }
-                                    });
+                                    if ui.add_enabled_ui(!busy, |ui| style::action_button(ui, "영구 삭제", false)).inner.clicked() {
+                                        confirm = vec![*item];
+                                    }
                                 });
                             });
+                            let rect = row.response.rect;
+                            let hit = egui::Rect::from_min_max(rect.min, egui::pos2((rect.right() - 210.0).max(rect.left() + 30.0), rect.bottom()));
+                            let response = ui.interact(hit, ui.make_persistent_id("trash-select"), egui::Sense::click_and_drag());
+                            if response.clicked() {
+                                self.trash_selection.click(*item, &order, ui.input(|i| i.modifiers));
+                            }
+                            if response.drag_started()
+                                && let Some(p) = ui.input(|i| i.pointer.press_origin())
+                            {
+                                let base = if ui.input(|i| i.modifiers.shift || i.modifiers.command) {
+                                    self.trash_selection.items.clone()
+                                } else {
+                                    Vec::new()
+                                };
+                                self.trash_selection.marquee = Some((p, base));
+                            }
+                            if self.trash_selection.items.contains(item) {
+                                ui.painter().set(bg, egui::Shape::rect_filled(rect, 5, style::SELECTED));
+                            } else if response.hovered() {
+                                ui.painter().set(bg, egui::Shape::rect_filled(rect, 5, style::SIDEBAR));
+                            }
+                            rects.push((*item, rect));
                             ui.separator();
                         });
                     }
-                    if count == 0 {
+                    let canvas = egui::Rect::from_min_max(
+                        egui::pos2(ui.min_rect().left(), top),
+                        egui::pos2(ui.min_rect().left() + width, ui.clip_rect().bottom().max(ui.cursor().top() + 100.0)),
+                    );
+                    let pointer = ui.ctx().pointer_hover_pos();
+                    if ui.input(|i| i.pointer.primary_pressed())
+                        && let Some(p) = pointer.filter(|p| canvas.intersect(ui.clip_rect()).contains(*p))
+                        && !rects.iter().any(|(_, r)| r.contains(p))
+                    {
+                        let base =
+                            if ui.input(|i| i.modifiers.shift || i.modifiers.command) { self.trash_selection.items.clone() } else { Vec::new() };
+                        self.trash_selection.items = base.clone();
+                        self.trash_selection.marquee = Some((p, base));
+                    }
+                    if let Some(p) = pointer {
+                        self.trash_selection.drag(p, &rects);
+                        if let Some((start, _)) = &self.trash_selection.marquee {
+                            let rect = egui::Rect::from_two_pos(*start, p).intersect(canvas);
+                            ui.painter().rect_filled(rect, 2, egui::Color32::from_rgba_unmultiplied(35, 131, 226, 24));
+                            ui.painter().rect_stroke(rect, 2, egui::Stroke::new(1.0, style::BLUE), egui::StrokeKind::Inside);
+                        }
+                    }
+                    if ui.input(|i| i.pointer.any_released()) {
+                        self.trash_selection.marquee = None;
+                    }
+                    if rows.is_empty() {
                         ui.add_space(64.0);
                         ui.vertical_centered(|ui| {
                             ui.label(
@@ -241,27 +340,33 @@ impl VideoMaker {
                             );
                         });
                     }
+                    ui.allocate_space(vec2(width, 100.0));
                     if !self.store.data.pending_deletions.is_empty() {
-                        ui.add_space(20.0);
                         ui.horizontal(|ui| {
                             if self.purge.error.is_empty() {
                                 ui.spinner();
                                 ui.label("저장 파일을 정리하는 중…");
                             } else {
-                                ui.label("일부 파일을 삭제하지 못했습니다");
+                                ui.label(&self.purge.error);
                                 if style::action_button(ui, "다시 시도", false).clicked() {
                                     self.purge.error.clear();
                                 }
                             }
                         });
-                        if !self.purge.error.is_empty() {
-                            ui.label(RichText::new(&self.purge.error).small().color(style::MUTED));
-                        }
                     }
                 });
             });
         });
-        if let Some(item) = restore {
+        if !restore.is_empty() {
+            self.restore_trash(&restore);
+        }
+        if !confirm.is_empty() {
+            self.trash_confirm = Some(confirm);
+        }
+    }
+    fn restore_trash(&mut self, items: &[Item]) {
+        let previous = self.store.data.clone();
+        for &item in items {
             match item {
                 Item::Channel(id) => self.store.data.restore_channel(id),
                 Item::Video(id) => self.store.data.restore_video(id),
@@ -273,14 +378,26 @@ impl VideoMaker {
                     }
                 }
             }
-            self.save();
+        }
+        if let Err(e) = self.store.save() {
+            self.store.data = previous;
+            self.message = format!("복원 실패: {e}");
+        } else {
+            self.trash_selection.items.clear();
         }
     }
     pub(super) fn trash_confirmation(&mut self, ctx: &egui::Context) {
-        let Some(item) = self.trash_confirm else { return };
-        let Some((_, name, _, _)) = self.trash_rows().into_iter().find(|(i, _, _, _)| *i == item) else {
+        let Some(items) = self.trash_confirm.clone() else { return };
+        let rows = self.trash_rows();
+        let valid: Vec<_> = items.into_iter().filter(|i| rows.iter().any(|r| r.0 == *i)).collect();
+        if valid.is_empty() {
             self.trash_confirm = None;
             return;
+        }
+        let label = if valid.len() == 1 {
+            rows.iter().find(|r| r.0 == valid[0]).map(|r| format!("‘{}’", r.1)).unwrap_or_default()
+        } else {
+            format!("선택한 {}개 항목", valid.len())
         };
         let mut cancel = false;
         let mut delete = false;
@@ -288,12 +405,14 @@ impl VideoMaker {
             ui.set_width(400.0);
             ui.label(style::heading("영구 삭제할까요?", 22.0));
             ui.add_space(10.0);
-            ui.label(format!("‘{name}’ 항목과 앱에 저장된 파일을 삭제합니다. 이 작업은 되돌릴 수 없습니다."));
+            ui.label(format!("{label}과 앱에 저장된 파일을 삭제합니다. 이 작업은 되돌릴 수 없습니다."));
             ui.label(RichText::new("대본과 편집에서 참조하는 소스도 더 이상 사용할 수 없습니다.").small().color(style::MUTED));
             ui.add_space(20.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 delete = ui
-                    .add_enabled_ui(!self.imports.busy() && !self.download_busy(), |ui| style::action_button(ui, "영구 삭제", true))
+                    .add_enabled_ui(!self.imports.busy() && !self.download_busy() && self.pastes.is_empty(), |ui| {
+                        style::action_button(ui, "영구 삭제", true)
+                    })
                     .inner
                     .clicked();
                 cancel = style::action_button(ui, "취소", false).clicked();
@@ -301,7 +420,7 @@ impl VideoMaker {
         });
         if delete {
             let previous = self.store.data.clone();
-            let result = discard(&mut self.store.data, item).and_then(|ids| {
+            let result = discard_many(&mut self.store.data, &valid).and_then(|ids| {
                 self.store.save()?;
                 Ok(ids)
             });
@@ -317,6 +436,7 @@ impl VideoMaker {
                             film.app.stop();
                         }
                     }
+                    self.trash_selection.items.clear();
                     self.message = "영구 삭제했습니다".into();
                 }
                 Err(e) => {
@@ -334,6 +454,21 @@ impl VideoMaker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn bulk_delete_handles_a_channel_and_separately_trashed_child_and_rolls_back_stale_selection() {
+        let mut data = Workspace::default();
+        let channel = data.add_channel();
+        let a = data.add_video(channel).unwrap();
+        let b = data.add_video(channel).unwrap();
+        data.trash_video(a);
+        data.trash_channel(channel);
+        let ids = discard_many(&mut data, &[Item::Channel(channel), Item::Video(a)]).unwrap();
+        assert!(ids.contains(&a) && ids.contains(&b));
+        assert!(data.trash.is_empty() && data.trashed_channels.is_empty());
+        let previous = data.clone();
+        assert!(discard_many(&mut data, &[Item::Video(999)]).is_err());
+        assert_eq!(data, previous);
+    }
     #[test]
     fn permanent_delete_removes_history_and_files_and_keeps_other_videos() {
         let mut data = Workspace::default();

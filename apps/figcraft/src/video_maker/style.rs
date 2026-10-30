@@ -12,6 +12,7 @@ pub const THUMB: Color32 = Color32::from_rgb(244, 244, 242);
 pub const BLUE: Color32 = Color32::from_rgb(35, 131, 226);
 
 pub const PAGE_TOP: f32 = 48.0;
+pub const DOCUMENT_TOP: f32 = 120.0;
 pub const PAGE_TITLE: f32 = 36.0;
 pub const TITLE_GAP: f32 = 24.0;
 pub const DOCUMENT_WIDTH: f32 = 760.0;

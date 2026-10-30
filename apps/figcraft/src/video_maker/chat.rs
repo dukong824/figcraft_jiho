@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     fs,
-    io::{BufRead, BufReader, Write},
     path::PathBuf,
-    process::Stdio,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -57,6 +55,9 @@ pub(super) struct Conversation {
 pub(super) enum Event {
     Activity(String, String),
     Text(String),
+    Delta(String),
+    Approval(super::approvals::Request),
+    ApprovalClosed(Value),
     Usage(Value),
     Failure(String),
     Finished(Result<String, String>, bool),
@@ -91,162 +92,11 @@ pub(super) fn elapsed(ms: u64) -> String {
     if s >= 60 { format!("{}분 {:02}초", s / 60, s % 60) } else { format!("{s}초") }
 }
 
-pub(super) fn decode_event(value: &Value) -> Option<Event> {
-    let kind = value["type"].as_str()?;
-    if kind == "turn.started" {
-        return Some(Event::Activity("요청 처리 중".into(), String::new()));
-    }
-    if kind == "turn.completed" {
-        return Some(Event::Usage(value["usage"].clone()));
-    }
-    if kind == "error" || kind == "turn.failed" {
-        return Some(Event::Failure(value["message"].as_str().or_else(|| value["error"]["message"].as_str()).unwrap_or("요청 처리 실패").into()));
-    }
-    if !matches!(kind, "item.started" | "item.updated" | "item.completed") {
-        return None;
-    }
-    let item = &value["item"];
-    let complete = kind == "item.completed";
-    let (label, detail) = match item["type"].as_str()? {
-        "agent_message" => return Some(Event::Text(item["text"].as_str()?.chars().take(200_000).collect())),
-        "reasoning" => ("계획 정리", item["text"].as_str().unwrap_or_default().to_owned()),
-        "command_execution" => (if complete { "명령 실행 완료" } else { "명령 실행 중" }, item["command"].as_str().unwrap_or_default().to_owned()),
-        "mcp_tool_call" => (
-            if complete { "도구 실행 완료" } else { "도구 사용 중" },
-            format!("{} · {}", item["server"].as_str().unwrap_or_default(), item["tool"].as_str().unwrap_or_default()),
-        ),
-        "web_search" => ("자료 검색", item["query"].as_str().unwrap_or_default().to_owned()),
-        "file_change" => (
-            "파일 변경",
-            item["changes"].as_array().map(|a| a.iter().filter_map(|v| v["path"].as_str()).collect::<Vec<_>>().join("\n")).unwrap_or_default(),
-        ),
-        "todo_list" => (
-            "작업 목록",
-            item["items"].as_array().map(|a| a.iter().filter_map(|v| v["text"].as_str()).collect::<Vec<_>>().join("\n")).unwrap_or_default(),
-        ),
-        _ => return None,
-    };
-    Some(Event::Activity(label.into(), detail.chars().take(4000).collect()))
-}
-
-struct RunOptions {
-    settings: super::codex_options::Settings,
-    fast_tier: Option<String>,
-    connection: super::agent_transport::Connection,
-    images: Vec<PathBuf>,
-}
-fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, cancel: Arc<AtomicBool>, options: RunOptions) -> Result<String, String> {
-    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    let output = root.join(format!(
-        ".codex-response-{}.txt",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()
-    ));
-    let mut command = codex::command(&cli);
-    command
-        .env_remove("OPENAI_API_KEY")
-        .env_remove("CODEX_API_KEY")
-        .args([
-            "-c",
-            "forced_login_method=\"chatgpt\"",
-            "-c",
-            "model_provider=\"openai\"",
-            "-c",
-            "approval_policy=\"never\"",
-            "exec",
-            "--json",
-            "--sandbox",
-            "read-only",
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--output-last-message",
-        ])
-        .arg(&output)
-        .arg("-C")
-        .arg(&root)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    options.settings.configure(&mut command, options.fast_tier.as_deref());
-    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-    options.connection.configure(&mut command, &executable);
-    for image in options.images {
-        command.arg("--image").arg(image);
-    }
-    command.arg("-");
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
-    }
-    let mut child = command.spawn().map_err(|e| format!("Codex를 실행할 수 없습니다: {e}"))?;
-    if let Some(mut input) = child.stdin.take() {
-        let text = prompt;
-        std::thread::spawn(move || {
-            let _ = input.write_all(text.as_bytes());
-        });
-    }
-    let events = tx.clone();
-    let reader = child.stdout.take().map(|out| {
-        std::thread::spawn(move || {
-            for line in BufReader::new(out).lines() {
-                let Ok(line) = line else { break };
-                if let Ok(value) = serde_json::from_str::<Value>(&line)
-                    && let Some(event) = decode_event(&value)
-                {
-                    let _ = events.send(event);
-                }
-            }
-        })
-    });
-    let errors = child.stderr.take().map(|pipe| {
-        std::thread::spawn(move || {
-            let mut errors = String::new();
-            for line in BufReader::new(pipe).lines() {
-                let Ok(line) = line else { break };
-                if errors.len() < 16_000 {
-                    errors.push_str(&line);
-                    errors.push('\n');
-                }
-            }
-            errors
-        })
-    });
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {}
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(e.to_string());
-            }
-        }
-        if cancel.load(Ordering::Relaxed) {
-            #[cfg(windows)]
-            {
-                let _ = codex::command(std::path::Path::new("taskkill.exe")).args(["/PID", &child.id().to_string(), "/T", "/F"]).status();
-            }
-            #[cfg(unix)]
-            {
-                let _ = std::process::Command::new("kill").args(["-TERM", "--", &format!("-{}", child.id())]).status();
-            }
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = fs::remove_file(output);
-            return Err("작업을 중지했습니다".into());
-        }
-        std::thread::sleep(Duration::from_millis(80));
-    };
-    if let Some(reader) = reader {
-        let _ = reader.join();
-    }
-    let stderr = errors.and_then(|thread| thread.join().ok()).unwrap_or_default();
-    let answer = fs::read_to_string(&output).unwrap_or_default();
-    let _ = fs::remove_file(output);
-    if !status.success() {
-        return Err(if stderr.trim().is_empty() { "Codex 요청이 실패했습니다".into() } else { stderr.chars().take(4000).collect() });
-    }
-    Ok(answer)
+pub(super) struct RunOptions {
+    pub settings: super::codex_options::Settings,
+    pub fast_tier: Option<String>,
+    pub connection: super::agent_transport::Connection,
+    pub images: Vec<PathBuf>,
 }
 
 impl VideoMaker {
@@ -298,6 +148,7 @@ impl VideoMaker {
         };
         let connection = bridge.connection.clone();
         self.agent = Some(bridge);
+        self.approvals.clear();
         let settings = self.store.data.codex_settings.clone();
         let fast_tier = self.selected_model().and_then(|m| m.fast_tier()).map(str::to_owned);
         let chat = self.conversation(video);
@@ -353,7 +204,8 @@ impl VideoMaker {
         let stop = cancel.clone();
         let root = self.store.video_dir(video);
         let worker = std::thread::spawn(move || {
-            let result = run(cli, root, prompt, tx.clone(), stop.clone(), RunOptions { settings, fast_tier, connection, images });
+            let result =
+                super::codex_session::run(cli, root, prompt, tx.clone(), stop.clone(), RunOptions { settings, fast_tier, connection, images });
             let _ = tx.send(Event::Finished(result, stop.load(Ordering::Relaxed)));
         });
         self.chat_job = Some(Job { video_id: video, reply, started: Instant::now(), events, cancel, worker: Some(worker) });
@@ -362,6 +214,7 @@ impl VideoMaker {
     }
     pub fn shutdown_chat(&mut self) {
         self.agent = None;
+        self.approvals.clear();
         let Some(job) = self.chat_job.take() else { return };
         let id = job.video_id;
         let reply = job.reply;
@@ -400,6 +253,12 @@ impl VideoMaker {
         let mut finished = false;
         for event in events {
             match event {
+                Event::Approval(request) => self.approvals.push(request),
+                Event::ApprovalClosed(id) => self.approvals.retain(|r| r.id != id),
+                Event::Delta(delta) => {
+                    let remaining = 200_000 - reply.text.chars().count().min(200_000);
+                    reply.text.extend(delta.chars().take(remaining));
+                }
                 Event::Activity(label, detail) => {
                     if reply.activities.last().is_none_or(|a| a.label != label || a.detail != detail) {
                         reply.activities.push(Activity { label, detail, elapsed_ms: ms });
@@ -442,6 +301,7 @@ impl VideoMaker {
             }
         }
         if finished {
+            self.approvals.clear();
             self.agent = None;
             self.chat_job = None;
             self.save_chat(id);
@@ -569,35 +429,18 @@ pub(super) fn links(text: &str) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     #[test]
     fn markdown_keeps_korean_line_breaks_and_removes_format_markers() {
         let job = markdown("**도입**\n첫 문장\n둘째 문장", 300.0, false);
         assert_eq!(job.text, "도입\n첫 문장\n둘째 문장");
     }
-    #[test]
-    fn cli_json_stream_keeps_public_activity_text_and_real_usage() {
-        let event = decode_event(&json!({"type":"item.started","item":{"type":"command_execution","command":"rg intro script.txt"}})).unwrap();
-        assert!(matches!(event,Event::Activity(label,detail) if label.contains("실행 중")&&detail=="rg intro script.txt"));
-        assert!(
-            matches!(decode_event(&json!({"type":"item.completed","item":{"type":"agent_message","text":"답변"}})),Some(Event::Text(t)) if t=="답변")
-        );
-        assert!(
-            matches!(decode_event(&json!({"type":"turn.completed","usage":{"input_tokens":123,"output_tokens":45}})),Some(Event::Usage(u)) if u["output_tokens"]==45)
-        );
-        assert!(decode_event(&json!({"type":"future.event"})).is_none());
-        assert_eq!(elapsed(125_000), "2분 05초");
-    }
     #[cfg(unix)]
     #[test]
     fn cancelling_a_request_stops_the_cli_and_keeps_the_user_message() {
-        use std::os::unix::fs::PermissionsExt;
         let root = std::env::temp_dir().join(format!("purpose-chat-stop-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
-        let cli = root.join("codex");
-        fs::write(&cli, "#!/bin/sh\necho '{\"type\":\"turn.started\"}'\nsleep 20\n").unwrap();
-        fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+        let cli = super::super::codex_session::tests::fixture_cli(&root, "stop");
         let mut maker = VideoMaker::at(root.join("project")).unwrap();
         maker.store.data.codex_path = Some(cli);
         maker.authenticated = Some(true);

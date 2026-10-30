@@ -1,5 +1,31 @@
 # Local extension devlog
 
+## 2026-10-31 — M-PURPOSE-VIDEO: approvals, clipboard and consistent page details
+
+Replace one-way `codex exec` output with official app-server stdio JSON-RPC. Initialize a fresh
+read-only thread with explicit user approval review, route each command/permission/elicitation
+request by its original numeric or string ID, wait asynchronously for the modal decision, and
+expire all requests on cancellation/completion. Network/read grants last only for the current
+turn. App edits still use the guide-gated, originating-video MCP; script/guide filesystem writes
+remain unavailable. Stream answer deltas, actual item activity and token usage. Drain bounded
+output and stderr, and stop the owned process group/tree before joining reader threads.
+
+Receive native clipboard image events in Library/Codex, encode straight-alpha PNG on workers,
+reserve durable IDs and register with the original video/conversation after navigation. Limit
+pending images/attachments and disable send until the PNG is ready. Add identity-based trash
+Shift/Ctrl/marquee selection with bulk restore and confirmed durable permanent deletion.
+
+Render shell dividers as unfeathered, physical-pixel mesh strips after native editor painting.
+Show the Settings gear on brand hover, remove answer action buttons, unify expanded document
+padding, and present every common/channel guide as a freely editable disclosure on one page.
+Restyle the downloader URL, format cards, searchable target picker and status controls.
+
+Validate actual OS image paste, two interactive approval dialogs with different original IDs,
+trash range/marquee/restore, hover behavior, expanded guides and three zoom scales in the native
+Vulkan application. Add an installed official app-server handshake/read-only-thread smoke probe
+without authentication or model usage. Windows publishing retains only the installer EXE.
+
+
 ## 2026-10-30 — M-PURPOSE-VIDEO: guided live editing and desktop interaction
 
 Connect the official CLI to a per-request, authenticated loopback MCP adapter in the application.

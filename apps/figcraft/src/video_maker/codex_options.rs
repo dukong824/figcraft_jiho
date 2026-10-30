@@ -5,7 +5,7 @@ use serde_json::json;
 use std::{
     io::{BufRead, BufReader, Read, Write},
     path::Path,
-    process::{Command, Stdio},
+    process::Stdio,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -61,20 +61,6 @@ impl Settings {
             self.effort.clear();
         }
         self.fast &= model.fast_tier().is_some();
-    }
-    pub fn configure(&self, command: &mut Command, fast_tier: Option<&str>) {
-        if !self.model.trim().is_empty() {
-            command.arg("--model").arg(self.model.trim());
-        }
-        let mut config = |key: &str, value: &str| {
-            if let Ok(value) = serde_json::to_string(value) {
-                command.arg("-c").arg(format!("{key}={value}"));
-            }
-        };
-        if !self.effort.is_empty() {
-            config("model_reasoning_effort", &self.effort);
-        }
-        config("service_tier", if self.fast { fast_tier.unwrap_or("default") } else { "default" });
     }
 }
 pub fn catalog(cli: &Path) -> Result<Vec<Model>, String> {
@@ -219,19 +205,6 @@ read unused
         assert_eq!(messages[1]["method"], "initialized");
         assert_eq!(messages[2]["method"], "model/list");
         let _ = fs::remove_dir_all(root);
-    }
-    #[test]
-    fn request_options_reach_cli_and_fast_off_overrides_global_fast_config() {
-        let settings = Settings { model: "model-a".into(), effort: "high".into(), fast: true };
-        let mut c = Command::new("codex");
-        settings.configure(&mut c, Some("priority"));
-        let args: Vec<_> = c.get_args().map(|a| a.to_string_lossy().to_string()).collect();
-        assert!(args.contains(&"model-a".into()));
-        assert!(args.contains(&"model_reasoning_effort=\"high\"".into()));
-        assert!(args.contains(&"service_tier=\"priority\"".into()));
-        let mut c = Command::new("codex");
-        Settings::default().configure(&mut c, Some("priority"));
-        assert!(c.get_args().any(|v| v == "service_tier=\"default\""));
     }
     #[test]
     fn metadata_controls_reasoning_and_speed_availability() {

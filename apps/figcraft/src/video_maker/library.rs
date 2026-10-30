@@ -103,6 +103,12 @@ impl VideoMaker {
                         });
                     });
                     self.import_progress(ui);
+                    if !self.pastes.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("이미지 붙여넣는 중…");
+                        });
+                    }
                     ui.add_space(10.0);
                     ui.separator();
                     ui.add_space(14.0);
@@ -171,7 +177,8 @@ impl VideoMaker {
                                             ui.close();
                                         }
                                         if style::menu_item(ui, "붙여넣기 · Ctrl+V", Icon::Paste, false).clicked() {
-                                            action = Some(Action::Paste);
+                                            style::release_focus(ui.ctx());
+                                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                                             ui.close();
                                         }
                                         ui.separator();
@@ -219,7 +226,8 @@ impl VideoMaker {
                     }
                     response.context_menu(|ui| {
                         if style::menu_item(ui, "붙여넣기 · Ctrl+V", Icon::Paste, false).clicked() {
-                            action = Some(Action::Paste);
+                            style::release_focus(ui.ctx());
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                             ui.close();
                         }
                     });
