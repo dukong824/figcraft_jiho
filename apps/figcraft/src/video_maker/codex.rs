@@ -10,7 +10,7 @@ pub struct Login {
 }
 
 pub fn executable(configured: Option<&Path>) -> Option<PathBuf> {
-    if let Some(path) = configured.filter(|p| p.is_file()) {
+    if let Some(path) = configured.filter(|p| p.is_file() && complete_runtime(p)) {
         return Some(path.to_owned());
     }
     let name = if cfg!(windows) { "codex.exe" } else { "codex" };
@@ -22,7 +22,11 @@ pub fn executable(configured: Option<&Path>) -> Option<PathBuf> {
             return Some(bundled);
         }
     }
-    std::env::var_os("PATH").and_then(|paths| std::env::split_paths(&paths).map(|p| p.join(name)).find(|p| p.is_file()))
+    std::env::var_os("PATH").and_then(|paths| std::env::split_paths(&paths).map(|p| p.join(name)).find(|p| p.is_file() && complete_runtime(p)))
+}
+
+fn complete_runtime(path: &Path) -> bool {
+    !cfg!(windows) || path.parent().is_some_and(|p| p.join("codex-code-mode-host.exe").is_file())
 }
 
 pub fn command(path: &Path) -> Command {
@@ -31,6 +35,16 @@ pub fn command(path: &Path) -> Command {
     {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW; the browser handles sign in.
+    }
+    // Official tool discovery also searches PATH. Keep helpers from the same CLI release first.
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        let mut paths = vec![parent.to_owned()];
+        if let Some(previous) = std::env::var_os("PATH") {
+            paths.extend(std::env::split_paths(&previous));
+        }
+        if let Ok(paths) = std::env::join_paths(paths) {
+            command.env("PATH", paths);
+        }
     }
     command.stdin(Stdio::null());
     command

@@ -4,7 +4,7 @@ use super::media;
 use super::model::{Asset, AssetKind, Item, Section};
 use super::navigation::Route;
 use super::style::{self, Icon};
-use egui::{CornerRadius, Rect, RichText, Sense, Stroke, pos2, vec2};
+use egui::{Rect, RichText, Sense, Stroke, pos2, vec2};
 use std::path::Path;
 
 impl VideoMaker {
@@ -13,6 +13,7 @@ impl VideoMaker {
     pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
         let ctx = ui.ctx().clone();
         self.ui_context = Some(ctx.clone());
+        ui.painter().rect_filled(ui.max_rect(), 0, style::SURFACE);
         log::debug!("Purpose root: max={:?} clip={:?} content={:?}", ui.max_rect(), ui.clip_rect(), ctx.content_rect());
         if !self.fonts_ready {
             figcraft_ui_egui::theme::install_fonts(&ctx, true, figcraft_ui_egui::cjk::language("ko"));
@@ -41,8 +42,12 @@ impl VideoMaker {
         self.poll_jobs(&ctx);
         let editor_fullscreen =
             self.section_is_edit() && ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("purpose.fullscreen-active")).unwrap_or(false));
+        let design_fullscreen =
+            self.section_is_design() && ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("purpose.fullscreen-active")).unwrap_or(false));
         let export_design = if editor_fullscreen {
             false
+        } else if design_fullscreen {
+            self.header(ui)
         } else {
             self.browser_bar(ui);
             if self.sidebar_open {
@@ -55,6 +60,10 @@ impl VideoMaker {
             self.empty_tab(ui);
         } else if self.tabs.route() == Some(Route::History) {
             egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.history_page(ui));
+        } else if self.tabs.route() == Some(Route::Downloader) {
+            egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.downloader_page(ui));
+        } else if self.tabs.route() == Some(Route::Trash) {
+            egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.trash_page(ui));
         } else if let Some(Route::Guide { channel_id }) = self.tabs.route() {
             egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.guide_page(ui, channel_id));
         } else if !matches!(self.section, Section::Design | Section::Edit) {
@@ -96,7 +105,7 @@ impl VideoMaker {
                 });
         }
         self.settings(&ctx);
-        self.trash_window(&ctx);
+        self.trash_confirmation(&ctx);
         if !self.message.is_empty() {
             self.toast = Some((std::mem::take(&mut self.message), std::time::Instant::now()));
         }
@@ -136,7 +145,13 @@ impl VideoMaker {
                     || "새 탭".to_owned(),
                     |route| {
                         let Some((video_id, section)) = route.video() else {
-                            return if matches!(route, Route::Guide { .. }) { "Codex 가이드".into() } else { "수정 기록".into() };
+                            return match route {
+                                Route::Guide { .. } => "Codex 가이드",
+                                Route::Downloader => "Video Downloader",
+                                Route::Trash => "휴지통",
+                                _ => "수정 기록",
+                            }
+                            .into();
                         };
                         let name = self
                             .store
@@ -158,6 +173,7 @@ impl VideoMaker {
         let mut back = shortcut_back;
         let mut forward = shortcut_forward;
         egui::Panel::top("purpose-browser-bar")
+            .show_separator_line(false)
             .exact_size(47.0)
             .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 5)))
             .show(ui, |ui| {
@@ -181,43 +197,51 @@ impl VideoMaker {
                             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                             .auto_shrink([false, true])
                             .show(ui, |ui| {
-                                ui.horizontal(|ui| {
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                     for (index, label, active) in &labels {
-                                        let fill = if *active { style::SURFACE } else { style::SIDEBAR };
-                                        egui::Frame::NONE
-                                            .fill(fill)
-                                            .corner_radius(CornerRadius::same(6))
-                                            .inner_margin(egui::Margin::symmetric(4, 2))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    let tab = ui
-                                                        .add_sized(
-                                                            [162.0, 29.0],
-                                                            egui::Button::new(
-                                                                RichText::new(label)
-                                                                    .color(if *active { style::TEXT } else { style::MUTED })
-                                                                    .size(14.0),
-                                                            )
-                                                            .truncate()
-                                                            .frame(false)
-                                                            .sense(Sense::click_and_drag()),
-                                                        )
-                                                        .on_hover_text(label);
-                                                    if tab.clicked() {
-                                                        select = Some(*index);
-                                                    }
-                                                    if tab.drag_started() {
-                                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                                                    }
-                                                    if tab.double_clicked() {
-                                                        let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
-                                                    }
-                                                    if style::icon_button(ui, Icon::Close, 22.0, "탭 닫기 (Ctrl+W)").clicked() {
-                                                        close = Some(*index);
-                                                    }
-                                                });
-                                            });
+                                        let (rect, tab) = ui.allocate_exact_size(vec2(198.0, 35.0), Sense::click_and_drag());
+                                        let xrect = Rect::from_center_size(pos2(rect.right() - 16.0, rect.center().y), vec2(22.0, 22.0));
+                                        let x = ui
+                                            .interact(xrect, ui.make_persistent_id(("close-tab", index)), Sense::click())
+                                            .on_hover_text("탭 닫기 (Ctrl+W)");
+                                        ui.painter().rect_filled(
+                                            rect,
+                                            6,
+                                            if *active {
+                                                style::SURFACE
+                                            } else if tab.hovered() {
+                                                style::HOVER
+                                            } else {
+                                                style::SIDEBAR
+                                            },
+                                        );
+                                        let mut job = egui::text::LayoutJob::simple_singleline(
+                                            label.clone(),
+                                            egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)),
+                                            if *active { style::TEXT } else { style::MUTED },
+                                        );
+                                        job.wrap.max_width = 155.0;
+                                        job.wrap.max_rows = 1;
+                                        job.wrap.break_anywhere = true;
+                                        let galley = ui.fonts_mut(|f| f.layout_job(job));
+                                        ui.painter().galley(pos2(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0), galley, style::TEXT);
+                                        if x.hovered() {
+                                            ui.painter().rect_filled(xrect, 4, style::SELECTED);
+                                        }
+                                        style::paint_icon(ui.painter(), xrect.shrink(4.0), Icon::Close, style::MUTED);
+                                        if x.clicked() {
+                                            close = Some(*index);
+                                        } else if tab.clicked() {
+                                            select = Some(*index);
+                                        }
+                                        if tab.drag_started() {
+                                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                                        }
+                                        if tab.double_clicked() {
+                                            let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+                                        }
+                                        tab.on_hover_text(label);
                                     }
                                     if style::icon_button(ui, Icon::Plus, 30.0, "새 탭 (Ctrl+T)").clicked() {
                                         new_tab = true;
@@ -276,7 +300,7 @@ impl VideoMaker {
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(40, 50))).show(ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(85.0);
-                ui.label(RichText::new("무엇을 만들까요?").size(32.0).strong());
+                ui.label(RichText::new("무엇을 만들까요?").size(figcraft_ui_icons::font_size(32.0)).strong());
                 ui.add_space(8.0);
                 ui.label(RichText::new("왼쪽에서 영상을 열거나 새 영상을 만드세요.").color(style::MUTED));
                 ui.add_space(32.0);
@@ -311,23 +335,37 @@ impl VideoMaker {
         let active_route = self.tabs.route().and_then(Route::video);
         let mut expanded = self.store.data.expanded_videos.clone();
         let panel = egui::Panel::left("purpose-sidebar")
+            .show_separator_line(false)
             .default_size(252.0)
             .min_size(210.0)
             .max_size(330.0)
             .resizable(true)
             .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 10)))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     if let Some(logo) = super::branding::texture(ui.ctx()) {
                         ui.image((logo.id(), vec2(26.0, 26.0)));
                     }
-                    ui.label(RichText::new("Purpose video maker").size(15.0).strong());
+                    let w = (ui.available_width() - 36.0).max(40.0);
+                    ui.add_sized(
+                        [w, 30.0],
+                        egui::Label::new(RichText::new("Purpose video maker").size(figcraft_ui_icons::font_size(15.0)).strong()).truncate(),
+                    );
+                    if style::icon_button(ui, Icon::Settings, 26.0, "설정").clicked() {
+                        self.settings_open = true;
+                    }
                 });
                 ui.add_space(14.0);
                 style::search_field(ui, &mut self.search, ui.available_width(), "채널 또는 영상 검색");
-                ui.add_space(18.0);
+                ui.add_space(14.0);
                 let (workspace, _) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::hover());
-                ui.painter().text(workspace.left_center(), egui::Align2::LEFT_CENTER, "워크스페이스", egui::FontId::proportional(12.0), style::MUTED);
+                ui.painter().text(
+                    workspace.left_center(),
+                    egui::Align2::LEFT_CENTER,
+                    "워크스페이스",
+                    egui::FontId::proportional(figcraft_ui_icons::font_size(12.0)),
+                    style::MUTED,
+                );
                 if ui.ctx().pointer_hover_pos().is_some_and(|p| workspace.contains(p)) {
                     let rect = Rect::from_center_size(pos2(workspace.right() - 15.0, workspace.center().y), vec2(24.0, 24.0));
                     let plus = ui.interact(rect, ui.make_persistent_id("add-channel"), Sense::click()).on_hover_text("새 채널");
@@ -447,14 +485,6 @@ impl VideoMaker {
                 });
                 ui.add_space((ui.available_height() - 211.0).max(4.0));
                 ui.separator();
-                if style::nav_row(ui, "수정 기록", Icon::History, self.tabs.route() == Some(Route::History), 0.0).clicked() {
-                    self.checkpoint();
-                    self.history_expanded.clear();
-                    self.navigate(Route::History);
-                }
-                if style::nav_row(ui, "휴지통", Icon::Trash, self.trash_open, 0.0).clicked() {
-                    self.trash_open = true;
-                }
                 if style::nav_row(ui, "Codex", Icon::Sparkle, self.side_view == Some(SideView::Codex), 0.0).clicked() {
                     self.side_view = if self.side_view.is_some() { None } else { Some(SideView::Codex) };
                     if self.side_view.is_some() {
@@ -465,8 +495,19 @@ impl VideoMaker {
                     let channel_id = self.store.data.selected().map(|(c, _)| c.id);
                     self.navigate(Route::Guide { channel_id });
                 }
-                if style::nav_row(ui, "설정", Icon::Settings, self.settings_open, 0.0).clicked() {
-                    self.settings_open = true;
+                if style::nav_row(ui, "Video Downloader", Icon::Download, self.tabs.route() == Some(Route::Downloader), 0.0).clicked() {
+                    if self.downloader.target.is_none() {
+                        self.downloader.target = self.video_id();
+                    }
+                    self.navigate(Route::Downloader);
+                }
+                if style::nav_row(ui, "수정 기록", Icon::History, self.tabs.route() == Some(Route::History), 0.0).clicked() {
+                    self.checkpoint();
+                    self.history_expanded.clear();
+                    self.navigate(Route::History);
+                }
+                if style::nav_row(ui, "휴지통", Icon::Trash, self.tabs.route() == Some(Route::Trash), 0.0).clicked() {
+                    self.navigate(Route::Trash);
                 }
             });
         if let Some((payload, target)) = dropped
@@ -547,21 +588,37 @@ impl VideoMaker {
             .map(|(channel, video)| format!("{}  /  {}  /  {}", channel.name, video.name, self.section.label()))
             .unwrap_or_else(|| match self.tabs.route() {
                 Some(Route::History) => "수정 기록".into(),
+                Some(Route::Trash) => "휴지통".into(),
+                Some(Route::Downloader) => "Video Downloader".into(),
                 Some(Route::Guide { .. }) => "Codex 가이드".into(),
                 _ => "새 탭".into(),
             });
         egui::Panel::top("purpose-header")
+            .show_separator_line(false)
             .exact_size(45.0)
             .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(22, 7)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(17.0, 24.0), Sense::hover());
                     style::paint_icon(ui.painter(), Rect::from_center_size(rect.center(), vec2(17.0, 17.0)), Icon::Channel, style::MUTED);
-                    ui.add(egui::Label::new(RichText::new(crumb).size(15.0)).truncate());
+                    let reserve = if self.section_is_design() { 38.0 } else { 0.0 };
+                    ui.add_sized(
+                        [(ui.available_width() - reserve - 8.0).max(20.0), 28.0],
+                        egui::Label::new(RichText::new(crumb).size(figcraft_ui_icons::font_size(15.0))).truncate().halign(egui::Align::Min),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if !self.sidebar_open && style::icon_button(ui, Icon::Sparkle, 28.0, "Codex 열기").clicked() {
-                            self.side_view = Some(SideView::Codex);
-                            self.refresh_auth();
+                        if self.section_is_design() {
+                            let full = ui.ctx().data(|d| d.get_temp::<bool>(egui::Id::unique("purpose.fullscreen-active")).unwrap_or(false));
+                            if style::icon_button(
+                                ui,
+                                if full { Icon::ExitFullscreen } else { Icon::Fullscreen },
+                                28.0,
+                                if full { "전체화면 나가기 (Esc)" } else { "디자인 전체화면 (F11)" },
+                            )
+                            .clicked()
+                            {
+                                ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("purpose.fullscreen-request"), true));
+                            }
                         }
                     });
                 });
@@ -671,6 +728,44 @@ fn item_actions(
 #[cfg(test)]
 mod shell_tests {
     use super::*;
+    #[test]
+    fn text_size_changes_galleys_without_scaling_shell_geometry() {
+        let root = std::env::temp_dir().join(format!("purpose-font-layout-{}", std::process::id()));
+        let mut maker = VideoMaker::at(root.clone()).unwrap();
+        let ctx = egui::Context::default();
+        let mut samples = Vec::new();
+        for size in [14.0, 20.0, 12.0] {
+            maker.store.data.ui_font_size = size;
+            figcraft_ui_icons::with_font_scale(maker.ui_font_scale(), || {
+                let mut output = ctx.run_ui(
+                    egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 800.0))), ..Default::default() },
+                    |ui| {
+                        maker.appearance(&ctx);
+                        style::configure(&ctx);
+                        ui.set_style(ctx.global_style());
+                        let scope = ui.scope_id();
+                        maker.browser_bar(ui);
+                        maker.sidebar(ui);
+                        maker.header(ui);
+                        let panel = |salt| egui::containers::panel::PanelState::load(&ctx, scope.with(salt)).unwrap().outer_rect;
+                        let text = ctx.fonts_mut(|f| {
+                            f.layout_no_wrap("Font size".into(), egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)), style::TEXT)
+                        });
+                        samples.push((panel("purpose-browser-bar"), panel("purpose-sidebar"), panel("purpose-header"), text.size()));
+                        assert_eq!(ctx.zoom_factor(), 1.0);
+                    },
+                );
+                output.textures_delta.clear();
+            });
+        }
+        for sample in &samples[1..] {
+            assert_eq!(samples[0].0, sample.0);
+            assert_eq!(samples[0].1, sample.1);
+            assert_eq!(samples[0].2, sample.2);
+        }
+        assert!(samples[1].3.x > samples[0].3.x && samples[2].3.x < samples[0].3.x);
+        let _ = std::fs::remove_dir_all(root);
+    }
     #[test]
     fn every_side_view_starts_at_the_browser_bar_and_covers_the_breadcrumb_row() {
         let root = std::env::temp_dir().join(format!("purpose-pane-height-{}", std::process::id()));

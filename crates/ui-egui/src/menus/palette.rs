@@ -92,10 +92,14 @@ pub(super) fn palette(app: &mut FigApp, ctx: &egui::Context) {
                         // The frame stays on for every tab (transparent when idle) so the
                         // active pill never moves its neighbours.
                         let resp = ui.add(
-                            egui::Button::new(egui::RichText::new(label).size(12.0).color(if active { t.text } else { t.text_secondary }))
-                                .frame(true)
-                                .fill(if active { t.hover } else { Color32::TRANSPARENT })
-                                .corner_radius(CornerRadius::same(6)),
+                            egui::Button::new(egui::RichText::new(label).size(figcraft_ui_icons::font_size(12.0)).color(if active {
+                                t.text
+                            } else {
+                                t.text_secondary
+                            }))
+                            .frame(true)
+                            .fill(if active { t.hover } else { Color32::TRANSPARENT })
+                            .corner_radius(CornerRadius::same(6)),
                         );
                         if resp.clicked() {
                             app.ui.palette_tab = tab;

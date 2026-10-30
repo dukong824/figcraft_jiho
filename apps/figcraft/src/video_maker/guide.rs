@@ -11,12 +11,15 @@ impl VideoMaker {
         let mut next = selected;
         let mut changed = false;
         egui::ScrollArea::vertical().id_salt(("purpose-guide-scroll", selected)).show(ui, |ui| {
-            ui.add_space(style::PAGE_TOP);
+            ui.add_space(style::PAGE_TOP + 12.0);
             ui.horizontal(|ui| {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.set_width(width);
-                    ui.label(RichText::new("Codex 가이드").font(FontId::new(style::PAGE_TITLE, FontFamily::Name("purpose-script-bold".into()))));
+                    ui.label(
+                        RichText::new("Codex 가이드")
+                            .font(FontId::new(figcraft_ui_icons::font_size(style::PAGE_TITLE), FontFamily::Name("purpose-script-bold".into()))),
+                    );
                     ui.add_space(style::TITLE_GAP);
                     let label = selected
                         .and_then(|id| self.store.data.channels.iter().find(|c| c.id == id))
@@ -40,9 +43,14 @@ impl VideoMaker {
                     };
                     if let Some(text) = text {
                         let mut layout = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| {
-                            let mut job = egui::text::LayoutJob::simple(text.as_str().into(), FontId::proportional(16.0), style::TEXT, wrap);
+                            let mut job = egui::text::LayoutJob::simple(
+                                text.as_str().into(),
+                                FontId::proportional(figcraft_ui_icons::font_size(16.0)),
+                                style::TEXT,
+                                wrap,
+                            );
                             for section in &mut job.sections {
-                                section.format.line_height = Some(27.0);
+                                section.format.line_height = Some(figcraft_ui_icons::font_size(27.0));
                             }
                             ui.fonts_mut(|f| f.layout_job(job))
                         };

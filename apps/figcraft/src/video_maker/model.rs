@@ -187,6 +187,10 @@ pub struct Channel {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Workspace {
     #[serde(default)]
+    pub pending_deletions: Vec<super::trash::Pending>,
+    #[serde(default)]
+    pub purged_assets: Vec<(u64, String)>,
+    #[serde(default)]
     pub codex_guide: String,
     #[serde(default)]
     pub ui_font: String,
@@ -223,6 +227,8 @@ pub struct Workspace {
 impl Default for Workspace {
     fn default() -> Self {
         Self {
+            pending_deletions: Vec::new(),
+            purged_assets: Vec::new(),
             codex_guide: String::new(),
             ui_font: String::new(),
             ui_font_size: default_font_size(),

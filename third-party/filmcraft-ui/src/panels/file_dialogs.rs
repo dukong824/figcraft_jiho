@@ -22,7 +22,7 @@ fn modal_frame(t: &Tokens) -> Frame {
 
 fn button(app: &mut FilmcraftApp, ui: &mut Ui, id: &str, label: &str, primary: bool) -> bool {
     let t = app.tokens;
-    let text = RichText::new(label).size(13.0).color(if primary { Color32::WHITE } else { t.text });
+    let text = RichText::new(label).size(figcraft_ui_icons::font_size(13.0)).color(if primary { Color32::WHITE } else { t.text });
     let b = egui::Button::new(text)
         .min_size(vec2(88.0, 30.0))
         .corner_radius(CornerRadius::same(15))
@@ -45,7 +45,7 @@ pub fn show_recovery(app: &mut FilmcraftApp, ctx: &egui::Context) -> bool {
     egui::Modal::new(egui::Id::unique("recovery-modal")).frame(modal_frame(&t)).show(ctx, |ui| {
         ui.set_width(520.0);
         Frame::new().inner_margin(Margin { left: 28, right: 28, top: 24, bottom: 20 }).show(ui, |ui| {
-            ui.label(RichText::new(tl!("Recover Unsaved Changes")).size(18.0).strong().color(t.text));
+            ui.label(RichText::new(tl!("Recover Unsaved Changes")).size(figcraft_ui_icons::font_size(18.0)).strong().color(t.text));
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(6.0);
@@ -57,20 +57,24 @@ pub fn show_recovery(app: &mut FilmcraftApp, ctx: &egui::Context) -> bool {
             } else {
                 tlf!("FilmCraft quit unexpectedly while “{name}” had unsaved changes.", name)
             };
-            ui.label(RichText::new(why).size(13.5).color(t.text));
+            ui.label(RichText::new(why).size(figcraft_ui_icons::font_size(13.5)).color(t.text));
             ui.add_space(4.0);
-            ui.label(RichText::new(tlf!("Recover unsaved changes from {when}?", when)).size(13.5).color(t.text));
+            ui.label(RichText::new(tlf!("Recover unsaved changes from {when}?", when)).size(figcraft_ui_icons::font_size(13.5)).color(t.text));
             if let Some(p) = c["projectPath"].as_str() {
-                ui.label(RichText::new(p).size(11.5).color(t.text_dim));
+                ui.label(RichText::new(p).size(figcraft_ui_icons::font_size(11.5)).color(t.text_dim));
             } else {
-                ui.label(RichText::new(tl!("The project had not been saved yet.")).size(11.5).color(t.text_dim));
+                ui.label(RichText::new(tl!("The project had not been saved yet.")).size(figcraft_ui_icons::font_size(11.5)).color(t.text_dim));
             }
             if items.len() > 1 {
                 ui.add_space(8.0);
-                ui.label(RichText::new(tlf!("{n} sessions have unsaved changes:", n = items.len())).size(12.0).color(t.text_dim));
+                ui.label(
+                    RichText::new(tlf!("{n} sessions have unsaved changes:", n = items.len()))
+                        .size(figcraft_ui_icons::font_size(12.0))
+                        .color(t.text_dim),
+                );
                 for (i, it) in items.iter().enumerate() {
                     let label = format!("{} — {}", it["projectName"].as_str().unwrap_or(tl!("Untitled")), it["savedAt"].as_str().unwrap_or(""));
-                    let r = ui.radio(choice == i, RichText::new(&label).size(12.5));
+                    let r = ui.radio(choice == i, RichText::new(&label).size(figcraft_ui_icons::font_size(12.5)));
                     app.auto.add(&format!("recovery.item.{i}"), r.rect, &label);
                     if r.clicked() {
                         choice = i;
@@ -112,11 +116,15 @@ pub fn show_revert(app: &mut FilmcraftApp, ctx: &egui::Context) -> bool {
     let r = egui::Modal::new(egui::Id::unique("revert-modal")).frame(modal_frame(&t)).show(ctx, |ui| {
         ui.set_width(460.0);
         Frame::new().inner_margin(Margin { left: 28, right: 28, top: 24, bottom: 20 }).show(ui, |ui| {
-            ui.label(RichText::new(tl!("Revert")).size(18.0).strong().color(t.text));
+            ui.label(RichText::new(tl!("Revert")).size(figcraft_ui_icons::font_size(18.0)).strong().color(t.text));
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(6.0);
-            ui.label(RichText::new(tlf!("Are you sure you want to discard your changes to '{file}'?", file)).size(13.5).color(t.text));
+            ui.label(
+                RichText::new(tlf!("Are you sure you want to discard your changes to '{file}'?", file))
+                    .size(figcraft_ui_icons::font_size(13.5))
+                    .color(t.text),
+            );
             ui.add_space(18.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if button(app, ui, "revert.yes", tl!("Yes"), true) {

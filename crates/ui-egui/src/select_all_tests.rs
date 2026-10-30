@@ -65,14 +65,22 @@ fn a_click_into_an_inline_field_selects_it_all() {
     let ctx = egui::Context::default();
     let id = Id::unique("fill_hex");
     let mut f = |ui: &mut Ui| {
-        widgets::text_field_inline(ui, id, "0D99FF", FIELD.shrink2(vec2(8.0, 4.0)), egui::FontId::proportional(11.0));
+        widgets::text_field_inline(ui, id, "0D99FF", FIELD.shrink2(vec2(8.0, 4.0)), egui::FontId::proportional(figcraft_ui_icons::font_size(11.0)));
     };
     click(&ctx, pos2(70.0, 32.0), None, &mut f);
     assert_eq!(selection(&ctx, id.with("te")), Some((0, 6)));
     // Typing replaces it.
     frame(&ctx, vec![Event::Text("red".into())], &mut f);
     let mut out = None;
-    let mut g = |ui: &mut Ui| out = widgets::text_field_inline(ui, id, "0D99FF", FIELD.shrink2(vec2(8.0, 4.0)), egui::FontId::proportional(11.0));
+    let mut g = |ui: &mut Ui| {
+        out = widgets::text_field_inline(
+            ui,
+            id,
+            "0D99FF",
+            FIELD.shrink2(vec2(8.0, 4.0)),
+            egui::FontId::proportional(figcraft_ui_icons::font_size(11.0)),
+        )
+    };
     frame(&ctx, vec![Event::Key { key: Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }], &mut g);
     assert_eq!(out.as_deref(), Some("red"));
 }
@@ -131,7 +139,7 @@ fn a_field_left_mid_edit_selects_all_on_the_next_click() {
     let ctx = egui::Context::default();
     let id = Id::unique("fill_hex");
     let mut f = |ui: &mut Ui| {
-        widgets::text_field_inline(ui, id, "0D99FF", FIELD.shrink2(vec2(8.0, 4.0)), egui::FontId::proportional(11.0));
+        widgets::text_field_inline(ui, id, "0D99FF", FIELD.shrink2(vec2(8.0, 4.0)), egui::FontId::proportional(figcraft_ui_icons::font_size(11.0)));
     };
     click(&ctx, pos2(70.0, 32.0), None, &mut f);
     // The panel goes away mid-edit (another layer selected) and a click lands elsewhere.

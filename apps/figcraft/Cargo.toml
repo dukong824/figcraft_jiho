@@ -37,6 +37,7 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
 serde_json = { workspace = true }
 base64 = { workspace = true }
 getrandom = "0.3.4"
+url = "2.5"
 serde = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 log = { workspace = true }

@@ -260,9 +260,9 @@ fn theme_card(app: &mut FilmcraftApp, ui: &mut Ui, d: &mut SettingsDraft, key: &
             ui.vertical(|ui| {
                 ui.set_width(width - 20.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(crate::i18n::t(title)).size(12.5).strong());
+                    ui.label(RichText::new(crate::i18n::t(title)).size(figcraft_ui_icons::font_size(12.5)).strong());
                     if active {
-                        ui.label(RichText::new(tl!("Active")).size(11.0).color(t.accent));
+                        ui.label(RichText::new(tl!("Active")).size(figcraft_ui_icons::font_size(11.0)).color(t.accent));
                     }
                 });
                 ui.add_space(4.0);
@@ -272,7 +272,7 @@ fn theme_card(app: &mut FilmcraftApp, ui: &mut Ui, d: &mut SettingsDraft, key: &
                     let row = Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), 24.0));
                     let hovered = ui.ctx().pointer_hover_pos().is_some_and(|pos| row.contains(pos));
                     ui.horizontal(|ui| {
-                        let r = ui.radio(current == *v, RichText::new(crate::i18n::t(l)).size(12.5));
+                        let r = ui.radio(current == *v, RichText::new(crate::i18n::t(l)).size(figcraft_ui_icons::font_size(12.5)));
                         app.auto.add(&format!("settings.{key}.{v}"), r.rect, l);
                         if r.clicked() {
                             put(&mut d.values, key, json!(v));
@@ -374,7 +374,7 @@ fn modal_frame(t: &Tokens) -> Frame {
 
 fn button(app: &mut FilmcraftApp, ui: &mut Ui, id: &str, label: &str, primary: bool) -> bool {
     let t = app.tokens;
-    let text = RichText::new(label).size(13.0).color(if primary { Color32::WHITE } else { t.text });
+    let text = RichText::new(label).size(figcraft_ui_icons::font_size(13.0)).color(if primary { Color32::WHITE } else { t.text });
     let b = egui::Button::new(text)
         .min_size(vec2(82.0, 30.0))
         .corner_radius(CornerRadius::same(15))
@@ -411,14 +411,14 @@ fn field_label(ui: &mut Ui, text: &str) {
     let w = LABEL_W.min(ui.available_width() * 0.45);
     ui.allocate_ui_with_layout(vec2(w, 24.0), Layout::right_to_left(Align::Center), |ui| {
         if !text.is_empty() {
-            ui.add(egui::Label::new(RichText::new(format!("{}:", crate::i18n::t(text))).size(12.5)).wrap());
+            ui.add(egui::Label::new(RichText::new(format!("{}:", crate::i18n::t(text))).size(figcraft_ui_icons::font_size(12.5))).wrap());
         }
     });
 }
 
 fn unit(ui: &mut Ui, u: &str) {
     if !u.is_empty() {
-        ui.label(RichText::new(crate::i18n::t(u)).size(12.5));
+        ui.label(RichText::new(crate::i18n::t(u)).size(figcraft_ui_icons::font_size(12.5)));
     }
 }
 
@@ -438,7 +438,7 @@ fn combo(app: &mut FilmcraftApp, ui: &mut Ui, key: &str, label: &str, current: &
     let mut items: Vec<(String, Rect, String)> = Vec::new();
     // the current choice is cut to the box's width (the open list shows it whole)
     let r = craft_ui::ComboBox::from_id_salt(("settings", key))
-        .selected_text(RichText::new(crate::i18n::t(&shown)).size(12.5))
+        .selected_text(RichText::new(crate::i18n::t(&shown)).size(figcraft_ui_icons::font_size(12.5)))
         .width(width.min(ui.available_width()))
         .truncate()
         .height(480.0)
@@ -502,7 +502,7 @@ fn draw_field(app: &mut FilmcraftApp, ui: &mut Ui, d: &mut SettingsDraft, f: &Fi
                     // a long label wraps at the page edge
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
                     let mut b = cur.as_bool().unwrap_or(false);
-                    let r = ui.checkbox(&mut b, RichText::new(crate::i18n::t(f.label)).size(12.5));
+                    let r = ui.checkbox(&mut b, RichText::new(crate::i18n::t(f.label)).size(figcraft_ui_icons::font_size(12.5)));
                     app.auto.add(&format!("settings.{}", f.key), r.rect, f.label);
                     if r.changed() {
                         put(&mut d.values, f.key, json!(b));
@@ -725,7 +725,7 @@ fn preset_button(app: &mut FilmcraftApp, ui: &mut Ui, id: &str, icon: Icon, tip:
 }
 
 fn note(ui: &mut Ui, t: &Tokens, text: &str) {
-    ui.add(egui::Label::new(RichText::new(crate::i18n::t(text)).size(11.5).color(t.text_dim)).wrap());
+    ui.add(egui::Label::new(RichText::new(crate::i18n::t(text)).size(figcraft_ui_icons::font_size(11.5)).color(t.text_dim)).wrap());
 }
 
 fn mb(bytes: u64) -> String {

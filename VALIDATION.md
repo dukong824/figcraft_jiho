@@ -1,3 +1,29 @@
+## Purpose runtime, downloader and page fixes — 2026-10-30
+
+- 143 desktop tests, 4 icon/font-policy tests and 824 shared UI tests passed (1 shared UI test
+  ignored). Workspace/all-target Clippy with warnings denied, layers, asset attribution, WASM
+  and all four plugin builds passed. The previously excluded engine board-table failure remains
+  outside this task; no clean full engine test run is claimed.
+- Added regression coverage for text galleys growing while browser/sidebar/header geometry and
+  viewport zoom stay fixed; scoped font restoration; URL/path validation; permanent deletion of
+  owned files, historical and inline asset references, persisted cleanup and traversal/symlink
+  refusal; purged media not reimporting through native archived references.
+- Official Codex 0.165.0 helper and Deno archive hashes match GitHub release digests. Python and
+  pure yt-dlp/EJS wheel hashes were independently downloaded and checked. Complete original
+  notices are kept by packaging; upstream's GPL-containing PyInstaller EXE is not redistributed.
+- Executed real local HTTP MP4 download and MP3 conversion with the pinned yt-dlp wheel and
+  FFmpeg, then drove the native app to download and register sample.mp4 in its chosen library.
+  Native Vulkan screenshots cover the downloader page, full-page trash, confirmation modal,
+  actual video directory removal, stable tab alignment, restored search field and footer order.
+- Changed the running app from 14pt to 20pt: text grows, panels/icons/canvas geometry stay fixed,
+  and persisted ui_zoom remains 1.0. Inspected a non-integer Ctrl+wheel zoom without black panel
+  seams. Design fullscreen enters at exactly (0,0), 1920×1080 and the header button restores the
+  original 1918×1059 client at (0,19). Captures use synthetic projects only.
+- Windows publication is gated on clean installation; installed code-mode-host execution and MCP
+  protocol/tool discovery; local HTTP MP4/MP3 downloads and codec checks; original FilmCraft and
+  new Design fullscreen buttons, exact client bounds, restore, F11/Esc, taskbar icon and clean exit.
+  A paid/authenticated model conversation is not used by these tests.
+
 ## Purpose consistent UI and shared sources — 2026-10-30
 
 - 136 desktop tests passed. Added age-bucket retention per video, 30-day expiry and clock-skew

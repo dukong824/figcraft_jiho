@@ -993,7 +993,7 @@ pub fn path_value(app: &mut FilmcraftApp, ui: &mut egui::Ui, clip: ClipId, effec
     {
         let d = j.progress.done.load(std::sync::atomic::Ordering::Relaxed);
         let n = j.progress.total.load(std::sync::atomic::Ordering::Relaxed);
-        ui.label(egui::RichText::new(format!("{d}/{n}")).size(10.5).color(t.text_dim));
+        ui.label(egui::RichText::new(format!("{d}/{n}")).size(figcraft_ui_icons::font_size(10.5)).color(t.text_dim));
         ui.ctx().request_repaint();
     }
 }

@@ -98,3 +98,20 @@ Purpose의 Codex는 작업별 전용 MCP를 통해 실제 FigCraft/FilmCraft 명
 보관 bin으로 이동해 클립 참조를 지키고, 사용자 Clear/Undo/Redo에 의한 자료 상태 변경만
 라이브러리에 반영합니다. Codex 첨부는 영상/자료 ID로 저장하고, 현재 작업의 대상 영상은
 변경하지 않습니다. 이미지 입력은 공식 CLI의 --image를 사용합니다.
+
+
+## Purpose 0.1.11 runtime and deletion rules
+
+텍스트 크기는 `figcraft-ui-icons::with_font_scale`의 UI 프레임 범위에서만 적용합니다.
+UI zoom에 글자 크기를 곱하지 마세요. 문서의 authored text 크기는 유지하며, 폰트 크기만
+배율 함수를 거칩니다. 로고 행처럼 고정 너비를 계산할 때 마지막 버튼 앞의 item spacing도
+예약하세요. 프레임 경계선은 수동으로 그리는 곳에서 Panel separator를 중복 표시하지 않습니다.
+
+Codex CLI와 code-mode-host는 같은 버전/출처/체크섬으로 배포하고 함께 설치·실행 검사합니다.
+다운로더 버전·고정 해시·전체 라이선스는 `downloader.ps1`과 `third-party/downloader/UPSTREAM.md`를
+참고하세요. GPL optional dependencies가 포함된 upstream yt-dlp.exe로 바꾸지 마세요.
+
+명시적인 휴지통 영구 삭제만 파일 정리를 확장합니다. 목록 변경과 pending_deletions를 먼저
+저장한 뒤 소유 경로에서만 백그라운드 삭제합니다. 실패/종료 후 재시도하며 심볼릭 링크와
+경로 이탈은 거부합니다. purged_assets 경로는 네이티브 소스 역가져오기 대상에서 제외해야 합니다.
+일반 기록 retention은 여전히 미참조 .fcproj 스냅샷만 정리합니다.

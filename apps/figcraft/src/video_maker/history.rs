@@ -91,7 +91,9 @@ impl VideoMaker {
                                     records.last().map(|i| display_time(&self.store.data.revisions[*i].at)).unwrap_or_else(|| "기록 없음".into());
                                 ui.add(
                                     egui::Label::new(
-                                        RichText::new(format!("{channel} · {latest} · {}개 기록", records.len())).size(12.0).color(style::MUTED),
+                                        RichText::new(format!("{channel} · {latest} · {}개 기록", records.len()))
+                                            .size(figcraft_ui_icons::font_size(12.0))
+                                            .color(style::MUTED),
                                     )
                                     .truncate(),
                                 );
@@ -126,8 +128,10 @@ impl VideoMaker {
                                                     ui.add_space(8.0);
                                                 }
                                                 ui.horizontal_wrapped(|ui| {
-                                                    ui.label(RichText::new(display_time(&entry.at)).size(13.0));
-                                                    ui.label(RichText::new(&entry.label).size(12.0).color(style::MUTED));
+                                                    ui.label(RichText::new(display_time(&entry.at)).size(figcraft_ui_icons::font_size(13.0)));
+                                                    ui.label(
+                                                        RichText::new(&entry.label).size(figcraft_ui_icons::font_size(12.0)).color(style::MUTED),
+                                                    );
                                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                         if style::action_button(ui, "복원", false).clicked() {
                                                             restore = Some(entry.video.clone());

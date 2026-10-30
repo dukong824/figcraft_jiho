@@ -124,7 +124,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let pr = Rect::from_min_size(pos2(x + 4.0, bar.min.y + 1.0), vec2(pw, 22.0));
     let mut path = app.ui.media_browser.path_edit.clone().unwrap_or_else(|| dir.clone());
     let resp = crate::widgets::accessible_name(
-        ui.put(pr, egui::TextEdit::singleline(&mut path).id(egui::Id::unique("mb-path")).font(egui::FontId::proportional(11.5))),
+        ui.put(
+            pr,
+            egui::TextEdit::singleline(&mut path)
+                .id(egui::Id::unique("mb-path"))
+                .font(egui::FontId::proportional(figcraft_ui_icons::font_size(11.5))),
+        ),
         "Path",
     );
     app.auto.add("mediaBrowser.path", pr, "Path");
@@ -188,7 +193,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if r.changed() {
         exec(app, &ctx, "project.ingestSettings", json!({"enabled": ingest}));
     }
-    let w = c.add(egui::Button::new(egui::RichText::new("⚙").size(12.0)).frame(false)).on_hover_text(tl!("Open Ingest Settings"));
+    let w = c
+        .add(egui::Button::new(egui::RichText::new("⚙").size(figcraft_ui_icons::font_size(12.0))).frame(false))
+        .on_hover_text(tl!("Open Ingest Settings"));
     app.auto.add("mediaBrowser.ingestSettings", w.rect, "Open Ingest Settings");
     if w.clicked() {
         exec(app, &ctx, "project.ingestSettings", json!({}));
@@ -277,10 +284,10 @@ fn tree(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, dir: &str) {
                 .as_array()
                 .map(|a| a.iter().filter_map(|v| Some((v["name"].as_str()?.to_string(), v["path"].as_str()?.to_string()))).collect())
                 .unwrap_or_default();
-            let hr = ui.label(egui::RichText::new(title).size(11.0).color(app.tokens.text_dim).strong());
+            let hr = ui.label(egui::RichText::new(title).size(figcraft_ui_icons::font_size(11.0)).color(app.tokens.text_dim).strong());
             app.auto.add(&format!("mediaBrowser.tree.{key}"), hr.rect, title);
             if list.is_empty() {
-                ui.label(egui::RichText::new(tl!("  (none)")).size(10.5).color(app.tokens.text_faint));
+                ui.label(egui::RichText::new(tl!("  (none)")).size(figcraft_ui_icons::font_size(10.5)).color(app.tokens.text_faint));
             }
             for (name, path) in list {
                 let expandable = matches!(key, "localDrives" | "network" | "favorites");

@@ -273,7 +273,7 @@ pub(super) fn draw_clip(
             pos2(body.max.x - 6.0, body.min.y + 8.5),
             Align2::RIGHT_CENTER,
             "fx",
-            egui::FontId::new(11.0, egui::FontFamily::Name("semibold".into())),
+            egui::FontId::new(figcraft_ui_icons::font_size(11.0), egui::FontFamily::Name("semibold".into())),
             col,
         );
     }

@@ -377,18 +377,18 @@ impl Tokens {
 
     /// Mono font for timecode.
     pub fn mono(size: f32) -> FontId {
-        FontId::new(size, FontFamily::Monospace)
+        FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Monospace)
     }
     pub fn ui(size: f32) -> FontId {
-        FontId::new(size, FontFamily::Proportional)
+        FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Proportional)
     }
     pub fn semibold(size: f32) -> FontId {
-        FontId::new(size, FontFamily::Name("semibold".into()))
+        FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Name("semibold".into()))
     }
     /// The big blue timecode over the timeline and under the monitors: regular weight, as in
     /// Premiere (Premiere's reads 10 px tall and 76 px wide for 00:00:16:05 at 1x).
     pub fn timecode() -> FontId {
-        FontId::new(16.0, FontFamily::Proportional)
+        FontId::new(figcraft_ui_icons::font_size(16.0), FontFamily::Proportional)
     }
 }
 
@@ -400,8 +400,8 @@ pub const MENU_TEXT: Color32 = Color32::from_rgb(0xde, 0xde, 0xde);
 /// Style of the menu bar's menus and their submenus (on top of egui's own menu style).
 pub fn menu_style(s: &mut egui::Style) {
     egui::containers::menu::menu_style(s);
-    s.text_styles.insert(TextStyle::Button, FontId::new(MENU_TEXT_SIZE, FontFamily::Proportional));
-    s.text_styles.insert(TextStyle::Body, FontId::new(MENU_TEXT_SIZE, FontFamily::Proportional));
+    s.text_styles.insert(TextStyle::Button, FontId::new(figcraft_ui_icons::font_size(MENU_TEXT_SIZE), FontFamily::Proportional));
+    s.text_styles.insert(TextStyle::Body, FontId::new(figcraft_ui_icons::font_size(MENU_TEXT_SIZE), FontFamily::Proportional));
     s.spacing.item_spacing.y = 0.0;
     if s.visuals.dark_mode {
         s.visuals.override_text_color = Some(MENU_TEXT);
@@ -502,11 +502,11 @@ pub fn apply_visuals(ctx: &egui::Context, t: &Tokens) {
         s.spacing.button_padding = egui::vec2(8.0, 3.0);
         s.spacing.interact_size.y = 24.0;
         s.spacing.menu_margin = egui::Margin::same(4);
-        s.text_styles.insert(TextStyle::Body, FontId::new(12.0, FontFamily::Proportional));
-        s.text_styles.insert(TextStyle::Button, FontId::new(12.0, FontFamily::Proportional));
-        s.text_styles.insert(TextStyle::Small, FontId::new(11.0, FontFamily::Proportional));
-        s.text_styles.insert(TextStyle::Heading, FontId::new(15.0, FontFamily::Name("semibold".into())));
-        s.text_styles.insert(TextStyle::Monospace, FontId::new(12.0, FontFamily::Monospace));
+        s.text_styles.insert(TextStyle::Body, FontId::new(figcraft_ui_icons::font_size(12.0), FontFamily::Proportional));
+        s.text_styles.insert(TextStyle::Button, FontId::new(figcraft_ui_icons::font_size(12.0), FontFamily::Proportional));
+        s.text_styles.insert(TextStyle::Small, FontId::new(figcraft_ui_icons::font_size(11.0), FontFamily::Proportional));
+        s.text_styles.insert(TextStyle::Heading, FontId::new(figcraft_ui_icons::font_size(15.0), FontFamily::Name("semibold".into())));
+        s.text_styles.insert(TextStyle::Monospace, FontId::new(figcraft_ui_icons::font_size(12.0), FontFamily::Monospace));
         s.animation_time = ANIMATION_TIME;
     });
 }

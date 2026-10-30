@@ -325,3 +325,24 @@ Fixed stored-relative-path source reuse and duplicate bin entries; the native ed
 a reconciled library bin, retains archived timeline media, owns new imports through the background
 copy service, and mirrors native source clear/undo/redo. Automatic bookkeeping preserves native
 undo history. Ignored the previously recorded engine board-table test as requested by the owner.
+
+
+## 2026-10-30 · Purpose 0.1.11
+
+Package the missing official Codex code-mode host from the same 0.165.0 release, prefer a complete
+bundled CLI over an incomplete custom path and include helper siblings on child PATH. Add a full
+Video Downloader page with explicit target library, MP4/MP3, progress/cancel, background import,
+retry on registration errors and temporary cleanup only after durable registration. Bundle pinned
+Unlicense wheels with a PSF Python runtime and Deno; do not redistribute upstream's GPL-containing
+PyInstaller executable. Installed Windows probes check the host, HTTP download and both codecs.
+
+Replace the trash modal with a shared collection page and confirmed permanent deletion. Persist
+cleanup before touching owned files, retry after restart, refuse symlink/traversal paths, remove
+history/inline references and prevent native archived references from resurrecting purged sources.
+Close deleted native sessions to prevent later autosaves from recreating removed files.
+
+Separate text sizing from viewport zoom with a scoped UI font policy shared by both editors.
+Root clear is opaque white, shell dividers have one owner, tab text/close/add share their vertical
+center, and a one-pixel brand-row overflow no longer grows the sidebar each frame. Restore inset
+search background/equal gaps, use the requested footer order, move Settings beside the brand,
+increase document title top padding and add Design fullscreen while removing the breadcrumb Codex button.

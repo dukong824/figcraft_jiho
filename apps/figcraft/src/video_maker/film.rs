@@ -233,7 +233,13 @@ fn reconcile_library_inner(session: &mut Session, store: &Store, video: &Video) 
         execute(session, "project.moveToBin", json!({"items":moved,"bin":bin.0}))?;
     }
     // Keep removed/duplicate media outside the library without offlining existing timeline clips.
-    let managed: std::collections::HashSet<_> = video.assets.iter().chain(&video.removed_assets).map(|a| store.asset_path(video.id, a)).collect();
+    let managed: std::collections::HashSet<_> = video
+        .assets
+        .iter()
+        .chain(&video.removed_assets)
+        .map(|a| store.asset_path(video.id, a))
+        .chain(store.data.purged_assets.iter().filter(|(v, _)| *v == video.id).map(|(_, file)| store.video_dir(video.id).join("assets").join(file)))
+        .collect();
     let archive: Vec<_> = session
         .project
         .items
@@ -393,8 +399,20 @@ impl VideoMaker {
         let Some(video) = self.store.data.channels.iter().flat_map(|c| &c.videos).find(|v| v.id == video_id) else {
             return;
         };
-        let managed: std::collections::HashSet<_> =
-            video.assets.iter().chain(&video.removed_assets).map(|a| self.store.asset_path(video_id, a)).collect();
+        let managed: std::collections::HashSet<_> = video
+            .assets
+            .iter()
+            .chain(&video.removed_assets)
+            .map(|a| self.store.asset_path(video_id, a))
+            .chain(
+                self.store
+                    .data
+                    .purged_assets
+                    .iter()
+                    .filter(|(v, _)| *v == video_id)
+                    .map(|(_, file)| self.store.video_dir(video_id).join("assets").join(file)),
+            )
+            .collect();
         let files: Vec<_> = editor
             .app
             .session
@@ -768,6 +786,21 @@ mod tests {
         let app = &maker.film.as_ref().unwrap().app;
         let bin = app.ui.project_panel.bin.unwrap();
         app.session.project.root.find_bin(BinId(bin)).unwrap().children.iter().filter(|c| matches!(c, BinEntry::Item(_))).count()
+    }
+    #[test]
+    fn purged_media_is_not_reimported_from_native_undo_or_archive_references() {
+        let (store, video) = fixture("purged-media");
+        store.save().unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        maker.remove_assets(video.id, &[101]).unwrap();
+        super::super::trash::discard(&mut maker.store.data, super::super::trash::Item::Asset(video.id, 101)).unwrap();
+        maker.ensure_film().unwrap();
+        maker.sync_native_imports();
+        assert!(!maker.imports.busy());
+        assert_eq!(library_count(&maker), 1);
+        maker.shutdown_film();
+        let _ = fs::remove_dir_all(store.root);
     }
     #[test]
     fn library_counts_survive_reopens_removal_restore_and_duplicate_native_imports() {

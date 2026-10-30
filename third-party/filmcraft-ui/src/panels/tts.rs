@@ -230,7 +230,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         // mode line: editing a clip, or writing a new narration
         ui.horizontal(|ui| {
             let mode = if editing.is_some() { "Editing the selected narration" } else { "New narration" };
-            ui.label(egui::RichText::new(mode).color(t.text_dim).size(11.5));
+            ui.label(egui::RichText::new(mode).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
             if editing.is_some() {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let b = ui.small_button("New");
@@ -257,7 +257,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let voice_name = voices.iter().find(|v| v.id == d.voice).map_or(d.voice.as_str(), |v| v.name);
         let cb = craft_ui::ComboBox::from_id_salt("tts-voice").selected_text(voice_name).width(w).show_ui(ui, |ui| {
             for (engine, heading) in [("neural", "Natural voices"), ("basic", "Basic voices (built in)")] {
-                ui.label(egui::RichText::new(heading).color(t.text_faint).size(11.0));
+                ui.label(egui::RichText::new(heading).color(t.text_faint).size(figcraft_ui_icons::font_size(11.0)));
                 for v in voices.iter().filter(|v| v.language == d.language && v.engine == engine) {
                     let label = if v.engine == "neural" && !v.installed { format!("{} (download)", v.name) } else { v.name.to_string() };
                     let r = ui.selectable_label(d.voice == v.id, label).on_hover_text(v.description);
@@ -275,7 +275,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 ui.set_width(w - 18.0);
                 match &download {
                     Some((frac, status)) => {
-                        ui.label(egui::RichText::new(status).color(t.text).size(11.5));
+                        ui.label(egui::RichText::new(status).color(t.text).size(figcraft_ui_icons::font_size(11.5)));
                         ui.add(egui::ProgressBar::new(*frac).show_percentage());
                         let b = ui.small_button("Cancel");
                         auto.add("tts.download.cancel", visible(ui, b.rect), "Cancel download");
@@ -285,7 +285,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     }
                     None if d.confirm_download => {
                         let mb = filmcraft_tts::catalog::size() as f64 / 1e6;
-                        ui.label(egui::RichText::new(format!("Download the natural voices? {mb:.0} MB, once.")).color(t.text).size(12.0).strong());
+                        ui.label(egui::RichText::new(format!("Download the natural voices? {mb:.0} MB, once.")).color(t.text).size(figcraft_ui_icons::font_size(12.0)).strong());
                         ui.label(
                             egui::RichText::new(format!(
                                 "From {} and github.com/cmusphinx/cmudict (pronunciations). Licence: {}. Every file is checked against a pinned SHA-256.",
@@ -293,7 +293,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                                 filmcraft_tts::catalog::LICENSE
                             ))
                             .color(t.text_dim)
-                            .size(11.0),
+                            .size(figcraft_ui_icons::font_size(11.0)),
                         );
                         ui.horizontal(|ui| {
                             let ok = ui.button("Download");
@@ -308,7 +308,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                         });
                     }
                     None => {
-                        ui.label(egui::RichText::new("Natural voices need a one-time download.").color(t.text).size(11.5));
+                        ui.label(egui::RichText::new("Natural voices need a one-time download.").color(t.text).size(figcraft_ui_icons::font_size(11.5)));
                         let b = ui.button(format!("Download natural voices ({:.0} MB)…", filmcraft_tts::catalog::size() as f64 / 1e6));
                         auto.add("tts.download", visible(ui, b.rect), "Download natural voices");
                         if b.clicked() {
@@ -356,7 +356,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         }
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Text").color(t.text).size(12.5).strong());
+            ui.label(egui::RichText::new("Text").color(t.text).size(figcraft_ui_icons::font_size(12.5)).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (ir, i) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
                 icons::paint(ui.painter(), ir, Icon::Info, t.text_faint);
@@ -439,7 +439,7 @@ fn visible(ui: &egui::Ui, r: Rect) -> Rect {
 }
 
 fn label(ui: &mut egui::Ui, t: &Tokens, text: &str) {
-    ui.label(egui::RichText::new(text).color(t.text).size(12.5).strong());
+    ui.label(egui::RichText::new(text).color(t.text).size(figcraft_ui_icons::font_size(12.5)).strong());
     ui.add_space(2.0);
 }
 

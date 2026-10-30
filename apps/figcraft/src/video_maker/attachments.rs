@@ -117,7 +117,11 @@ impl VideoMaker {
                                     let (r, _) = ui.allocate_exact_size(vec2(18.0, 24.0), egui::Sense::hover());
                                     style::paint_icon(ui.painter(), r.shrink(1.0), Icon::Library, style::MUTED);
                                 }
-                                ui.add_sized([120.0, 24.0], egui::Label::new(RichText::new(&a.name).size(12.0)).truncate()).on_hover_text(&a.name);
+                                ui.add_sized(
+                                    [120.0, 24.0],
+                                    egui::Label::new(RichText::new(&a.name).size(figcraft_ui_icons::font_size(12.0))).truncate(),
+                                )
+                                .on_hover_text(&a.name);
                                 if style::icon_button(ui, Icon::Close, 22.0, "첨부 제거").clicked() {
                                     remove = Some(index);
                                 }

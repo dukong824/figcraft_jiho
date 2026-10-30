@@ -22,7 +22,11 @@ pub(super) fn queue_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body).id_salt("export-queue"));
     egui::ScrollArea::vertical().id_salt("export-queue-scroll").auto_shrink([false, false]).show(&mut child, |ui| {
         if items.is_empty() {
-            ui.label(egui::RichText::new(tl!("Send exports here with Send to Queue, then start the queue.")).color(t.text_dim).size(11.5));
+            ui.label(
+                egui::RichText::new(tl!("Send exports here with Send to Queue, then start the queue."))
+                    .color(t.text_dim)
+                    .size(figcraft_ui_icons::font_size(11.5)),
+            );
         }
         for (i, it) in items.iter().enumerate() {
             let id = it["id"].as_u64().unwrap_or(0);
@@ -35,7 +39,11 @@ pub(super) fn queue_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect
                         .file_name()
                         .map(|f| f.to_string_lossy().to_string())
                         .unwrap_or_default();
-                    ui.label(egui::RichText::new(format!("{} → {file}", it["sequenceName"].as_str().unwrap_or(""))).size(12.0).color(t.text));
+                    ui.label(
+                        egui::RichText::new(format!("{} → {file}", it["sequenceName"].as_str().unwrap_or("")))
+                            .size(figcraft_ui_icons::font_size(12.0))
+                            .color(t.text),
+                    );
                     let preset = it["preset"].as_str().filter(|s| !s.is_empty()).unwrap_or(CUSTOM);
                     let (label, col) = match status {
                         "ready" => (tl!("Ready").to_string(), t.text_dim),
@@ -50,17 +58,20 @@ pub(super) fn queue_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect
                     };
                     if status == "encoding" {
                         // the progress and the time left on a line of their own: the column is narrow, and a wrapped "· 15 s left" reads badly
-                        ui.label(egui::RichText::new(crate::i18n::t(preset)).size(11.0).color(t.text_dim));
-                        ui.label(egui::RichText::new(label).size(11.0).color(col));
+                        ui.label(egui::RichText::new(crate::i18n::t(preset)).size(figcraft_ui_icons::font_size(11.0)).color(t.text_dim));
+                        ui.label(egui::RichText::new(label).size(figcraft_ui_icons::font_size(11.0)).color(col));
                     } else {
-                        ui.label(egui::RichText::new(format!("{} · {label}", crate::i18n::t(preset))).size(11.0).color(col));
+                        ui.label(
+                            egui::RichText::new(format!("{} · {label}", crate::i18n::t(preset))).size(figcraft_ui_icons::font_size(11.0)).color(col),
+                        );
                     }
                     if status == "encoding" {
                         ui.add(egui::ProgressBar::new(it["progress"].as_f64().unwrap_or(0.0) as f32).desired_height(6.0));
                     }
                     ui.horizontal(|ui| {
                         let mut b = |ui: &mut egui::Ui, key: &'static str, text: &str, enabled: bool, cmd: &'static str, params: Value| {
-                            let r = ui.add_enabled(enabled, egui::Button::new(egui::RichText::new(text).size(11.0)).small());
+                            let r = ui
+                                .add_enabled(enabled, egui::Button::new(egui::RichText::new(text).size(figcraft_ui_icons::font_size(11.0))).small());
                             reg.add(format!("export.queue.item.{id}.{key}"), r.rect, text);
                             if r.clicked() {
                                 action = Some((cmd, params));

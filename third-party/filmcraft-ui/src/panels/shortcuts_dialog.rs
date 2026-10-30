@@ -202,7 +202,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) -> bool {
 }
 
 fn small_button(app: &mut FilmcraftApp, ui: &mut egui::Ui, id: &str, label: &str, enabled: bool) -> bool {
-    let r = ui.add_enabled(enabled, egui::Button::new(RichText::new(label).size(12.5)).min_size(vec2(0.0, 24.0)));
+    let r = ui.add_enabled(enabled, egui::Button::new(RichText::new(label).size(figcraft_ui_icons::font_size(12.5))).min_size(vec2(0.0, 24.0)));
     app.auto.add(id, r.rect, label);
     r.clicked()
 }
@@ -214,7 +214,7 @@ fn header(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let builtin: Vec<String> = presets["builtin"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
     let custom: Vec<String> = presets["custom"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tl!("Preset:")).size(13.0).color(t.text_dim));
+        ui.label(RichText::new(tl!("Preset:")).size(figcraft_ui_icons::font_size(13.0)).color(t.text_dim));
         let shown = if modified { tlf!("{active} (modified)", active) } else { active.clone() };
         let r = craft_ui::ComboBox::from_id_salt("shortcuts-preset").width(280.0).selected_text(shown).show_ui(ui, |ui| {
             for name in builtin.iter().chain(custom.iter()) {
@@ -260,13 +260,15 @@ fn header(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(
-                RichText::new(if cfg!(target_os = "macos") { tl!("Keyboard: US (macOS)") } else { tl!("Keyboard: US") }).size(12.0).color(t.text_dim),
+                RichText::new(if cfg!(target_os = "macos") { tl!("Keyboard: US (macOS)") } else { tl!("Keyboard: US") })
+                    .size(figcraft_ui_icons::font_size(12.0))
+                    .color(t.text_dim),
             );
         });
     });
     if let Some(mut name) = app.shortcut_editor.save_name.clone() {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(tl!("Save preset as:")).size(13.0).color(t.text_dim));
+            ui.label(RichText::new(tl!("Save preset as:")).size(figcraft_ui_icons::font_size(13.0)).color(t.text_dim));
             let r = crate::widgets::accessible_name(ui.add(egui::TextEdit::singleline(&mut name).desired_width(260.0)), "Preset name");
             app.auto.add("shortcuts.saveAs.name", r.rect, "Preset name");
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -286,7 +288,7 @@ fn header(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     }
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tl!("Commands:")).size(13.0).color(t.text_dim));
+        ui.label(RichText::new(tl!("Commands:")).size(figcraft_ui_icons::font_size(13.0)).color(t.text_dim));
         let cur = app.shortcut_editor.context.clone();
         let r = craft_ui::ComboBox::from_id_salt("shortcuts-context")
             .width(280.0)
@@ -589,7 +591,7 @@ fn legend(ui: &mut egui::Ui, t: &Tokens) {
         ] {
             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
             ui.painter().rect_filled(r, 2.0, c);
-            ui.label(RichText::new(text).size(12.0).color(t.text_dim));
+            ui.label(RichText::new(text).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim));
             ui.add_space(14.0);
         }
     });
@@ -606,7 +608,9 @@ fn command_list(app: &mut FilmcraftApp, ui: &mut egui::Ui, height: f32, t: &Toke
         app.auto.add("shortcuts.search", r.rect, "Search");
         app.shortcut_editor.search = q;
         if let Some(sel) = app.shortcut_editor.selected.clone() {
-            ui.label(RichText::new(tlf!("Selected: {command}", command = label_of(app, &sel))).size(12.0).color(t.text_dim));
+            ui.label(
+                RichText::new(tlf!("Selected: {command}", command = label_of(app, &sel))).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim),
+            );
         }
     });
     ui.add_space(4.0);
@@ -729,9 +733,9 @@ fn key_detail(app: &mut FilmcraftApp, ui: &mut egui::Ui, height: f32, t: &Tokens
     let plat = Platform::current();
     let key = app.shortcut_editor.key.clone();
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tl!("Key:")).size(13.0).strong().color(t.text));
+        ui.label(RichText::new(tl!("Key:")).size(figcraft_ui_icons::font_size(13.0)).strong().color(t.text));
         if let Some(k) = &key {
-            ui.label(RichText::new(key_legend(k, plat.is_mac())).size(13.0).color(t.hot_text));
+            ui.label(RichText::new(key_legend(k, plat.is_mac())).size(figcraft_ui_icons::font_size(13.0)).color(t.hot_text));
         }
     });
     let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
@@ -790,7 +794,7 @@ fn footer(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) -> Option<bool>
                 let names: Vec<String> = cmds.iter().map(|c| label_of(app, c)).collect();
                 let r = ui.label(
                     RichText::new(tlf!("Conflict: {key} is assigned to {commands} ({ctx})", key = disp, commands = names.join(tl!(" and ")), ctx))
-                        .size(12.0)
+                        .size(figcraft_ui_icons::font_size(12.0))
                         .color(WARN),
                 );
                 app.auto.add("shortcuts.conflict", r.rect, "conflict");
@@ -800,12 +804,12 @@ fn footer(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) -> Option<bool>
             } else {
                 app.shortcut_editor.message.clone()
             };
-            let r = ui.label(RichText::new(msg.clone()).size(12.0).color(t.text_dim));
+            let r = ui.label(RichText::new(msg.clone()).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim));
             app.auto.add("shortcuts.message", r.rect, &msg);
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let ok = ui.add(
-                egui::Button::new(RichText::new(tl!("OK")).size(13.0).color(Color32::WHITE))
+                egui::Button::new(RichText::new(tl!("OK")).size(figcraft_ui_icons::font_size(13.0)).color(Color32::WHITE))
                     .fill(t.accent)
                     .min_size(vec2(72.0, 28.0))
                     .corner_radius(14.0),
@@ -814,7 +818,11 @@ fn footer(app: &mut FilmcraftApp, ui: &mut egui::Ui, t: &Tokens) -> Option<bool>
             if ok.clicked() {
                 close = Some(true);
             }
-            let cancel = ui.add(egui::Button::new(RichText::new(tl!("Cancel")).size(13.0)).min_size(vec2(72.0, 28.0)).corner_radius(14.0));
+            let cancel = ui.add(
+                egui::Button::new(RichText::new(tl!("Cancel")).size(figcraft_ui_icons::font_size(13.0)))
+                    .min_size(vec2(72.0, 28.0))
+                    .corner_radius(14.0),
+            );
             app.auto.add("shortcuts.cancel", cancel.rect, "Cancel");
             if cancel.clicked() {
                 close = Some(false);

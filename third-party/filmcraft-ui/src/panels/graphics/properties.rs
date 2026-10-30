@@ -639,7 +639,13 @@ pub fn properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             };
             for (id, label, tip, on, font) in [
                 ("faux_bold", "T", tl!("Faux Bold"), flag("faux_bold"), Tokens::semibold(14.0)),
-                ("faux_italic", "T", tl!("Faux Italic"), flag("faux_italic"), egui::FontId::new(14.0, egui::FontFamily::Proportional)),
+                (
+                    "faux_italic",
+                    "T",
+                    tl!("Faux Italic"),
+                    flag("faux_italic"),
+                    egui::FontId::new(figcraft_ui_icons::font_size(14.0), egui::FontFamily::Proportional),
+                ),
                 ("all_caps", "TT", tl!("All Caps"), caps == 1, Tokens::ui(12.0)),
                 ("small_caps", "Tt", tl!("Small Caps"), caps == 2, Tokens::ui(12.0)),
                 ("underline", "U", tl!("Underline"), flag("underline"), Tokens::ui(13.0)),

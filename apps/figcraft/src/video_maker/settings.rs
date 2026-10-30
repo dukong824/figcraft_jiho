@@ -81,7 +81,7 @@ impl VideoMaker {
                                     });
                                 });
                                 ui.add_space(9.0);
-                                ui.label(RichText::new("가나다 ABC 123").size(14.0).color(style::MUTED));
+                                ui.label(RichText::new("가나다 ABC 123").size(figcraft_ui_icons::font_size(14.0)).color(style::MUTED));
                                 ui.add_space(18.0);
                                 ui.separator();
                                 ui.add_space(14.0);
@@ -134,7 +134,11 @@ impl VideoMaker {
                                         .as_ref()
                                         .map(|p| p.display().to_string())
                                         .unwrap_or_else(|| "백업 폴더를 선택하세요".into());
-                                    ui.add(egui::Label::new(RichText::new(&path).size(12.0).color(style::MUTED)).truncate()).on_hover_text(path);
+                                    ui.add(
+                                        egui::Label::new(RichText::new(&path).size(figcraft_ui_icons::font_size(12.0)).color(style::MUTED))
+                                            .truncate(),
+                                    )
+                                    .on_hover_text(path);
                                     ui.add_space(9.0);
                                     ui.horizontal_wrapped(|ui| {
                                         choose = style::action_button(ui, "폴더 선택…", false).clicked();
@@ -167,7 +171,10 @@ impl VideoMaker {
                                 ui.label(RichText::new("프로젝트 저장 위치").strong());
                                 ui.add_space(5.0);
                                 let root = self.store.root.display().to_string();
-                                ui.add(egui::Label::new(RichText::new(&root).size(12.0).color(style::MUTED)).truncate()).on_hover_text(root);
+                                ui.add(
+                                    egui::Label::new(RichText::new(&root).size(figcraft_ui_icons::font_size(12.0)).color(style::MUTED)).truncate(),
+                                )
+                                .on_hover_text(root);
                                 if ui.link("프로젝트 폴더 열기 ↗").clicked() {
                                     reveal = Some(self.store.root.clone());
                                 }

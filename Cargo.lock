@@ -1776,6 +1776,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "ureq",
+ "url",
  "wat",
  "webbrowser",
  "windows 0.62.2",

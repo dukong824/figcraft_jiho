@@ -198,11 +198,11 @@ pub fn apply_with(ctx: &Context, t: Tokens, reduce_motion: bool) {
         s.spacing.menu_margin = egui::Margin::same(8);
         s.spacing.window_margin = egui::Margin::same(12);
         s.text_styles = [
-            (TextStyle::Small, FontId::new(10.0, FontFamily::Proportional)),
-            (TextStyle::Body, FontId::new(11.0, FontFamily::Proportional)),
-            (TextStyle::Button, FontId::new(11.0, FontFamily::Proportional)),
-            (TextStyle::Heading, FontId::new(13.0, FontFamily::Name("semibold".into()))),
-            (TextStyle::Monospace, FontId::new(11.0, FontFamily::Monospace)),
+            (TextStyle::Small, FontId::new(figcraft_ui_icons::font_size(10.0), FontFamily::Proportional)),
+            (TextStyle::Body, FontId::new(figcraft_ui_icons::font_size(11.0), FontFamily::Proportional)),
+            (TextStyle::Button, FontId::new(figcraft_ui_icons::font_size(11.0), FontFamily::Proportional)),
+            (TextStyle::Heading, FontId::new(figcraft_ui_icons::font_size(13.0), FontFamily::Name("semibold".into()))),
+            (TextStyle::Monospace, FontId::new(figcraft_ui_icons::font_size(11.0), FontFamily::Monospace)),
         ]
         .into();
         s.interaction.tooltip_delay = 0.4;
@@ -393,11 +393,11 @@ pub fn font_data(face: &figcraft_text::Face) -> FontData {
 }
 
 pub fn semibold(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Name("semibold".into()))
+    FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Name("semibold".into()))
 }
 
 pub fn brand(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Name("brand".into()))
+    FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Name("brand".into()))
 }
 
 /// The two-tone Archivo wordmark used in the home sidebar and About window.
@@ -431,7 +431,7 @@ pub fn paint_app_icon(ui: &egui::Ui, rect: egui::Rect) {
 }
 
 pub fn regular(size: f32) -> FontId {
-    FontId::new(size, FontFamily::Proportional)
+    FontId::new(figcraft_ui_icons::font_size(size), FontFamily::Proportional)
 }
 
 pub fn c32(c: figcraft_color::Color) -> Color32 {

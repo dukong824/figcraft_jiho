@@ -97,8 +97,12 @@ pub(super) fn preview_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Re
             ui.label(egui::RichText::new(tl!("Summary")).strong());
             egui::Grid::new("export-summary-grid").num_columns(2).spacing(vec2(10.0, 3.0)).show(ui, |ui| {
                 let line = |ui: &mut egui::Ui, k: &str, v: &str| {
-                    ui.label(egui::RichText::new(crate::i18n::t(k)).color(t.text_dim).size(11.5));
-                    ui.add(egui::Label::new(egui::RichText::new(v).size(11.5)).wrap_mode(egui::TextWrapMode::Wrap).halign(egui::Align::Min));
+                    ui.label(egui::RichText::new(crate::i18n::t(k)).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(v).size(figcraft_ui_icons::font_size(11.5)))
+                            .wrap_mode(egui::TextWrapMode::Wrap)
+                            .halign(egui::Align::Min),
+                    );
                     ui.end_row();
                 };
                 line(ui, "Output", &output_path(ex));

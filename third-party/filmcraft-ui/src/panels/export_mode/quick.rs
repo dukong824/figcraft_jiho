@@ -83,20 +83,20 @@ pub fn quick_export(app: &mut FilmcraftApp, ctx: &egui::Context, anchor: egui::P
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_width(340.0);
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(tl!("Quick Export")).strong().size(14.0));
+                ui.label(egui::RichText::new(tl!("Quick Export")).strong().size(figcraft_ui_icons::font_size(14.0)));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let r = ui.small_button(tl!("Close"));
                     reg.add("quickExport.close", r.rect, "Close");
                     close = r.clicked();
                 });
             });
-            ui.label(egui::RichText::new(tl!("File Name & Location")).color(t.text_dim).size(11.5));
+            ui.label(egui::RichText::new(tl!("File Name & Location")).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
             typed = draft_text(ui, &mut reg, "quickExport.path", &file_name, tl!("File Name"));
             let r = location_link(ui, &t, &folder);
             reg.add("quickExport.location", r.rect, folder.clone());
             browse = r.clicked();
             ui.add_space(4.0);
-            ui.label(egui::RichText::new(tl!("Preset")).color(t.text_dim).size(11.5));
+            ui.label(egui::RichText::new(tl!("Preset")).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
             egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
                 for name in &presets {
                     let r = list_row(ui, &t, preset_key(name) == preset_key(&q.quick_preset), crate::i18n::t(name), 320.0);
@@ -107,7 +107,11 @@ pub fn quick_export(app: &mut FilmcraftApp, ctx: &egui::Context, anchor: egui::P
                 }
             });
             ui.add_space(4.0);
-            ui.label(egui::RichText::new(tlf!("Estimated file size: {size}", size = est.as_deref().unwrap_or("–"))).color(t.text_dim).size(11.5));
+            ui.label(
+                egui::RichText::new(tlf!("Estimated file size: {size}", size = est.as_deref().unwrap_or("–")))
+                    .color(t.text_dim)
+                    .size(figcraft_ui_icons::font_size(11.5)),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let r = ui.add(
                     egui::Button::new(egui::RichText::new(tl!("Export")).color(Color32::WHITE))

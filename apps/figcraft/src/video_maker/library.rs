@@ -83,9 +83,13 @@ impl VideoMaker {
                         } else {
                             format!("모든 파일 · {count} / 편집 소스 · {editable}")
                         };
-                        ui.label(RichText::new(counts).size(13.0).color(style::MUTED));
+                        ui.label(RichText::new(counts).size(figcraft_ui_icons::font_size(13.0)).color(style::MUTED));
                         if !self.library_selection.is_empty() {
-                            ui.label(RichText::new(format!("{}개 선택", self.library_selection.len())).size(12.0).color(style::BLUE));
+                            ui.label(
+                                RichText::new(format!("{}개 선택", self.library_selection.len()))
+                                    .size(figcraft_ui_icons::font_size(12.0))
+                                    .color(style::BLUE),
+                            );
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if style::icon_toggle(ui, Icon::List, self.library_view == LibraryView::List, 30.0, "목록 보기").clicked() {
@@ -116,7 +120,7 @@ impl VideoMaker {
                             ui.add_space(14.0);
                             ui.label(
                                 RichText::new(if query.is_empty() { "파일을 여기에 놓으세요" } else { "검색 결과가 없습니다" })
-                                    .size(15.0)
+                                    .size(figcraft_ui_icons::font_size(15.0))
                                     .color(style::MUTED),
                             );
                         });
@@ -264,14 +268,19 @@ impl VideoMaker {
                         let (rect, _) = ui.allocate_exact_size(vec2(width - 20.0, 124.0), Sense::hover());
                         self.paint_thumbnail(ui, asset, rect);
                         ui.add_space(9.0);
-                        let mut job = egui::text::LayoutJob::simple(asset.name.clone(), FontId::proportional(13.0), style::TEXT, width - 20.0);
+                        let mut job = egui::text::LayoutJob::simple(
+                            asset.name.clone(),
+                            FontId::proportional(figcraft_ui_icons::font_size(13.0)),
+                            style::TEXT,
+                            width - 20.0,
+                        );
                         job.wrap.max_rows = 2;
                         job.wrap.break_anywhere = true;
                         let galley = ui.fonts_mut(|f| f.layout_job(job));
                         let (rect, response) = ui.allocate_exact_size(vec2(width - 20.0, 36.0), Sense::hover());
                         ui.painter().galley(rect.min, galley, style::TEXT);
                         response.on_hover_text(&asset.name);
-                        ui.label(RichText::new(asset_detail(asset)).size(11.0).color(style::MUTED));
+                        ui.label(RichText::new(asset_detail(asset)).size(figcraft_ui_icons::font_size(11.0)).color(style::MUTED));
                     } else {
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(24.0, 26.0), Sense::hover());

@@ -378,7 +378,7 @@ fn section(ui: &mut egui::Ui, app: &mut FilmcraftApp, name: &str, on: bool) -> (
 
 fn sub(ui: &mut egui::Ui, t: &Tokens, name: &str) {
     ui.add_space(4.0);
-    ui.label(egui::RichText::new(name).color(t.text).strong().size(12.0));
+    ui.label(egui::RichText::new(name).color(t.text).strong().size(figcraft_ui_icons::font_size(12.0)));
 }
 
 #[derive(Clone, Copy)]

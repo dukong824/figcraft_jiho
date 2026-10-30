@@ -54,6 +54,9 @@ pub enum Icon {
     Guide,
     Copy,
     Paste,
+    Download,
+    Fullscreen,
+    ExitFullscreen,
     Rename,
     ChevronDown,
     ChevronRight,
@@ -110,10 +113,10 @@ pub fn configure(ctx: &egui::Context) {
         style.spacing.icon_spacing = 8.0;
         style.spacing.scroll.bar_width = 6.0;
         style.visuals.widgets.noninteractive.bg_stroke = border;
-        style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
-        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
-        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
-        style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(25.0));
+        style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(figcraft_ui_icons::font_size(12.0)));
+        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(figcraft_ui_icons::font_size(14.0)));
+        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(figcraft_ui_icons::font_size(14.0)));
+        style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(figcraft_ui_icons::font_size(25.0)));
     });
 }
 
@@ -148,7 +151,7 @@ pub fn icon_toggle(ui: &mut Ui, icon: Icon, selected: bool, size: f32, tip: &str
 
 pub fn filter_tab(ui: &mut Ui, label: &str, selected: bool) -> Response {
     ui.add(
-        egui::Button::new(egui::RichText::new(label).size(14.0).color(if selected { TEXT } else { MUTED }))
+        egui::Button::new(egui::RichText::new(label).size(figcraft_ui_icons::font_size(14.0)).color(if selected { TEXT } else { MUTED }))
             .fill(if selected { SELECTED } else { Color32::TRANSPARENT })
             .corner_radius(5)
             .min_size(vec2(78.0, 30.0)),
@@ -170,7 +173,7 @@ fn row(ui: &mut Ui, label: &str, icon: Option<Icon>, selected: bool, indent: f32
     }
     let mut job = egui::text::LayoutJob::simple(
         label.to_owned(),
-        FontId::proportional(14.0),
+        FontId::proportional(figcraft_ui_icons::font_size(14.0)),
         TEXT,
         (width - indent - if icon.is_none() { 100.0 } else { 44.0 }).max(15.0),
     );
@@ -236,6 +239,9 @@ fn lucide(icon: Icon) -> Option<&'static str> {
         Icon::Settings => Some("settings"),
         Icon::Guide => Some("bookmark"),
         Icon::Copy => Some("copy"),
+        Icon::Download => Some("download"),
+        Icon::Fullscreen => Some("maximize"),
+        Icon::ExitFullscreen => Some("minimize-2"),
         Icon::Paste => Some("between-horizontal-start"),
         Icon::Rename => Some("pencil"),
         Icon::ChevronDown => Some("chevron-down"),
@@ -267,7 +273,8 @@ pub fn menu_item(ui: &mut Ui, label: &str, icon: Icon, destructive: bool) -> Res
         icon,
         if destructive { color } else { MUTED },
     );
-    let mut job = egui::text::LayoutJob::simple(label.into(), FontId::proportional(14.0), color, (width - 48.0).max(20.0));
+    let mut job =
+        egui::text::LayoutJob::simple(label.into(), FontId::proportional(figcraft_ui_icons::font_size(14.0)), color, (width - 48.0).max(20.0));
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     let text = ui.fonts_mut(|f| f.layout_job(job));
@@ -276,7 +283,7 @@ pub fn menu_item(ui: &mut Ui, label: &str, icon: Icon, destructive: bool) -> Res
 }
 
 pub fn dropdown(ui: &mut Ui, label: &str, max_text_width: f32) -> Response {
-    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(13.0), TEXT, max_text_width);
+    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(figcraft_ui_icons::font_size(13.0)), TEXT, max_text_width);
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     let text = ui.fonts_mut(|f| f.layout_job(job));
@@ -315,7 +322,7 @@ pub fn modal_frame() -> egui::Frame {
 }
 pub fn action_button(ui: &mut Ui, label: &str, primary: bool) -> Response {
     ui.add(
-        egui::Button::new(egui::RichText::new(label).size(14.0).color(if primary { Color32::WHITE } else { TEXT }))
+        egui::Button::new(egui::RichText::new(label).size(figcraft_ui_icons::font_size(14.0)).color(if primary { Color32::WHITE } else { TEXT }))
             .fill(if primary { TEXT } else { SURFACE })
             .stroke(Stroke::new(1.0, if primary { TEXT } else { BORDER }))
             .corner_radius(6)
@@ -334,7 +341,7 @@ pub fn rename_dialog(ctx: &Context, id: Id, heading: &str, name: &mut String) ->
             });
         });
         ui.add_space(18.0);
-        ui.label(egui::RichText::new("이름").size(12.0).color(MUTED));
+        ui.label(egui::RichText::new("이름").size(figcraft_ui_icons::font_size(12.0)).color(MUTED));
         let edit = egui::TextEdit::singleline(name).id(id.with("name")).desired_width(f32::INFINITY).margin(vec2(11.0, 10.0)).show(ui);
         let first = !ui.is_sizing_pass()
             && ctx.data_mut(|d| {
@@ -388,7 +395,7 @@ pub fn fast_toggle(ui: &mut Ui, selected: bool, size: f32, tip: &str) -> Respons
 }
 
 pub fn heading(text: &str, size: f32) -> egui::RichText {
-    egui::RichText::new(text).font(FontId::new(size, egui::FontFamily::Name("purpose-script-bold".into())))
+    egui::RichText::new(text).font(FontId::new(figcraft_ui_icons::font_size(size), egui::FontFamily::Name("purpose-script-bold".into())))
 }
 pub fn release_focus(ctx: &Context) {
     ctx.memory_mut(|m| {
@@ -400,7 +407,7 @@ pub fn release_focus(ctx: &Context) {
 
 pub fn search_field(ui: &mut Ui, text: &mut String, width: f32, hint: &str) -> Response {
     egui::Frame::NONE
-        .fill(SIDEBAR)
+        .fill(HOVER)
         .corner_radius(6)
         .inner_margin(egui::Margin::symmetric(8, 0))
         .show(ui, |ui| {
@@ -409,12 +416,12 @@ pub fn search_field(ui: &mut Ui, text: &mut String, width: f32, hint: &str) -> R
                 let (rect, _) = ui.allocate_exact_size(vec2(15.0, 30.0), Sense::hover());
                 figcraft_ui_icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(14.0, 14.0)), "search", MUTED);
                 ui.add_sized(
-                    [(width - 36.0).max(40.0), 30.0],
+                    [(width - 40.0).max(40.0), 30.0],
                     egui::TextEdit::singleline(text)
                         .frame(egui::Frame::NONE)
                         .margin(egui::Margin::ZERO)
                         .align(egui::Align2::LEFT_CENTER)
-                        .font(FontId::proportional(13.0))
+                        .font(FontId::proportional(figcraft_ui_icons::font_size(13.0)))
                         .hint_text(hint),
                 )
             })

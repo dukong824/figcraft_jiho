@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$version = '0.1.10'
+$version = '0.1.11'
 $ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
 $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
 $ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
@@ -89,6 +89,8 @@ https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-10-27-18-38
 https://ffmpeg.org/download.html
 
 OpenAI Codex CLI is included in codex/. Sign in with ChatGPT in the app sidebar.
+Video Downloader includes Python (PSF), yt-dlp and yt-dlp-ejs (Unlicense), and Deno (MIT).
+Sources, pinned checksums and complete notices are in licenses/downloader.
 See VIDEO-MAKER.md for features and current limits.
 '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding utf8
 
@@ -97,6 +99,7 @@ $codexDirectory = Join-Path $stage 'codex'
 New-Item -ItemType Directory -Path $codexDirectory -Force | Out-Null
 $codexFiles = @(
     @{ Source = 'codex-x86_64-pc-windows-msvc.exe'; Name = 'codex.exe'; Sha256 = 'd4b2e6a054ea1dfe53217f9d8942c5f8a9f4b76171a1e0bb76ced5759915300a' }
+    @{ Source = 'codex-code-mode-host-x86_64-pc-windows-msvc.exe'; Name = 'codex-code-mode-host.exe'; Sha256 = 'c15b0ec7c44be4bef2516c251cc8b9f3f4ab9f8727cf2d567d1f183fd415ef2d' }
     @{ Source = 'codex-command-runner-x86_64-pc-windows-msvc.exe'; Name = 'codex-command-runner.exe'; Sha256 = '8f1a9d4217a34d6b44df81c25999ff9b98bb8d0e3c179aa070fcd84b3ce7a9d3' }
     @{ Source = 'codex-windows-sandbox-setup-x86_64-pc-windows-msvc.exe'; Name = 'codex-windows-sandbox-setup.exe'; Sha256 = 'a39f42dc697919e650cd24f82daaecd6121e41e3f4d56373fef4f4177f8eee02' }
     @{ Source = 'codex-windows-sandbox-service-x86_64-pc-windows-msvc.exe'; Name = 'codex-windows-sandbox-service.exe'; Sha256 = '48b13eee521adada28083167f187b2df0fb6c2eab2f7e59ef36e0c12beae77b0' }
@@ -112,6 +115,10 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'third-party/codex/NOTICE') -Destina
     Set-Content -LiteralPath (Join-Path $codexDirectory 'SOURCE.txt') -Encoding utf8
 & (Join-Path $codexDirectory 'codex.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
+
+& (Join-Path $codexDirectory 'codex-code-mode-host.exe') --help
+if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex code-mode host failed' }
+& (Join-Path $PSScriptRoot 'downloader.ps1') -Stage $stage -Temporary $temporary
 
 $revision = (git -C $repoRoot rev-parse HEAD).Trim()
 "Commit: $revision`nVersion: $version`nFFmpeg: $ffmpegName`nFFmpeg SHA256: $ffmpegSha256`n" |

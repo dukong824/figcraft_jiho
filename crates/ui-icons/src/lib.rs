@@ -163,3 +163,36 @@ mod tests {
         assert!(!paint(&ctx.debug_painter(), Rect::EVERYTHING, "not-an-icon", Color32::WHITE));
     }
 }
+
+// The desktop host scopes text sizing to one application frame. Geometry and authored
+// document text stay independent of this preference; standalone editors default to 1.
+thread_local! { static FONT_SCALE: std::cell::Cell<f32> = const { std::cell::Cell::new(1.0) }; }
+pub fn font_size(size: f32) -> f32 {
+    FONT_SCALE.with(|scale| size * scale.get())
+}
+pub fn with_font_scale<R>(scale: f32, draw: impl FnOnce() -> R) -> R {
+    struct Restore(f32);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            FONT_SCALE.with(|scale| scale.set(self.0));
+        }
+    }
+    let scale = if scale.is_finite() { scale.clamp(0.5, 2.0) } else { 1.0 };
+    let _restore = Restore(FONT_SCALE.with(|current| current.replace(scale)));
+    draw()
+}
+
+#[cfg(test)]
+mod font_scale_tests {
+    #[test]
+    fn text_scale_is_scoped_nested_and_restored_after_panic() {
+        assert_eq!(super::font_size(14.0), 14.0);
+        super::with_font_scale(20.0 / 14.0, || {
+            assert_eq!(super::font_size(14.0), 20.0);
+            super::with_font_scale(1.0, || assert_eq!(super::font_size(14.0), 14.0));
+            assert_eq!(super::font_size(14.0), 20.0);
+        });
+        let _ = std::panic::catch_unwind(|| super::with_font_scale(2.0, || panic!("test unwind")));
+        assert_eq!(super::font_size(14.0), 14.0);
+    }
+}

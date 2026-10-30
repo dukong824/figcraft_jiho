@@ -2,12 +2,16 @@
 use super::VideoMaker;
 use egui::{FontFamily, Id};
 impl VideoMaker {
+    pub fn ui_font_scale(&self) -> f32 {
+        let size = self.store.data.ui_font_size;
+        if size.is_finite() { size.clamp(12.0, 20.0) / 14.0 } else { 1.0 }
+    }
     pub(super) fn appearance(&mut self, ctx: &egui::Context) -> bool {
         let size = self.store.data.ui_font_size;
         let size = if size.is_finite() { size.clamp(12.0, 20.0) } else { 14.0 };
         if self.font_size_applied != Some(size) {
             self.store.data.ui_font_size = size;
-            ctx.set_zoom_factor(self.store.data.ui_zoom.clamp(0.7, 2.0) * size / 14.0);
+            ctx.request_repaint();
             self.font_size_applied = Some(size);
         }
         ctx.data_mut(|d| d.insert_temp(Id::unique("purpose-video-icon"), self.store.data.video_icon.clone()));

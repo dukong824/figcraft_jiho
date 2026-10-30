@@ -13,7 +13,10 @@ const LABEL_W: f32 = 132.0;
 /// A labelled settings row.
 fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.horizontal(|ui| {
-        ui.add_sized(vec2(LABEL_W, 20.0), egui::Label::new(egui::RichText::new(label).color(t.text_dim).size(12.0)).truncate());
+        ui.add_sized(
+            vec2(LABEL_W, 20.0),
+            egui::Label::new(egui::RichText::new(label).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0))).truncate(),
+        );
         add(ui)
     })
     .inner
@@ -232,7 +235,7 @@ pub(super) fn settings_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: R
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink2(vec2(14.0, 10.0))).id_salt("export-settings"));
     let ex = &mut app.ui.export;
     egui::ScrollArea::vertical().id_salt("export-settings-scroll").auto_shrink([false, false]).show(&mut child, |ui| {
-        ui.label(egui::RichText::new(tl!("Media File")).strong().size(14.0));
+        ui.label(egui::RichText::new(tl!("Media File")).strong().size(figcraft_ui_icons::font_size(14.0)));
         ui.add_space(6.0);
         row(ui, &t, tl!("File Name"), |ui| {
             if let Some(v) = draft_text(ui, &mut reg, "export.fileName", &ex.file_name, tl!("Sequence name")) {
@@ -254,7 +257,7 @@ pub(super) fn settings_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: R
                 .width(ui.available_width() - 4.0)
                 .show_ui(ui, |ui| {
                     if !favs.is_empty() {
-                        ui.label(egui::RichText::new(tl!("Favorites")).color(t.text_dim).size(11.0));
+                        ui.label(egui::RichText::new(tl!("Favorites")).color(t.text_dim).size(figcraft_ui_icons::font_size(11.0)));
                         for f in &favs {
                             if ui.selectable_label(*f == ex.preset, crate::i18n::t(f)).clicked() {
                                 chosen_preset = Some(f.clone());
@@ -266,7 +269,7 @@ pub(super) fn settings_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: R
                     for p in &all_presets {
                         if p.category != cat {
                             cat = p.category.clone();
-                            ui.label(egui::RichText::new(crate::i18n::t(&cat)).color(t.text_dim).size(11.0));
+                            ui.label(egui::RichText::new(crate::i18n::t(&cat)).color(t.text_dim).size(figcraft_ui_icons::font_size(11.0)));
                         }
                         if ui.selectable_label(p.name == ex.preset, crate::i18n::t(&p.name)).clicked() {
                             chosen_preset = Some(p.name.clone());
@@ -338,7 +341,7 @@ pub(super) fn settings_column(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: R
         }
         if s.has_video() && section(ui, &mut reg, &mut ex.open_sections, "captions", tl!("Captions"), &t) {
             if !has_captions {
-                ui.label(egui::RichText::new(tl!("The sequence has no caption track.")).color(t.text_dim).size(11.5));
+                ui.label(egui::RichText::new(tl!("The sequence has no caption track.")).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
             }
             row(ui, &t, tl!("Export Options"), |ui| {
                 let modes = [tl!("None"), tl!("Burn Captions Into Video"), tl!("Create Sidecar File")];
@@ -532,7 +535,7 @@ fn video_section(ui: &mut egui::Ui, reg: &mut Reg, s: &mut ExportSettings, t: &T
                 });
             } else if let Some(bpp) = s.adaptive_bitrate {
                 row(ui, t, tl!("Target Bitrate"), |ui| {
-                    ui.label(egui::RichText::new(tlf!("Adaptive ({bpp} bits per pixel)", bpp)).size(12.0));
+                    ui.label(egui::RichText::new(tlf!("Adaptive ({bpp} bits per pixel)", bpp)).size(figcraft_ui_icons::font_size(12.0)));
                     let r = ui.small_button(tl!("Set"));
                     reg.add("export.video.fixedBitrate", r.rect, "Set a fixed bitrate");
                     if r.clicked() {
@@ -735,7 +738,7 @@ fn audio_section(ui: &mut egui::Ui, reg: &mut Reg, s: &mut ExportSettings, t: &T
             if drag(ui, reg, "export.audio.flacLevel", &mut level, DragOptions { range: 0.0..=8.0, speed: 0.05, suffix: "", decimals: 0 }) {
                 s.audio.flac_level = level.round() as u8;
             }
-            ui.label(egui::RichText::new(tl!("0 fastest, 8 smallest")).size(12.0));
+            ui.label(egui::RichText::new(tl!("0 fastest, 8 smallest")).size(figcraft_ui_icons::font_size(12.0)));
         });
     }
 }

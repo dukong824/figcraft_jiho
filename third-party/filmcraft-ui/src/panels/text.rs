@@ -216,7 +216,10 @@ fn captions(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(92.0);
-                        let num = ui.add(egui::Button::new(egui::RichText::new(format!("{}", n + 1)).size(11.0).color(t.text_dim)).frame(false));
+                        let num = ui.add(
+                            egui::Button::new(egui::RichText::new(format!("{}", n + 1)).size(figcraft_ui_icons::font_size(11.0)).color(t.text_dim))
+                                .frame(false),
+                        );
                         app.auto.add(&format!("text.captions.{}.goto", c.id.0), num.rect, "Go to caption");
                         if num.clicked() {
                             if ui.input(|i| i.modifiers.command || i.modifiers.shift) {
@@ -256,7 +259,7 @@ fn captions(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     });
                     ui.vertical(|ui| {
                         if let Some(sp) = &c.speaker {
-                            ui.label(egui::RichText::new(sp).size(11.0).color(t.text_dim).strong());
+                            ui.label(egui::RichText::new(sp).size(figcraft_ui_icons::font_size(11.0)).color(t.text_dim).strong());
                         }
                         let key = egui::Id::unique(("cap-text", c.id.0));
                         let mut buf = ui.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| c.text.clone());
@@ -431,7 +434,7 @@ fn graphics(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                             Some(name) => format!("{} · {name}", g.track),
                             None => g.track.clone(),
                         };
-                        ui.label(egui::RichText::new(label).size(11.0).color(t.text_dim));
+                        ui.label(egui::RichText::new(label).size(figcraft_ui_icons::font_size(11.0)).color(t.text_dim));
                     });
                     ui.vertical(|ui| {
                         let tkey = egui::Id::unique(("gfx-text", g.clip.0, g.layer));
@@ -507,7 +510,7 @@ pub fn caption_properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect)
         Tokens::semibold(12.5),
         t.text,
     );
-    bui.label(egui::RichText::new(tl!("Text")).size(12.0).color(t.text_dim));
+    bui.label(egui::RichText::new(tl!("Text")).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim));
     let key = egui::Id::unique(("props-cap-text", c.id.0));
     let mut buf = bui.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| c.text.clone());
     let resp = crate::widgets::accessible_name(
@@ -526,7 +529,7 @@ pub fn caption_properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect)
     bui.add_space(8.0);
     for (edge, label, val) in [("in", tl!("In"), c.start), ("out", tl!("Out"), c.end())] {
         bui.horizontal(|ui| {
-            ui.add_sized(vec2(70.0, 22.0), egui::Label::new(egui::RichText::new(label).size(12.0).color(t.text_dim)));
+            ui.add_sized(vec2(70.0, 22.0), egui::Label::new(egui::RichText::new(label).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim)));
             let key = egui::Id::unique(("props-cap-tc", c.id.0, edge));
             let mut buf = ui.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| tc(val));
             let resp = crate::widgets::accessible_name(
@@ -546,7 +549,10 @@ pub fn caption_properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect)
         });
     }
     bui.horizontal(|ui| {
-        ui.add_sized(vec2(70.0, 22.0), egui::Label::new(egui::RichText::new(tl!("Duration")).size(12.0).color(t.text_dim)));
+        ui.add_sized(
+            vec2(70.0, 22.0),
+            egui::Label::new(egui::RichText::new(tl!("Duration")).size(figcraft_ui_icons::font_size(12.0)).color(t.text_dim)),
+        );
         ui.label(egui::RichText::new(tc(c.duration)).font(Tokens::mono(11.5)).color(t.text));
     });
     run(app, ui, actions);
@@ -652,7 +658,7 @@ fn transcript(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             let w0 = &words[pr.start];
             let head =
                 format!("{}  {}", w0.speaker.as_deref().unwrap_or(tl!("Speaker")), format_time(w0.start, rate, df, TimeDisplay::Timecode, 48_000));
-            let hr = ui.label(egui::RichText::new(head).size(11.0).color(t.text_dim).strong());
+            let hr = ui.label(egui::RichText::new(head).size(figcraft_ui_icons::font_size(11.0)).color(t.text_dim).strong());
             app.auto.add(&format!("text.transcript.paragraph.{pi}"), hr.rect, "Paragraph");
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(4.0, 3.0);
@@ -660,7 +666,11 @@ fn transcript(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     let w = &words[i];
                     let in_sel = sa.is_some_and(|a| i >= a) && sb.is_some_and(|b| i <= b);
                     let hit = highlights.get(i).copied().unwrap_or(false);
-                    let mut text = egui::RichText::new(&w.text).size(13.0).color(if Some(i) == current { t.hot_text } else { t.text });
+                    let mut text = egui::RichText::new(&w.text).size(figcraft_ui_icons::font_size(13.0)).color(if Some(i) == current {
+                        t.hot_text
+                    } else {
+                        t.text
+                    });
                     if in_sel {
                         text = text.background_color(t.row_selected);
                     } else if hit {
@@ -734,7 +744,7 @@ fn style_strip(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, track_idx: us
         if resp.changed() {
             actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "background": bg})));
         }
-        ui.label(egui::RichText::new(tl!("Align")).size(11.0).color(app.tokens.text_dim));
+        ui.label(egui::RichText::new(tl!("Align")).size(figcraft_ui_icons::font_size(11.0)).color(app.tokens.text_dim));
         for (a, icon_txt, name, tip) in [
             (CaptionAlign::Left, "L", "left", tl!("Align left")),
             (CaptionAlign::Center, "C", "center", tl!("Align center")),
@@ -746,7 +756,7 @@ fn style_strip(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, track_idx: us
                 actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "align": name})));
             }
         }
-        ui.label(egui::RichText::new(tl!("Position")).size(11.0).color(app.tokens.text_dim));
+        ui.label(egui::RichText::new(tl!("Position")).size(figcraft_ui_icons::font_size(11.0)).color(app.tokens.text_dim));
         for (a, name, tip) in [
             (CaptionAnchor::Top, "top", tl!("Position: top")),
             (CaptionAnchor::Middle, "middle", tl!("Position: middle")),

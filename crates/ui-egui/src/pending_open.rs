@@ -183,13 +183,13 @@ pub fn pending_opens(app: &mut FigApp, ctx: &egui::Context) {
             ui.add_space(12.0);
             for p in pending {
                 ui.horizontal(|ui| {
-                    ui.add(egui::Spinner::new().size(16.0));
+                    ui.add(egui::Spinner::new().size(figcraft_ui_icons::font_size(16.0)));
                     ui.label(p.label.as_str());
                 });
             }
             ui.add_space(16.0);
             ui.horizontal(|ui| {
-                ui.add(egui::Spinner::new().size(12.0));
+                ui.add(egui::Spinner::new().size(figcraft_ui_icons::font_size(12.0)));
                 ui.label(egui::RichText::new(tr("Opening the file…")).color(t.text_secondary));
             });
         },

@@ -356,7 +356,7 @@ pub fn template_controls(
 ) -> bool {
     let t = app.tokens;
     let Some(link) = it.graphic.as_ref().and_then(|m| m.template.as_ref()) else { return false };
-    ui.label(egui::RichText::new(tlf!("   Template: {name}", name = link.name)).color(t.text_faint).size(11.0));
+    ui.label(egui::RichText::new(tlf!("   Template: {name}", name = link.name)).color(t.text_faint).size(figcraft_ui_icons::font_size(11.0)));
     for c in &link.controls {
         let Some(e) = it.effects.iter().find(|e| graphic::is_layer(e) && filmcraft_project::gtemplate::layer_uid(e) == c.layer) else { continue };
         let id = format!("gfxTemplates.control.{}", c.id);
@@ -367,7 +367,7 @@ pub fn template_controls(
             && let Some(ParamValue::Text(s0)) = &pv
             && s0.contains('\n')
         {
-            ui.label(egui::RichText::new(format!("    {}", crate::i18n::t(&c.name))).color(t.text_dim).size(12.0));
+            ui.label(egui::RichText::new(format!("    {}", crate::i18n::t(&c.name))).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0)));
             let mut s = s0.clone();
             let rows = s.lines().count().clamp(2, 8);
             let r = ui
@@ -703,7 +703,11 @@ fn export_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     });
                 }
             });
-            ui.label(egui::RichText::new(tl!("Saved as a FilmCraft graphics template (.fcgt) in your templates folder.")).weak().size(11.0));
+            ui.label(
+                egui::RichText::new(tl!("Saved as a FilmCraft graphics template (.fcgt) in your templates folder."))
+                    .weak()
+                    .size(figcraft_ui_icons::font_size(11.0)),
+            );
             if !d.error.is_empty() {
                 ui.colored_label(Color32::from_rgb(0xff, 0x80, 0x80), &d.error);
             }

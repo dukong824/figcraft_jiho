@@ -96,7 +96,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
             bar.left_center() + egui::vec2(10.0, 0.0),
             egui::Align2::LEFT_CENTER,
             "Export Frame",
-            egui::FontId::proportional(13.0),
+            egui::FontId::proportional(figcraft_ui_icons::font_size(13.0)),
             egui::Color32::from_gray(90),
         );
         let x = egui::Rect::from_center_size(bar.right_center() - egui::vec2(16.0, 0.0), egui::vec2(24.0, 24.0));

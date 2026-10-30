@@ -516,7 +516,7 @@ pub(super) fn markdown(text: &str, width: f32, error: bool) -> egui::text::Layou
             let size = if heading > 0 { heading as f32 } else { 14.0 };
             let format = egui::TextFormat {
                 font_id: if mono {
-                    egui::FontId::monospace(13.0)
+                    egui::FontId::monospace(figcraft_ui_icons::font_size(13.0))
                 } else if strong || heading > 0 {
                     egui::FontId::new(size, egui::FontFamily::Name("semibold".into()))
                 } else {

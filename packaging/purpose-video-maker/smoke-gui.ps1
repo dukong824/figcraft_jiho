@@ -161,10 +161,26 @@ try {
     Write-Output 'Restoring with Esc'
     [PurposeWindowCheck]::Escape($window)
     Wait-Bounds $window $normal
+    Write-Output 'Opening Design and testing the breadcrumb fullscreen button'
+    $scale = [PurposeWindowCheck]::GetDpiForWindow($window) / 96.0
+    [PurposeWindowCheck]::Click($window, [int](90 * $scale), [int](383 * $scale))
+    $designProject = Join-Path $ProjectDirectory "videos/$($workspaceData.selected_video)/design.figcraft"
+    $timer.Restart()
+    while (-not (Test-Path -LiteralPath $designProject) -and $timer.Elapsed.TotalSeconds -lt 15) { Start-Sleep -Milliseconds 200 }
+    if (-not (Test-Path -LiteralPath $designProject)) { throw 'Sidebar Design row was not activated' }
+    Start-Sleep -Milliseconds 500
+    $client = [PurposeWindowCheck]::ClientBounds($window)
+    [PurposeWindowCheck]::Click($window, ($client.Right - $client.Left - [int](36 * $scale)), [int](69 * $scale))
+    Wait-Bounds $window $screen
+    Wait-FullscreenClient $window $screen
+    Start-Sleep -Milliseconds 300
+    $client = [PurposeWindowCheck]::ClientBounds($window)
+    [PurposeWindowCheck]::Click($window, ($client.Right - $client.Left - [int](36 * $scale)), [int](21 * $scale))
+    Wait-Bounds $window $normal
     $null = $app.CloseMainWindow()
     if (-not $app.WaitForExit(15000)) { throw 'Installed GUI did not close cleanly' }
     if ($app.ExitCode -ne 0) { throw "Installed GUI failed: $($app.ExitCode)" }
-    Write-Output 'Installed GUI: main window, taskbar icon, FilmCraft fullscreen button, restore, F11/Esc and clean exit passed'
+    Write-Output 'Installed GUI: main window, taskbar icon, FilmCraft and Design fullscreen buttons, restore, F11/Esc and clean exit passed'
 } finally {
     if (Test-Path -LiteralPath $startupLog) { Get-Content -LiteralPath $startupLog | Write-Output }
     if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }

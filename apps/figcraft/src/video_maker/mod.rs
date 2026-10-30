@@ -15,6 +15,7 @@ mod agent;
 mod agent_transport;
 mod appearance;
 mod attachments;
+mod downloader;
 mod film;
 mod film_audio;
 mod film_audio_in;
@@ -61,7 +62,9 @@ pub struct VideoMaker {
     catalog_job: Option<Receiver<Result<Vec<codex_options::Model>, String>>>,
     catalog_error: String,
     settings_open: bool,
-    trash_open: bool,
+    trash_confirm: Option<trash::Item>,
+    purge: trash::Cleanup,
+    downloader: downloader::Controller,
     trash_query: String,
     settings_section: usize,
     font_query: String,
@@ -98,6 +101,7 @@ pub struct VideoMaker {
     message: String,
     fonts_ready: bool,
     design_loaded: Option<u64>,
+    deleted_designs: Vec<u64>,
     film: Option<film::Editor>,
     film_ime_ready: bool,
     film_imports: HashMap<u64, (u64, filmcraft_project::ItemId)>,
@@ -167,7 +171,9 @@ impl VideoMaker {
             catalog_job: None,
             catalog_error: String::new(),
             settings_open: false,
-            trash_open: false,
+            trash_confirm: None,
+            purge: Default::default(),
+            downloader: Default::default(),
             trash_query: String::new(),
             settings_section: 0,
             font_query: String::new(),
@@ -204,6 +210,7 @@ impl VideoMaker {
             message,
             fonts_ready: false,
             design_loaded: None,
+            deleted_designs: Vec::new(),
             film: None,
             film_ime_ready: false,
             film_imports: HashMap::new(),
@@ -238,7 +245,7 @@ impl VideoMaker {
     }
 
     fn sync_route(&mut self) {
-        if matches!(self.tabs.route(), Some(Route::Guide { .. } | Route::History)) {
+        if matches!(self.tabs.route(), Some(Route::Guide { .. } | Route::History | Route::Trash | Route::Downloader)) {
             self.side_view = None;
         }
         let next = self.tabs.route().and_then(Route::video).map(|(id, _)| id);
@@ -474,6 +481,8 @@ impl VideoMaker {
     fn poll_jobs(&mut self, ctx: &egui::Context) {
         self.poll_retention(ctx);
         self.poll_imports(ctx);
+        self.poll_downloader(ctx);
+        self.poll_purge(ctx);
         self.poll_auth(ctx);
         self.poll_catalog(ctx);
         self.backup.poll(&self.store.root, self.store.data.backup_directory.as_deref(), &self.store.data.backup_id, ctx);

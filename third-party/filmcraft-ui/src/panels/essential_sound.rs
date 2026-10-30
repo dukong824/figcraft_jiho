@@ -115,7 +115,11 @@ fn browse(ui: &mut egui::Ui, cx: &mut Ctx, rect: Rect, presets: &[es::Preset], i
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(&mut child, |ui| {
         ui.set_max_width(ui.available_width() - 10.0);
         if items.is_empty() {
-            ui.label(egui::RichText::new(tl!("Select audio clips, then click a preset to apply it.")).color(t.text_faint).size(11.5));
+            ui.label(
+                egui::RichText::new(tl!("Select audio clips, then click a preset to apply it."))
+                    .color(t.text_faint)
+                    .size(figcraft_ui_icons::font_size(11.5)),
+            );
         }
         for kind in AudioType::ALL {
             ui.add_space(8.0);
@@ -171,10 +175,12 @@ fn edit(ui: &mut egui::Ui, cx: &mut Ctx, rect: Rect, items: &[TrackItem], preset
                     ui.label(
                         egui::RichText::new(tl!("The selected clips have different audio types. Assign one type to edit them together."))
                             .color(t.text_dim)
-                            .size(11.5),
+                            .size(figcraft_ui_icons::font_size(11.5)),
                     );
                 } else {
-                    ui.label(egui::RichText::new(tl!("Assign an audio type to the selection:")).color(t.text_dim).size(12.0));
+                    ui.label(
+                        egui::RichText::new(tl!("Assign an audio type to the selection:")).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0)),
+                    );
                 }
                 ui.add_space(6.0);
                 for kind in AudioType::ALL {
@@ -218,7 +224,7 @@ fn typed_body(
     }
     ui.add_space(6.0);
     // Preset: [▾] save delete
-    ui.label(egui::RichText::new(tl!("Preset:")).color(t.text_dim).size(12.0));
+    ui.label(egui::RichText::new(tl!("Preset:")).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0)));
     let mine: Vec<&es::Preset> = presets.iter().filter(|p| p.kind == kind).collect();
     let current = if st.preset.is_empty() { tl!("(Custom)").to_string() } else { crate::i18n::t(&st.preset).to_string() };
     let mut picked = None;
@@ -320,7 +326,7 @@ fn typed_body(
                 }
                 Section::Creative => {
                     switch_row(ui, cx, tl!("Reverb"), "creative.reverb.on", st.creative.reverb.on, on);
-                    ui.label(egui::RichText::new(tl!("Preset:")).color(t.text_dim).size(12.0));
+                    ui.label(egui::RichText::new(tl!("Preset:")).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0)));
                     let names: Vec<&str> = es::REVERB_PRESETS.iter().map(|p| p.name).collect();
                     combo(ui, cx, "creative.reverbPreset", &names, &st.creative.reverb_preset, on && st.creative.reverb.on);
                     slider(
@@ -345,7 +351,7 @@ fn typed_body(
                             "Remixing music to a target duration is not available yet. Trim the clip and add a crossfade instead."
                         ))
                         .color(t.text_faint)
-                        .size(11.5),
+                        .size(figcraft_ui_icons::font_size(11.5)),
                     );
                 }
                 Section::Pan => slider(ui, cx, tl!("Pan"), "pan.value", st.pan.value, (-100.0, 100.0), 1, "", on),
@@ -370,13 +376,17 @@ fn loudness(ui: &mut egui::Ui, cx: &mut Ctx, st: &EssentialSound, items: &[Track
     };
     ui.painter().text(pos2(br.max.x + 10.0, r.center().y), Align2::LEFT_CENTER, text, Tokens::ui(11.5), t.text_dim);
     if items.len() > 1 {
-        ui.label(egui::RichText::new(tlf!("Matches each of the {n} clips on its own.", n = items.len())).color(t.text_faint).size(11.0));
+        ui.label(
+            egui::RichText::new(tlf!("Matches each of the {n} clips on its own.", n = items.len()))
+                .color(t.text_faint)
+                .size(figcraft_ui_icons::font_size(11.0)),
+        );
     }
 }
 
 fn ducking(ui: &mut egui::Ui, cx: &mut Ctx, st: &EssentialSound, on: bool) {
     let t = cx.t;
-    ui.label(egui::RichText::new(tl!("Duck against:")).color(t.text_dim).size(12.0));
+    ui.label(egui::RichText::new(tl!("Duck against:")).color(t.text_dim).size(figcraft_ui_icons::font_size(12.0)));
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
     let mut x = r.min.x;
     for kind in AudioType::ALL {

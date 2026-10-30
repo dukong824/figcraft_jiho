@@ -43,7 +43,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                 if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     run = Some(("project.viewPreset.saveAs".into(), json!({"name": name})));
                 }
-                ui.label(egui::RichText::new(tl!("Saves the view, columns, sort, thumbnail and font size.")).weak().size(11.0));
+                ui.label(egui::RichText::new(tl!("Saves the view, columns, sort, thumbnail and font size.")).weak().size(figcraft_ui_icons::font_size(11.0)));
                 if ok_cancel(app, ui, &mut close) {
                     run = Some(("project.viewPreset.saveAs".into(), json!({"name": name})));
                 }

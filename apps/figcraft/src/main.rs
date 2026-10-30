@@ -70,6 +70,9 @@ struct App {
 }
 
 impl eframe::App for App {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if self.video_maker.is_some() { [1.0; 4] } else { egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32() }
+    }
     /// Native eframe logic callback: store the first context, drain control requests, run
     /// guarded background work, poll macOS open events, handle close requests and title
     /// changes, and schedule recovery repaints on the app clock.
@@ -146,36 +149,40 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let film_gpu = frame.wgpu_render_state().cloned();
-        services::parented(frame, || {
-            if let Some(maker) = &mut self.video_maker {
-                let leaving_design = maker.section_is_design();
-                let export = maker.ui(ui);
-                if leaving_design
-                    && !maker.section_is_design()
-                    && let Some(Err(error)) = with_app(|fig| fig.session.execute("file.save", &json!({})))
-                {
-                    maker.show_error(format!("디자인 저장 실패: {error}"));
+        let text_scale = self.video_maker.as_ref().map_or(1.0, video_maker::VideoMaker::ui_font_scale);
+        figcraft_ui_icons::with_font_scale(text_scale, || {
+            services::parented(frame, || {
+                if let Some(maker) = &mut self.video_maker {
+                    let leaving_design = maker.section_is_design();
+                    let export = maker.ui(ui);
+                    with_app(|fig| maker.close_deleted_designs(fig));
+                    if leaving_design
+                        && !maker.section_is_design()
+                        && let Some(Err(error)) = with_app(|fig| fig.session.execute("file.save", &json!({})))
+                    {
+                        maker.show_error(format!("디자인 저장 실패: {error}"));
+                    }
+                    if maker.section_is_edit() {
+                        maker.film_ui(ui, film_gpu);
+                    } else if maker.section_is_design() {
+                        with_app(|fig| {
+                            figcraft_ui_egui::windows::guard(fig, &ctx, |fig| {
+                                maker.ensure_design(fig);
+                                maker.place_design_asset(fig);
+                                fig.ui(ui);
+                                maker.design_frame(fig, ui.ctx());
+                                let inspector_export =
+                                    ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.design-export"))).unwrap_or(false);
+                                if export || inspector_export {
+                                    maker.export_design(fig);
+                                }
+                            })
+                        });
+                    }
+                } else {
+                    with_app(|fig| figcraft_ui_egui::windows::guard(fig, &ctx, |fig| fig.ui(ui)));
                 }
-                if maker.section_is_edit() {
-                    maker.film_ui(ui, film_gpu);
-                } else if maker.section_is_design() {
-                    with_app(|fig| {
-                        figcraft_ui_egui::windows::guard(fig, &ctx, |fig| {
-                            maker.ensure_design(fig);
-                            maker.place_design_asset(fig);
-                            fig.ui(ui);
-                            maker.design_frame(fig, ui.ctx());
-                            let inspector_export =
-                                ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("purpose.design-export"))).unwrap_or(false);
-                            if export || inspector_export {
-                                maker.export_design(fig);
-                            }
-                        })
-                    });
-                }
-            } else {
-                with_app(|fig| figcraft_ui_egui::windows::guard(fig, &ctx, |fig| fig.ui(ui)));
-            }
+            })
         });
         if let Some(maker) = &mut self.video_maker {
             maker.window_requests(&ctx, frame);

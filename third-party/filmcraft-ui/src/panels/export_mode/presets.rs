@@ -45,7 +45,7 @@ pub(super) fn preset_manager(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     if p.category != cat {
                         cat = p.category.clone();
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new(crate::i18n::t(&cat)).strong().color(t.text_dim).size(11.5));
+                        ui.label(egui::RichText::new(crate::i18n::t(&cat)).strong().color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
                     }
                     ui.horizontal(|ui| {
                         let fav = favorite(&p.name);
@@ -66,9 +66,9 @@ pub(super) fn preset_manager(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         }
                         let r = r.on_hover_text(crate::i18n::t(&p.description));
                         let _ = r;
-                        ui.label(egui::RichText::new(p.settings.format.label()).color(t.text_dim).size(11.0));
+                        ui.label(egui::RichText::new(p.settings.format.label()).color(t.text_dim).size(figcraft_ui_icons::font_size(11.0)));
                         if !p.builtin {
-                            ui.label(egui::RichText::new(tl!("User")).color(t.accent).size(10.5));
+                            ui.label(egui::RichText::new(tl!("User")).color(t.accent).size(figcraft_ui_icons::font_size(10.5)));
                         }
                     });
                 }
@@ -76,7 +76,7 @@ pub(super) fn preset_manager(app: &mut FilmcraftApp, ctx: &egui::Context) {
             ui.separator();
             let sel = all.iter().find(|p| preset_key(&p.name) == preset_key(&m.selected)).cloned();
             if let Some(p) = &sel {
-                ui.label(egui::RichText::new(crate::i18n::t(&p.description)).color(t.text_dim).size(11.5));
+                ui.label(egui::RichText::new(crate::i18n::t(&p.description)).color(t.text_dim).size(figcraft_ui_icons::font_size(11.5)));
             }
             ui.horizontal(|ui| {
                 ui.label(tl!("Save current settings as:"));

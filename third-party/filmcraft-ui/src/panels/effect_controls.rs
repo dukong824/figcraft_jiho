@@ -863,7 +863,10 @@ pub fn lumetri_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 let v = e.params.get(pd.id).map(|p| p.value_at(mt)).unwrap_or(pd.default.clone());
                 ui.horizontal(|ui| {
                     ui.add_space(18.0);
-                    ui.add_sized(vec2(110.0, 18.0), egui::Label::new(egui::RichText::new(crate::i18n::t(pd.label)).size(12.0)));
+                    ui.add_sized(
+                        vec2(110.0, 18.0),
+                        egui::Label::new(egui::RichText::new(crate::i18n::t(pd.label)).size(figcraft_ui_icons::font_size(12.0))),
+                    );
                     if let (ParamKind::Float { min, max, soft_min, soft_max, .. }, ParamValue::Float(x)) = (&pd.kind, &v) {
                         let mut val = *x;
                         let s = ui.add(egui::Slider::new(&mut val, *soft_min..=*soft_max).show_value(false));

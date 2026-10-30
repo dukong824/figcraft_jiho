@@ -4,6 +4,8 @@ use super::model::Section;
 pub enum Route {
     Video { video_id: u64, section: Section },
     History,
+    Downloader,
+    Trash,
     Guide { channel_id: Option<u64> },
 }
 
@@ -11,7 +13,7 @@ impl Route {
     pub fn video(self) -> Option<(u64, Section)> {
         match self {
             Self::Video { video_id, section } => Some((video_id, section)),
-            Self::History | Self::Guide { .. } => None,
+            Self::History | Self::Downloader | Self::Trash | Self::Guide { .. } => None,
         }
     }
 }

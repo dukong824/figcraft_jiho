@@ -60,6 +60,10 @@ native on macOS, Windows, Linux and FreeBSD and in the browser, fully drivable b
 the CLI, a JSON control channel and MCP. This page is the one-page summary; agents choosing work
 start with [`docs/gaps.md`](docs/gaps.md).
 
+Purpose 0.1.11 includes the matching Codex code-mode host, a background video/MP3 downloader,
+full-page trash with confirmed permanent deletion and durable cleanup, actual text-only sizing,
+stable tab/sidebar geometry and Design fullscreen. Original editor parity estimates remain unchanged.
+
 ## Headline numbers
 
 | | Value | Kind |

@@ -9,6 +9,7 @@ impl VideoMaker {
         let Some(view) = self.side_view else { return };
         let mut close = false;
         egui::Panel::right("purpose-side-view")
+            .show_separator_line(false)
             .default_size(390.0)
             .min_size(310.0)
             .max_size(650.0)
@@ -20,7 +21,7 @@ impl VideoMaker {
                         RichText::new(match view {
                             SideView::Codex => "Codex",
                         })
-                        .size(14.0)
+                        .size(figcraft_ui_icons::font_size(14.0))
                         .strong(),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -95,7 +96,7 @@ impl VideoMaker {
                 if messages.is_empty() {
                     ui.add_space(48.0);
                     ui.vertical_centered(|ui| {
-                        ui.label(RichText::new("무엇을 함께 만들까요?").size(19.0).strong());
+                        ui.label(RichText::new("무엇을 함께 만들까요?").size(figcraft_ui_icons::font_size(19.0)).strong());
                     });
                 }
                 for (index, message) in messages.iter().enumerate() {
@@ -117,9 +118,9 @@ impl VideoMaker {
                                 ),
                                 0.0,
                                 egui::TextFormat {
-                                    font_id: egui::FontId::proportional(14.0),
+                                    font_id: egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)),
                                     color: style::TEXT,
-                                    line_height: Some(21.0),
+                                    line_height: Some(figcraft_ui_icons::font_size(21.0)),
                                     ..Default::default()
                                 },
                             );
@@ -139,12 +140,12 @@ impl VideoMaker {
                                 time.right_center(),
                                 egui::Align2::RIGHT_CENTER,
                                 &message.at,
-                                egui::FontId::proportional(10.0),
+                                egui::FontId::proportional(figcraft_ui_icons::font_size(10.0)),
                                 style::FAINT,
                             );
                         } else {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Codex").size(13.0).strong());
+                                ui.label(RichText::new("Codex").size(figcraft_ui_icons::font_size(13.0)).strong());
                                 if running != Some(index) {
                                     ui.label(
                                         RichText::new(format!(
@@ -158,7 +159,7 @@ impl VideoMaker {
                                             },
                                             super::chat::elapsed(message.elapsed_ms)
                                         ))
-                                        .size(11.0)
+                                        .size(figcraft_ui_icons::font_size(11.0))
                                         .color(style::MUTED),
                                     );
                                 }
@@ -174,24 +175,33 @@ impl VideoMaker {
                                     if running == Some(index) {
                                         ui.spinner();
                                     }
-                                    egui::CollapsingHeader::new(RichText::new(title).size(12.0).color(style::MUTED)).show(ui, |ui| {
-                                        for activity in &message.activities {
-                                            ui.label(
-                                                RichText::new(format!("{}  {}", super::chat::elapsed(activity.elapsed_ms), activity.label))
-                                                    .size(11.0)
-                                                    .color(style::MUTED),
-                                            );
-                                            if !activity.detail.is_empty() {
-                                                ui.add(egui::Label::new(RichText::new(&activity.detail).size(12.0)).selectable(true).wrap());
+                                    egui::CollapsingHeader::new(RichText::new(title).size(figcraft_ui_icons::font_size(12.0)).color(style::MUTED))
+                                        .show(ui, |ui| {
+                                            for activity in &message.activities {
+                                                ui.label(
+                                                    RichText::new(format!("{}  {}", super::chat::elapsed(activity.elapsed_ms), activity.label))
+                                                        .size(figcraft_ui_icons::font_size(11.0))
+                                                        .color(style::MUTED),
+                                                );
+                                                if !activity.detail.is_empty() {
+                                                    ui.add(
+                                                        egui::Label::new(RichText::new(&activity.detail).size(figcraft_ui_icons::font_size(12.0)))
+                                                            .selectable(true)
+                                                            .wrap(),
+                                                    );
+                                                }
+                                                ui.add_space(6.0);
                                             }
-                                            ui.add_space(6.0);
-                                        }
-                                        if let Some(usage) = &message.usage
-                                            && let (Some(input), Some(output)) = (usage["input_tokens"].as_u64(), usage["output_tokens"].as_u64())
-                                        {
-                                            ui.label(RichText::new(format!("입력 {input} · 출력 {output} 토큰")).size(11.0).color(style::MUTED));
-                                        }
-                                    });
+                                            if let Some(usage) = &message.usage
+                                                && let (Some(input), Some(output)) = (usage["input_tokens"].as_u64(), usage["output_tokens"].as_u64())
+                                            {
+                                                ui.label(
+                                                    RichText::new(format!("입력 {input} · 출력 {output} 토큰"))
+                                                        .size(figcraft_ui_icons::font_size(11.0))
+                                                        .color(style::MUTED),
+                                                );
+                                            }
+                                        });
                                 });
                             }
                             if !message.text.is_empty() {
@@ -255,7 +265,7 @@ impl VideoMaker {
                     ui.add(
                         TextEdit::multiline(&mut self.prompt)
                             .id(id)
-                            .font(egui::FontId::proportional(14.0))
+                            .font(egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)))
                             .desired_width(ui.available_width())
                             .desired_rows(2)
                             .margin(egui::Margin::ZERO)
@@ -305,7 +315,7 @@ impl VideoMaker {
         let height = ui.available_height();
         ui.add_space((height * 0.26).max(20.0));
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new("Codex").size(26.0).strong());
+            ui.label(RichText::new("Codex").size(figcraft_ui_icons::font_size(26.0)).strong());
             ui.add_space(12.0);
             if self.auth_job.is_some() {
                 ui.spinner();
@@ -343,11 +353,11 @@ impl VideoMaker {
         });
         if !self.auth_error.is_empty() {
             ui.add_space(16.0);
-            ui.label(RichText::new(&self.auth_error).size(12.0).color(style::MUTED));
+            ui.label(RichText::new(&self.auth_error).size(figcraft_ui_icons::font_size(12.0)).color(style::MUTED));
         }
         if !self.login_output.is_empty() {
             egui::ScrollArea::vertical().id_salt("codex-login-output").max_height(180.0).show(ui, |ui| {
-                ui.label(RichText::new(&self.login_output).size(12.0));
+                ui.label(RichText::new(&self.login_output).size(figcraft_ui_icons::font_size(12.0)));
                 for word in self.login_output.split_whitespace().filter(|s| s.starts_with("https://") || s.starts_with("http://localhost:")) {
                     ui.hyperlink(word);
                 }
@@ -452,9 +462,9 @@ impl VideoMaker {
 }
 
 fn composer_text(text: &str, width: f32) -> egui::text::LayoutJob {
-    let mut job = egui::text::LayoutJob::simple(text.into(), egui::FontId::proportional(14.0), style::TEXT, width);
+    let mut job = egui::text::LayoutJob::simple(text.into(), egui::FontId::proportional(figcraft_ui_icons::font_size(14.0)), style::TEXT, width);
     for section in &mut job.sections {
-        section.format.line_height = Some(22.0);
+        section.format.line_height = Some(figcraft_ui_icons::font_size(22.0));
     }
     job
 }
