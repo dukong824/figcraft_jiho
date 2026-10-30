@@ -12,7 +12,7 @@
   pure yt-dlp/EJS wheel hashes were independently downloaded and checked. Complete original
   notices are kept by packaging; upstream's GPL-containing PyInstaller EXE is not redistributed.
 - Executed real local HTTP MP4 download and MP3 conversion with the pinned yt-dlp wheel and
-  FFmpeg, then drove the native app to download and register sample.mp4 in its chosen library.
+  FFmpeg, then drove the native app to download and register both sample.mp4 and sample.mp3 in its chosen library.
   Native Vulkan screenshots cover the downloader page, full-page trash, confirmation modal,
   actual video directory removal, stable tab alignment, restored search field and footer order.
 - Changed the running app from 14pt to 20pt: text grows, panels/icons/canvas geometry stay fixed,

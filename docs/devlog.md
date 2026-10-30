@@ -349,3 +349,6 @@ increase document title top padding and add Design fullscreen while removing the
 
 Final native review also fixes breadcrumb text alignment inside its reserved full-width hit box;
 the fullscreen control keeps its own reserved space when a video title is long.
+
+Native MP3 review also keeps PATH-based FFmpeg discovery when no bundled binary exists;
+yt-dlp only receives --ffmpeg-location for an existing file. Windows retains its bundled path.

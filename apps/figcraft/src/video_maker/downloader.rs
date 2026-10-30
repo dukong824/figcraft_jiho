@@ -96,7 +96,12 @@ fn command(root: &Path) -> Result<Command, String> {
         "--retries",
         "3",
     ]);
-    cmd.arg("--ffmpeg-location").arg(media::tool("ffmpeg"));
+    let ffmpeg = media::tool("ffmpeg");
+    // Bare executable names are resolved by yt-dlp through PATH. Its location flag
+    // only accepts an existing file/directory (the Windows bundle is absolute).
+    if ffmpeg.is_file() {
+        cmd.arg("--ffmpeg-location").arg(ffmpeg);
+    }
     cmd.args([
         "--progress-template",
         "download:purpose-progress:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
