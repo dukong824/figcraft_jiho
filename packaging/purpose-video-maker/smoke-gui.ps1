@@ -68,7 +68,9 @@ public static class PurposeWindowCheck {
     public static void FitForTest(IntPtr window, Rect screen) {
         var normal = Bounds(window);
         int width = Math.Min(normal.Right - normal.Left, (int)((screen.Right - screen.Left) * 0.9));
-        int height = Math.Min(normal.Bottom - normal.Top, (int)((screen.Bottom - screen.Top) * 0.85));
+        // Leave room for the five pinned sidebar rows so Edit is visible at 1024x768.
+        // The window remains smaller than the monitor; fullscreen bounds are still exact.
+        int height = Math.Min(normal.Bottom - normal.Top, (int)((screen.Bottom - screen.Top) * 0.95));
         if (!SetWindowPos(window, IntPtr.Zero, screen.Left + 24, screen.Top + 24, width, height, 0x14)) throw new Exception("SetWindowPos failed");
     }
     public static void EditorFullscreen(IntPtr window, bool fullscreen) {
@@ -136,6 +138,13 @@ try {
     Write-Output "Physical normal bounds: $($normal.Left),$($normal.Top),$($normal.Right),$($normal.Bottom)"
     Write-Output "Physical monitor bounds: $($screen.Left),$($screen.Top),$($screen.Right),$($screen.Bottom)"
     [PurposeWindowCheck]::OpenEditor($window)
+    $workspaceData = Get-Content -LiteralPath (Join-Path $ProjectDirectory 'workspace.json') -Raw | ConvertFrom-Json
+    $editorProject = Join-Path $ProjectDirectory "videos/$($workspaceData.selected_video)/edit.fcproj"
+    $timer.Restart()
+    while (-not (Test-Path -LiteralPath $editorProject) -and $timer.Elapsed.TotalSeconds -lt 15) {
+        Start-Sleep -Milliseconds 200
+    }
+    if (-not (Test-Path -LiteralPath $editorProject)) { throw 'Sidebar Edit row was not activated; check fixture viewport and click coordinates' }
     Start-Sleep -Seconds 1
     Write-Output 'Entering fullscreen with the FilmCraft button'
     [PurposeWindowCheck]::EditorFullscreen($window, $false)

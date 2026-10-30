@@ -27,6 +27,10 @@
 - Windows 0.1.9 packaging adds an installed MCP stdio initialize/tool-catalog probe alongside the
   existing installation, media, taskbar icon and fullscreen/restore GUI checks. Publication requires
   that workflow to pass; its result belongs to the release run.
+- Initial Windows run passed compilation, installation, media tools and installed MCP initialize/catalog.
+  The GUI probe failed because its 85%-height test window clipped the Edit sidebar row after adding
+  the fifth pinned action. The fixture now uses 95% of monitor height and checks that the editor
+  project actually opened before clicking fullscreen. Exact fullscreen client bounds remain required.
 
 ## Purpose Lucide icon replacement — 2026-10-29
 
