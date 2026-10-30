@@ -104,6 +104,8 @@ pub struct Video {
     pub name: String,
     pub assets: Vec<Asset>,
     #[serde(default)]
+    pub removed_assets: Vec<Asset>,
+    #[serde(default)]
     pub script_title: String,
     #[serde(default)]
     pub script_body: String,
@@ -169,7 +171,7 @@ impl Video {
     }
 
     pub fn asset(&self, id: u64) -> Option<&Asset> {
-        self.assets.iter().find(|a| a.id == id)
+        self.assets.iter().chain(&self.removed_assets).find(|a| a.id == id)
     }
 }
 
@@ -178,10 +180,18 @@ pub struct Channel {
     pub id: u64,
     pub name: String,
     pub videos: Vec<Video>,
+    #[serde(default)]
+    pub codex_guide: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Workspace {
+    #[serde(default)]
+    pub codex_guide: String,
+    #[serde(default)]
+    pub ui_font: String,
+    #[serde(default = "default_video_icon")]
+    pub video_icon: String,
     #[serde(default)]
     pub trashed_channels: Vec<TrashedChannel>,
     #[serde(default)]
@@ -211,6 +221,9 @@ pub struct Workspace {
 impl Default for Workspace {
     fn default() -> Self {
         Self {
+            codex_guide: String::new(),
+            ui_font: String::new(),
+            video_icon: default_video_icon(),
             trashed_channels: Vec::new(),
             codex_settings: Default::default(),
             backup_directory: None,
@@ -247,7 +260,7 @@ impl Workspace {
 
     pub fn add_channel(&mut self) -> u64 {
         let id = self.id();
-        self.channels.push(Channel { id, name: format!("채널 {}", self.channels.len() + 1), videos: Vec::new() });
+        self.channels.push(Channel { id, name: format!("채널 {}", self.channels.len() + 1), videos: Vec::new(), codex_guide: String::new() });
         id
     }
 
@@ -258,6 +271,7 @@ impl Workspace {
             id,
             name: format!("새 영상 {}", channel.videos.len() + 1),
             assets: Vec::new(),
+            removed_assets: Vec::new(),
             script_title: format!("새 영상 {}", channel.videos.len() + 1),
             script_body: String::new(),
             script_font_size: 16.0,
@@ -349,6 +363,7 @@ impl Workspace {
         }
         if let Some(previous) = self.trashed_channels.iter_mut().find(|c| c.channel.id == id) {
             previous.channel.name = channel.name;
+            previous.channel.codex_guide = channel.codex_guide;
             previous.deleted_at = now();
             for video in channel.videos {
                 if !previous.channel.videos.iter().any(|v| v.id == video.id) {
@@ -367,6 +382,7 @@ impl Workspace {
         let item = self.trashed_channels.remove(index);
         if let Some(channel) = self.channels.iter_mut().find(|c| c.id == id) {
             channel.name = item.channel.name;
+            channel.codex_guide = item.channel.codex_guide;
             for video in item.channel.videos {
                 if !channel.videos.iter().any(|v| v.id == video.id) {
                     channel.videos.push(video);
@@ -394,7 +410,7 @@ impl Workspace {
         let Some(index) = self.trash.iter().position(|t| t.video.id == id) else { return };
         let item = self.trash.remove(index);
         if !self.channels.iter().any(|c| c.id == item.channel_id) {
-            self.channels.push(Channel { id: item.channel_id, name: item.channel_name, videos: Vec::new() });
+            self.channels.push(Channel { id: item.channel_id, name: item.channel_name, videos: Vec::new(), codex_guide: String::new() });
         }
         if let Some(channel) = self.channels.iter_mut().find(|c| c.id == item.channel_id) {
             channel.videos.push(item.video);
@@ -406,6 +422,7 @@ pub struct Store {
     pub root: PathBuf,
     pub data: Workspace,
     pub writable: bool,
+    pub recovered: Option<String>,
 }
 
 impl Store {
@@ -413,12 +430,35 @@ impl Store {
         fs::create_dir_all(&root).map_err(|e| format!("프로젝트 폴더를 만들 수 없습니다: {e}"))?;
         let path = root.join("workspace.json");
         let backup = root.join("workspace.json.bak");
-        let source = if path.exists() { &path } else { &backup };
-        let mut data: Workspace = if source.exists() {
-            let bytes = fs::read(source).map_err(|e| format!("프로젝트 목록을 읽을 수 없습니다: {e}"))?;
-            serde_json::from_slice(&bytes).map_err(|e| format!("프로젝트 목록이 손상되었습니다: {e}"))?
-        } else {
-            Workspace::default()
+        let previous = root.join("workspace.json.previous");
+        let mut recovered = None;
+        let mut errors = Vec::new();
+        let mut loaded = None;
+        for source in [&path, &backup, &previous] {
+            if !source.exists() {
+                continue;
+            }
+            let result =
+                fs::read(source).map_err(|e| e.to_string()).and_then(|bytes| serde_json::from_slice::<Workspace>(&bytes).map_err(|e| e.to_string()));
+            match result {
+                Ok(data) => {
+                    if source != &path {
+                        if path.exists() {
+                            let damaged = root.join(format!("workspace.corrupt-{}.json", chrono::Utc::now().format("%Y%m%d%H%M%S%f")));
+                            fs::copy(&path, damaged).map_err(|e| format!("손상된 원본을 보존할 수 없습니다: {e}"))?;
+                        }
+                        recovered = Some("이전 정상 저장본에서 프로젝트를 복구했습니다".to_owned());
+                    }
+                    loaded = Some(data);
+                    break;
+                }
+                Err(error) => errors.push(format!("{}: {error}", source.display())),
+            }
+        }
+        let mut data = match loaded {
+            Some(data) => data,
+            None if errors.is_empty() => Workspace::default(),
+            None => return Err(format!("프로젝트 목록과 복구본을 읽을 수 없습니다. 원본 파일은 보존되어 있습니다.\n{}", errors.join("\n"))),
         };
         let migrated = data.version < 3;
         let old_version = data.version;
@@ -439,8 +479,8 @@ impl Store {
                 data.expanded_videos.push(id);
             }
         }
-        let store = Self { root, data, writable: true };
-        if migrated {
+        let store = Self { root, data, writable: true, recovered };
+        if migrated || store.recovered.is_some() {
             store.save()?;
         }
         Ok(store)
@@ -475,25 +515,44 @@ fn default_line_height() -> f32 {
 fn default_zoom() -> f32 {
     1.0
 }
+fn default_video_icon() -> String {
+    "clapperboard".into()
+}
 
 pub(super) fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let temp = path.with_extension("json.tmp");
-    let backup = path.with_extension("json.bak");
+    let previous = path.with_extension("json.previous");
     let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
     fs::write(&temp, bytes).map_err(|e| e.to_string())?;
-    if fs::rename(&temp, path).is_err() {
-        if backup.exists() {
-            return Err("이전 백업이 남아 있어 저장을 중단했습니다".into());
+    // Keep a verified, rolling recovery copy. A damaged current file must never replace it.
+    if let Ok(current) = fs::read(path)
+        && serde_json::from_slice::<serde_json::Value>(&current).is_ok()
+    {
+        let backup = path.with_extension("json.bak");
+        let pending = path.with_extension("json.bak.tmp");
+        fs::write(&pending, current).map_err(|e| e.to_string())?;
+        replace_json(&pending, &backup, &path.with_extension("json.bak.previous"))?;
+    }
+    replace_json(&temp, path, &previous)
+}
+
+fn replace_json(temp: &Path, path: &Path, previous: &Path) -> Result<(), String> {
+    if fs::rename(temp, path).is_err() {
+        if previous.exists() {
+            if !path.exists() {
+                return Err("이전 저장 복구본을 먼저 복구해야 합니다".into());
+            }
+            fs::remove_file(previous).map_err(|e| e.to_string())?;
         }
-        fs::rename(path, &backup).map_err(|e| e.to_string())?;
-        if let Err(e) = fs::rename(&temp, path) {
-            let _ = fs::rename(&backup, path);
+        fs::rename(path, previous).map_err(|e| e.to_string())?;
+        if let Err(e) = fs::rename(temp, path) {
+            let _ = fs::rename(previous, path);
             return Err(e.to_string());
         }
-        let _ = fs::remove_file(backup);
+        let _ = fs::remove_file(previous);
     }
     Ok(())
 }
@@ -507,6 +566,40 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[test]
+    fn corrupt_primary_recovers_verified_backup_and_preserves_the_damaged_file() {
+        let root = std::env::temp_dir().join(format!("purpose-recover-manifest-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut store = Store::load(root.clone()).unwrap();
+        let channel = store.data.add_channel();
+        store.data.add_video(channel);
+        store.data.selected_mut().unwrap().script_body = "정상 대본".into();
+        store.save().unwrap();
+        store.save().unwrap();
+        fs::write(root.join("workspace.json"), b"{broken").unwrap();
+        let recovered = Store::load(root.clone()).unwrap();
+        assert!(recovered.recovered.is_some());
+        assert_eq!(recovered.data.selected().unwrap().1.script_body, "정상 대본");
+        assert!(fs::read_dir(&root).unwrap().filter_map(Result::ok).any(|f| f.file_name().to_string_lossy().starts_with("workspace.corrupt-")));
+        let restored = Store::load(root.clone()).unwrap();
+        assert!(restored.recovered.is_none());
+        assert_eq!(restored.data.selected().unwrap().1.script_body, "정상 대본");
+        let backup: Workspace = serde_json::from_slice(&fs::read(root.join("workspace.json.bak")).unwrap()).unwrap();
+        assert_eq!(backup.selected().unwrap().1.script_body, "정상 대본");
+        let _ = fs::remove_dir_all(root);
+    }
+    #[test]
+    fn no_valid_recovery_copy_does_not_overwrite_any_source() {
+        let root = std::env::temp_dir().join(format!("purpose-recover-invalid-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("workspace.json"), b"{primary").unwrap();
+        fs::write(root.join("workspace.json.bak"), b"{backup").unwrap();
+        assert!(Store::load(root.clone()).is_err());
+        assert_eq!(fs::read(root.join("workspace.json")).unwrap(), b"{primary");
+        assert_eq!(fs::read(root.join("workspace.json.bak")).unwrap(), b"{backup");
+        let _ = fs::remove_dir_all(root);
+    }
     #[test]
     fn channel_rename_trash_and_mixed_restore_keep_every_video_and_settings() {
         let mut ws = Workspace::default();

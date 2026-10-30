@@ -1,5 +1,24 @@
 # Local extension devlog
 
+## 2026-10-30 — M-PURPOSE-VIDEO: guided live editing and desktop interaction
+
+Connect the official CLI to a per-request, authenticated loopback MCP adapter in the application.
+Require the current common/channel guide before every tool action; bind tools to the originating
+video and expose design/editor commands, previews and library operations. Keep script/guide writes
+unavailable. Run the CLI filesystem in read-only mode; mutation is through the app command layer.
+Support cancellation and expire capabilities when the task ends.
+
+Add channel/common document-style guides and shared interface font/icon preferences. Restyle
+settings, rename and standalone trash dialogs; refine search alignment, selection formatting
+placement, title weight, sidebar hover actions and the upward-growing composer. Add library
+context operations, range/marquee selection and copy/paste, preserving files used by other views.
+Propagate friendly source names to the media bin and existing clips while keeping user clip names.
+
+Probe and stream imported files on cancellable background workers, publishing complete files to
+the originally selected video. Retain verified JSON backups and preserve corrupt originals during
+recovery. The Windows package checks its installed MCP stdio entry point in addition to GUI tests.
+Validation details and any unrelated full-CI failures are recorded in VALIDATION.md.
+
 ## 2026-10-29 — M-PURPOSE-VIDEO: one licensed Lucide icon pack
 
 At the owner's request, download the unmodified Lucide 1.64.0 SVG sources from pinned revision

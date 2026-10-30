@@ -24,7 +24,6 @@ impl VideoMaker {
                     ui.label(
                         RichText::new(match view {
                             SideView::Codex => "Codex",
-                            SideView::Trash => "휴지통",
                         })
                         .size(14.0)
                         .strong(),
@@ -64,7 +63,6 @@ impl VideoMaker {
                 ui.separator();
                 match view {
                     SideView::Codex => self.codex_contents(ui),
-                    SideView::Trash => self.trash_contents(ui),
                 }
             });
         if close {
@@ -86,12 +84,9 @@ impl VideoMaker {
         let messages = self.conversation(video_id).messages.clone();
         let running = self.chat_job.as_ref().filter(|job| job.video_id == video_id).map(|job| job.reply);
         let rect = ui.available_rect_before_wrap();
-        let text_height =
-            ui.fonts_mut(|f| f.layout(self.prompt.clone(), egui::FontId::proportional(14.0), style::TEXT, (rect.width() - 26.0).max(80.0))).size().y;
-        let composer_height = (text_height + 74.0).clamp(124.0, (rect.height() * 0.55).clamp(124.0, 320.0));
-        let conversation =
-            egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), (rect.bottom() - composer_height - 12.0).max(rect.top() + 40.0)));
-        let composer = egui::Rect::from_min_max(egui::pos2(rect.left(), conversation.bottom() + 10.0), rect.max);
+        let text_height = ui.fonts_mut(|f| f.layout_job(composer_text(&self.prompt, (rect.width() - 32.0).max(60.0)))).size().y;
+        let composer = composer_rect(rect, text_height);
+        let conversation = egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), (composer.top() - 12.0).max(rect.top())));
         let mut append = None;
         ui.scope_builder(egui::UiBuilder::new().max_rect(conversation), |ui| {
             egui::ScrollArea::vertical().id_salt(("codex-conversation", video_id)).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
@@ -221,49 +216,57 @@ impl VideoMaker {
             });
         });
         let mut send = false;
-        ui.scope_builder(egui::UiBuilder::new().max_rect(composer), |ui| {
-            egui::Frame::NONE.fill(style::SURFACE).stroke(egui::Stroke::new(1.0, style::BORDER)).corner_radius(14).inner_margin(12.0).show(
-                ui,
-                |ui| {
-                    let id = ui.make_persistent_id(("codex-composer", video_id));
-                    let enter = self.chat_job.is_none()
-                        && ui.memory(|m| m.has_focus(id))
-                        && ui.input_mut(|i| super::interactions::consume_key(i, egui::Modifiers::NONE, egui::Key::Enter));
-                    egui::ScrollArea::vertical()
-                        .id_salt(("codex-input-scroll", video_id))
-                        .max_height(composer_height - 66.0)
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.add(
-                                TextEdit::multiline(&mut self.prompt)
-                                    .id(id)
-                                    .font(egui::FontId::proportional(14.0))
-                                    .desired_width(ui.available_width())
-                                    .desired_rows(2)
-                                    .frame(egui::Frame::NONE)
-                                    .hint_text("메시지 보내기…"),
-                            );
-                        });
-                    ui.horizontal(|ui| {
-                        self.codex_controls(ui);
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if let Some(job) = &self.chat_job {
-                                if job.video_id == video_id {
-                                    if style::round_button(ui, Icon::Stop, true, "응답 중지").clicked() {
-                                        job.cancel();
-                                    }
-                                } else {
-                                    ui.label(RichText::new("다른 영상에서 작업 중").size(11.0).color(style::MUTED));
-                                }
-                            } else {
-                                let enabled = !self.prompt.trim().is_empty();
-                                send = style::round_button(ui, Icon::Send, enabled, "보내기 · Enter / 줄바꿈 · Shift+Enter").clicked() && enabled
-                                    || enter && enabled;
-                            }
-                        });
-                    });
-                },
-            );
+        ui.painter().rect_filled(composer, 12, style::SURFACE);
+        ui.painter().rect_stroke(composer, 12, egui::Stroke::new(1.0, style::BORDER), egui::StrokeKind::Inside);
+        let inner = composer.shrink(12.0);
+        let controls = egui::Rect::from_min_max(egui::pos2(inner.left(), inner.bottom() - 30.0), inner.max);
+        let input = egui::Rect::from_min_max(inner.min, egui::pos2(inner.right(), controls.top() - 12.0));
+        let id = egui::Id::unique(("codex-composer", video_id));
+        let enter = self.chat_job.is_none()
+            && ui.memory(|m| m.has_focus(id))
+            && ui.input_mut(|i| super::interactions::consume_key(i, egui::Modifiers::NONE, egui::Key::Enter));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(input), |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt(("codex-input-scroll", video_id))
+                .min_scrolled_height(input.height())
+                .max_height(input.height())
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    let mut layouter =
+                        |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| ui.fonts_mut(|f| f.layout_job(composer_text(text.as_str(), wrap)));
+                    ui.add(
+                        TextEdit::multiline(&mut self.prompt)
+                            .id(id)
+                            .font(egui::FontId::proportional(14.0))
+                            .desired_width(ui.available_width())
+                            .desired_rows(2)
+                            .margin(egui::Margin::ZERO)
+                            .frame(egui::Frame::NONE)
+                            .layouter(&mut layouter)
+                            .hint_text("메시지 보내기…"),
+                    );
+                });
+        });
+        ui.scope_builder(egui::UiBuilder::new().max_rect(controls), |ui| {
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2((controls.width() - 40.0).max(80.0), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.set_min_width((controls.width() - 40.0).max(80.0));
+                    self.codex_controls(ui);
+                });
+                if let Some(job) = &self.chat_job {
+                    if job.video_id == video_id {
+                        if style::round_button(ui, Icon::Stop, true, "응답 중지").clicked() {
+                            job.cancel();
+                        }
+                    } else {
+                        style::round_button(ui, Icon::Stop, false, "다른 영상에서 작업 중");
+                    }
+                } else {
+                    let enabled = !self.prompt.trim().is_empty();
+                    send = style::round_button(ui, Icon::Send, enabled, "보내기 · Enter / 줄바꿈 · Shift+Enter").clicked() && enabled
+                        || enter && enabled;
+                }
+            });
         });
         if let Some(text) = append {
             if let Some(video) = self.store.data.selected_mut() {
@@ -344,45 +347,6 @@ impl VideoMaker {
             self.refresh_auth();
         }
     }
-
-    fn trash_contents(&mut self, ui: &mut egui::Ui) {
-        let entries = self.store.data.trash.clone();
-        let channels = self.store.data.trashed_channels.clone();
-        let mut restore_channel = None;
-        if entries.is_empty() && channels.is_empty() {
-            ui.add_space(20.0);
-            ui.label("휴지통이 비어 있습니다.");
-        }
-        let mut restore = None;
-        egui::ScrollArea::vertical().id_salt("purpose-trash").show(ui, |ui| {
-            for entry in channels.iter().rev() {
-                ui.add_space(12.0);
-                ui.label(RichText::new(&entry.channel.name).strong());
-                ui.label(RichText::new(format!("채널 · 영상 {}개 · {}", entry.channel.videos.len(), entry.deleted_at)).small().color(style::MUTED));
-                if ui.button("복원").clicked() {
-                    restore_channel = Some(entry.channel.id);
-                }
-                ui.separator();
-            }
-            for entry in entries.iter().rev() {
-                ui.add_space(12.0);
-                ui.label(RichText::new(&entry.video.name).strong());
-                ui.label(RichText::new(format!("{} · {}", entry.channel_name, entry.deleted_at)).small());
-                if ui.button("복원").clicked() {
-                    restore = Some(entry.video.id);
-                }
-                ui.separator();
-            }
-        });
-        if let Some(id) = restore_channel {
-            self.store.data.restore_channel(id);
-            self.save();
-        }
-        if let Some(id) = restore {
-            self.store.data.restore_video(id);
-            self.save();
-        }
-    }
 }
 
 impl VideoMaker {
@@ -395,7 +359,7 @@ impl VideoMaker {
             &before.model
         });
         let model_button = style::dropdown(ui, label, (ui.available_width() - 188.0).max(42.0));
-        egui::Popup::menu(&model_button).show(|ui| {
+        egui::Popup::menu(&model_button).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
             ui.set_min_width(210.0);
             if self.catalog_job.is_some() {
                 ui.label("모델 불러오는 중…");
@@ -451,7 +415,7 @@ impl VideoMaker {
             .map(|t| t.description.as_str())
             .filter(|s| !s.is_empty())
             .unwrap_or(if fast { "빠른 생성" } else { "이 모델에서 빠른 생성을 지원하지 않습니다" });
-        if ui.add_enabled_ui(fast, |ui| style::icon_toggle(ui, Icon::Fast, before.fast, 26.0, tip)).inner.clicked() {
+        if ui.add_enabled_ui(fast, |ui| style::fast_toggle(ui, before.fast, 26.0, tip)).inner.clicked() {
             self.store.data.codex_settings.fast = !before.fast;
         }
         if before.model != self.store.data.codex_settings.model {
@@ -465,5 +429,30 @@ impl VideoMaker {
         if before != self.store.data.codex_settings {
             self.save();
         }
+    }
+}
+
+fn composer_text(text: &str, width: f32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::simple(text.into(), egui::FontId::proportional(14.0), style::TEXT, width);
+    for section in &mut job.sections {
+        section.format.line_height = Some(22.0);
+    }
+    job
+}
+fn composer_rect(bounds: egui::Rect, text_height: f32) -> egui::Rect {
+    let height = (text_height.max(44.0) + 66.0).min((bounds.height() * 0.55).clamp(110.0, 320.0));
+    egui::Rect::from_min_max(egui::pos2(bounds.left(), bounds.bottom() - height), bounds.max)
+}
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+    #[test]
+    fn composer_grows_upward_and_keeps_controls_fixed_when_a_third_line_appears() {
+        let bounds = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(350.0, 700.0));
+        let two = composer_rect(bounds, 44.0);
+        let three = composer_rect(bounds, 66.0);
+        assert_eq!(two.bottom(), three.bottom());
+        assert_eq!(two.top() - three.top(), 22.0);
+        assert_eq!(composer_rect(bounds, 2000.0).height(), 320.0);
     }
 }

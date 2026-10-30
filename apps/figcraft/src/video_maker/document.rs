@@ -234,7 +234,7 @@ fn floating_menu(ctx: &egui::Context, selection: &Selection, video: &super::mode
     let screen = ctx.content_rect();
     let position = pos2(
         selection.position.x.clamp(screen.left() + 8.0, (screen.right() - 525.0).max(screen.left() + 8.0)),
-        (selection.position.y - 84.0).max(53.0),
+        (selection.position.y + 8.0).clamp(screen.top() + 53.0, (screen.bottom() - 100.0).max(screen.top() + 53.0)),
     );
     let popup = egui::Area::new(egui::Id::unique(("script-format", video.id))).order(egui::Order::Foreground).fixed_pos(position).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).inner_margin(7.0).show(ui, |ui| {
@@ -347,7 +347,7 @@ impl VideoMaker {
         }
         ui.visuals_mut().selection.stroke.color = egui::Color32::BLACK;
         egui::ScrollArea::vertical().id_salt(("purpose-script-scroll", video.id)).auto_shrink([false, false]).show(ui, |ui| {
-            let width = ui.available_width().min(810.0);
+            let width = (ui.available_width() - 104.0).clamp(180.0, 760.0);
             let left = ((ui.available_width() - width) / 2.0).max(0.0);
             ui.add_space(60.0);
             ui.horizontal(|ui| {
@@ -357,7 +357,7 @@ impl VideoMaker {
                     ui.spacing_mut().item_spacing.y = 4.0;
                     ui.add(
                         TextEdit::singleline(&mut video.name)
-                            .font(FontId::proportional(38.0))
+                            .font(FontId::new(38.0, egui::FontFamily::Name("purpose-script-bold".into())))
                             .desired_width(width)
                             .frame(egui::Frame::NONE)
                             .hint_text("제목 없음"),
@@ -437,9 +437,9 @@ impl VideoMaker {
                                 let a = range.primary.index.0.min(range.secondary.index.0);
                                 let b = range.primary.index.0.max(range.secondary.index.0);
                                 if a < b {
-                                    let r = output.galley.pos_from_cursor(CCursor::new(a)).translate(output.galley_pos.to_vec2());
+                                    let r = output.galley.pos_from_cursor(CCursor::new(b)).translate(output.galley_pos.to_vec2());
                                     selection =
-                                        Some(Selection { editor: id, local: range, start, range: start + a..start + b, position: r.left_top() });
+                                        Some(Selection { editor: id, local: range, start, range: start + a..start + b, position: r.right_bottom() });
                                 } else {
                                     selection = None;
                                 }

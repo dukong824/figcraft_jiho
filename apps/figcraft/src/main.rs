@@ -83,6 +83,9 @@ impl eframe::App for App {
         let closing = self.video_maker.is_some() && ctx.input(|input| input.viewport().close_requested());
         let (design_title, close_result) = with_app(|fig| {
             control_server::drain_queue(&self.queue, &mut fig.control_queue);
+            if let Some(maker) = &mut self.video_maker {
+                figcraft_ui_egui::windows::guard(fig, ctx, |fig| maker.agent_logic(fig, ctx));
+            }
             // Phase-safe background work: control queues, autosave/recovery deadlines, live polling.
             // It runs on logic-only callbacks too, so it never reads UI input.
             figcraft_ui_egui::windows::guard(fig, ctx, |fig| fig.background_tick(ctx));
@@ -147,10 +150,11 @@ impl eframe::App for App {
             if let Some(maker) = &mut self.video_maker {
                 let leaving_design = maker.section_is_design();
                 let export = maker.ui(ui);
-                if leaving_design && !maker.section_is_design() {
-                    with_app(|fig| {
-                        let _ = fig.session.execute("file.save", &json!({}));
-                    });
+                if leaving_design
+                    && !maker.section_is_design()
+                    && let Some(Err(error)) = with_app(|fig| fig.session.execute("file.save", &json!({})))
+                {
+                    maker.show_error(format!("디자인 저장 실패: {error}"));
                 }
                 if maker.section_is_edit() {
                     maker.film_ui(ui, film_gpu);
@@ -201,6 +205,13 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--purpose-agent-mcp"] {
+        if let Err(error) = video_maker::agent_stdio() {
+            eprintln!("Purpose MCP: {error}");
+            std::process::exit(2);
+        }
+        return Ok(());
+    }
     let purpose_binary = std::env::args_os()
         .next()
         .and_then(|p| std::path::PathBuf::from(p).file_stem().map(|s| s.to_string_lossy().to_string()))
@@ -316,6 +327,12 @@ fn main() -> eframe::Result {
             Ok(maker) => Some(maker),
             Err(e) => {
                 eprintln!("Purpose video maker: {e}");
+                rfd::MessageDialog::new()
+                    .set_title("프로젝트 복구가 필요합니다")
+                    .set_description(&e)
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_buttons(rfd::MessageButtons::Ok)
+                    .show();
                 std::process::exit(2);
             }
         }

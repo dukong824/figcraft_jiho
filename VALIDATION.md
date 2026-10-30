@@ -1,3 +1,33 @@
+## Purpose guided editing and desktop workflows — 2026-10-30
+
+- 125 desktop tests passed. New coverage exercises the actual loopback capability channel,
+  guide-before-action enforcement and guide changes, command boundaries and fixed video targets,
+  real design creation/export and native timeline placement, script immutability, friendly source
+  and existing clip names, preserved custom clip names, normalized Copy/Paste UI events, asynchronous
+  cross-video imports, cancelled streaming copies, corrupt manifest recovery and original preservation,
+  stable composer bounds, and Enter-to-save after the rename editor releases focus.
+- 824 UI unit tests passed (1 ignored), along with 8/1 UI integration tests and all 3 SVG renderer
+  tests. The active lightning mask has a filled interior and retains premultiplied alpha.
+- Workspace Clippy with warnings denied passed; final app/all-target Clippy passed after the last
+  interaction refinements. Dependency layers, asset attribution, WASM and all four plugin gates
+  passed. The Windows packaging/workflow PowerShell parses successfully.
+- Inspected native Vulkan captures of settings, font search/selection and persisted Noto Sans,
+  channel/common guides, rename, standalone trash/restore, library/context menus and range/marquee
+  selection, keyboard copy/paste, script title/spacing and lower-right selection menu, and the
+  three-line upward-growing composer with filled speed toggle. Enter commits a source rename in
+  the running app; copy/paste publishes three sources without changing the active video.
+- A cost-free CLI fixture exercised the production MCP stdio child and live app through 11 tool
+  calls: read guide, discover commands, create/rename a design layer, inspect and preview, export to
+  the library, rename the source, append to the native timeline, add a caption and inspect the edit.
+  Original script bodies remain byte-for-byte unchanged. The installed public Codex CLI also accepts
+  the generated MCP command/args/env_vars configuration. This is not a paid live inference test.
+- Full `cargo xtask ci` attempted: desktop tests passed in both entry points; the unchanged engine
+  board-table row-growth failure remains (122 to 122; 1391 passed, 1 failed, 2 ignored).
+  A clean full-CI result is not claimed. Later UI/WASM/layer/asset checks were run separately.
+- Windows 0.1.9 packaging adds an installed MCP stdio initialize/tool-catalog probe alongside the
+  existing installation, media, taskbar icon and fullscreen/restore GUI checks. Publication requires
+  that workflow to pass; its result belongs to the release run.
+
 ## Purpose Lucide icon replacement — 2026-10-29
 
 - Downloaded 195 unmodified SVGs from Lucide 1.64.0 at revision

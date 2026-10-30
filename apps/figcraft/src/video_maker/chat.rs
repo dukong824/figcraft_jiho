@@ -65,6 +65,9 @@ impl Job {
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Relaxed);
     }
+    pub fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
 }
 impl Drop for Job {
     fn drop(&mut self) {
@@ -118,15 +121,12 @@ pub(super) fn decode_event(value: &Value) -> Option<Event> {
     Some(Event::Activity(label.into(), detail.chars().take(4000).collect()))
 }
 
-fn run(
-    cli: PathBuf,
-    root: PathBuf,
-    prompt: String,
-    tx: mpsc::Sender<Event>,
-    cancel: Arc<AtomicBool>,
+struct RunOptions {
     settings: super::codex_options::Settings,
     fast_tier: Option<String>,
-) -> Result<String, String> {
+    connection: super::agent_transport::Connection,
+}
+fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, cancel: Arc<AtomicBool>, options: RunOptions) -> Result<String, String> {
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     let output = root.join(format!(
         ".codex-response-{}.txt",
@@ -141,6 +141,8 @@ fn run(
             "forced_login_method=\"chatgpt\"",
             "-c",
             "model_provider=\"openai\"",
+            "-c",
+            "approval_policy=\"never\"",
             "exec",
             "--json",
             "--sandbox",
@@ -155,7 +157,9 @@ fn run(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    settings.configure(&mut command, fast_tier.as_deref());
+    options.settings.configure(&mut command, options.fast_tier.as_deref());
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    options.connection.configure(&mut command, &executable);
     command.arg("-");
     #[cfg(unix)]
     {
@@ -265,6 +269,15 @@ impl VideoMaker {
         if self.chat_job.is_some() || self.authenticated != Some(true) || request.trim().is_empty() {
             return;
         }
+        let bridge = match super::agent_transport::Bridge::start(video, self.ui_context.clone().unwrap_or_default()) {
+            Ok(bridge) => bridge,
+            Err(error) => {
+                self.message = format!("앱 도구 연결 실패: {error}");
+                return;
+            }
+        };
+        let connection = bridge.connection.clone();
+        self.agent = Some(bridge);
         let settings = self.store.data.codex_settings.clone();
         let fast_tier = self.selected_model().and_then(|m| m.fast_tier()).map(str::to_owned);
         let chat = self.conversation(video);
@@ -302,19 +315,21 @@ impl VideoMaker {
             usage: None,
         });
         self.save_chat(video);
-        let prompt = format!("{context}\n이전 대화:\n{history}\n사용자 요청:\n{request}");
+        let guide = self.guide_text(video).unwrap_or_default();
+        let prompt = format!("{context}\n\n작업 전에 반드시 읽고 준수할 가이드:\n{guide}\n이전 대화:\n{history}\n사용자 요청:\n{request}");
         let (tx, events) = mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let stop = cancel.clone();
         let root = self.store.video_dir(video);
         let worker = std::thread::spawn(move || {
-            let result = run(cli, root, prompt, tx.clone(), stop.clone(), settings, fast_tier);
+            let result = run(cli, root, prompt, tx.clone(), stop.clone(), RunOptions { settings, fast_tier, connection });
             let _ = tx.send(Event::Finished(result, stop.load(Ordering::Relaxed)));
         });
         self.chat_job = Some(Job { video_id: video, reply, started: Instant::now(), events, cancel, worker: Some(worker) });
         self.prompt.clear();
     }
     pub fn shutdown_chat(&mut self) {
+        self.agent = None;
         let Some(job) = self.chat_job.take() else { return };
         let id = job.video_id;
         let reply = job.reply;
@@ -395,6 +410,7 @@ impl VideoMaker {
             }
         }
         if finished {
+            self.agent = None;
             self.chat_job = None;
             self.save_chat(id);
         } else {

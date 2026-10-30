@@ -1,4 +1,4 @@
-use egui::{Color32, CornerRadius, FontId, Painter, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use egui::{Color32, Context, CornerRadius, FontId, Id, Painter, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
 pub const TEXT: Color32 = Color32::from_rgb(55, 53, 47);
 pub const MUTED: Color32 = Color32::from_rgb(120, 119, 116);
@@ -11,7 +11,7 @@ pub const BORDER: Color32 = Color32::from_rgb(231, 231, 228);
 pub const THUMB: Color32 = Color32::from_rgb(244, 244, 242);
 pub const BLUE: Color32 = Color32::from_rgb(35, 131, 226);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
     Sidebar,
     Back,
@@ -35,8 +35,10 @@ pub enum Icon {
     History,
     Trash,
     Settings,
+    Guide,
+    Copy,
+    Paste,
     Rename,
-    Fast,
     ChevronDown,
     ChevronRight,
     More,
@@ -139,7 +141,12 @@ fn row(ui: &mut Ui, label: &str, icon: Option<Icon>, selected: bool, indent: f32
     if let Some(icon) = icon {
         paint_icon(ui.painter(), icon_rect, icon, if selected { TEXT } else { MUTED });
     }
-    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(14.0), TEXT, (width - indent - 66.0).max(15.0));
+    let mut job = egui::text::LayoutJob::simple(
+        label.to_owned(),
+        FontId::proportional(14.0),
+        TEXT,
+        (width - indent - if icon.is_none() { 100.0 } else { 44.0 }).max(15.0),
+    );
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     let galley = ui.fonts_mut(|f| f.layout_job(job));
@@ -166,6 +173,11 @@ pub fn tree_row(ui: &mut Ui, label: &str, expanded: bool, channel: bool) -> (Res
 }
 
 pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
+    if icon == Icon::Video {
+        let name = painter.ctx().data(|d| d.get_temp::<String>(egui::Id::unique("purpose-video-icon"))).unwrap_or_else(|| "clapperboard".into());
+        let _ = figcraft_ui_icons::paint(painter, rect, &name, color);
+        return;
+    }
     if let Some(name) = lucide(icon) {
         let _ = figcraft_ui_icons::paint(painter, rect, name, color);
     }
@@ -182,7 +194,7 @@ fn lucide(icon: Icon) -> Option<&'static str> {
         Icon::Maximize => Some("square"),
         Icon::Restore => Some("copy"),
         Icon::Channel => Some("tv-minimal-play"),
-        Icon::Video => Some("file-video-camera"),
+        Icon::Video => Some("clapperboard"),
         Icon::Library => Some("library-big"),
         Icon::Script => Some("file-text"),
         Icon::Design => Some("pen-tool"),
@@ -195,8 +207,10 @@ fn lucide(icon: Icon) -> Option<&'static str> {
         Icon::History => Some("rotate-ccw-clock"),
         Icon::Trash => Some("trash"),
         Icon::Settings => Some("settings"),
+        Icon::Guide => Some("bookmark"),
+        Icon::Copy => Some("copy"),
+        Icon::Paste => Some("between-horizontal-start"),
         Icon::Rename => Some("pencil"),
-        Icon::Fast => Some("zap"),
         Icon::ChevronDown => Some("chevron-down"),
         Icon::ChevronRight => Some("chevron-right"),
         Icon::More => Some("ellipsis"),
@@ -260,9 +274,176 @@ pub fn round_button(ui: &mut Ui, icon: Icon, enabled: bool, tip: &str) -> Respon
     response.on_hover_text(tip)
 }
 
+pub fn modal_frame() -> egui::Frame {
+    egui::Frame::NONE.fill(SURFACE).stroke(Stroke::new(1.0, BORDER)).corner_radius(12).inner_margin(24.0).shadow(egui::epaint::Shadow {
+        offset: [0, 12],
+        blur: 36,
+        spread: 0,
+        color: Color32::from_black_alpha(32),
+    })
+}
+pub fn action_button(ui: &mut Ui, label: &str, primary: bool) -> Response {
+    ui.add(
+        egui::Button::new(egui::RichText::new(label).size(13.0).color(if primary { Color32::WHITE } else { TEXT }))
+            .fill(if primary { TEXT } else { SURFACE })
+            .stroke(Stroke::new(1.0, if primary { TEXT } else { BORDER }))
+            .corner_radius(6)
+            .min_size(vec2(78.0, 33.0)),
+    )
+}
+pub fn rename_dialog(ctx: &Context, id: Id, heading: &str, name: &mut String) -> Option<bool> {
+    let mut save = false;
+    let mut cancel = false;
+    let output = egui::Modal::new(id).frame(modal_frame()).backdrop_color(Color32::from_black_alpha(38)).show(ctx, |ui| {
+        ui.set_width(360.0);
+        ui.horizontal(|ui| {
+            ui.label(self::heading(heading, 18.0));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                cancel = icon_button(ui, Icon::Close, 26.0, "닫기").clicked();
+            });
+        });
+        ui.add_space(18.0);
+        ui.label(egui::RichText::new("이름").size(12.0).color(MUTED));
+        let edit = egui::TextEdit::singleline(name).id(id.with("name")).desired_width(f32::INFINITY).margin(vec2(11.0, 10.0)).show(ui);
+        let first = !ui.is_sizing_pass()
+            && ctx.data_mut(|d| {
+                let seen = d.get_temp::<bool>(id.with("focused")).unwrap_or(false);
+                d.insert_temp(id.with("focused"), true);
+                !seen
+            });
+        if first {
+            edit.response.request_focus();
+            let mut state = edit.state;
+            state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(name.chars().count()))));
+            state.store(ctx, edit.response.id);
+        }
+        ui.add_space(22.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            save = ui.add_enabled_ui(!name.trim().is_empty(), |ui| action_button(ui, "저장", true)).inner.clicked();
+            cancel |= action_button(ui, "취소", false).clicked();
+        });
+        save |= (edit.response.has_focus() || edit.response.lost_focus()) && !name.trim().is_empty() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    });
+    if save || cancel || output.should_close() {
+        ctx.memory_mut(|m| m.surrender_focus(id.with("name")));
+        ctx.data_mut(|d| d.remove::<bool>(id.with("focused")));
+        Some(save && !cancel)
+    } else {
+        None
+    }
+}
+
+pub fn fast_toggle(ui: &mut Ui, selected: bool, size: f32, tip: &str) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 5, HOVER);
+    }
+    let icon = Rect::from_center_size(rect.center(), vec2(17.0, 17.0));
+    let color = if !ui.is_enabled() {
+        FAINT
+    } else if selected {
+        TEXT
+    } else {
+        MUTED
+    };
+    if selected {
+        figcraft_ui_icons::paint_solid(ui.painter(), icon, "zap", color);
+    } else {
+        figcraft_ui_icons::paint(ui.painter(), icon, "zap", color);
+    }
+    response.on_hover_text(tip)
+}
+
+pub fn heading(text: &str, size: f32) -> egui::RichText {
+    egui::RichText::new(text).font(FontId::new(size, egui::FontFamily::Name("purpose-script-bold".into())))
+}
+pub fn release_focus(ctx: &Context) {
+    ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
+}
+
+pub fn search_field(ui: &mut Ui, text: &mut String, width: f32, hint: &str) -> Response {
+    egui::Frame::NONE
+        .fill(SIDEBAR)
+        .corner_radius(6)
+        .inner_margin(egui::Margin::symmetric(8, 0))
+        .show(ui, |ui| {
+            ui.allocate_ui_with_layout(vec2((width - 16.0).max(60.0), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 5.0;
+                let (rect, _) = ui.allocate_exact_size(vec2(15.0, 30.0), Sense::hover());
+                figcraft_ui_icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(14.0, 14.0)), "search", MUTED);
+                ui.add_sized(
+                    [(width - 36.0).max(40.0), 30.0],
+                    egui::TextEdit::singleline(text)
+                        .frame(egui::Frame::NONE)
+                        .margin(egui::Margin::ZERO)
+                        .align(egui::Align2::LEFT_CENTER)
+                        .font(FontId::proportional(13.0))
+                        .hint_text(hint),
+                )
+            })
+            .inner
+        })
+        .inner
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rename_enter_commits_even_when_the_single_line_editor_releases_focus() {
+        let ctx = Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.families.insert(egui::FontFamily::Name("purpose-script-bold".into()), fonts.families[&egui::FontFamily::Proportional].clone());
+        ctx.set_fonts(fonts);
+        let mut name = "old name".to_owned();
+        let id = Id::unique("rename-enter-fixture");
+        for _ in 0..4 {
+            let mut output = ctx.run_ui(
+                egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 600.0))), ..Default::default() },
+                |_| {
+                    assert_eq!(rename_dialog(&ctx, id, "이름 바꾸기", &mut name), None);
+                },
+            );
+            output.textures_delta.clear();
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 600.0))),
+                events: vec![egui::Event::Text("새 이름".into())],
+                ..Default::default()
+            },
+            |_| {
+                rename_dialog(&ctx, id, "이름 바꾸기", &mut name);
+            },
+        );
+        output.textures_delta.clear();
+        assert_eq!(name, "새 이름");
+        let mut committed = None;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 600.0))),
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                ..Default::default()
+            },
+            |_| {
+                committed = rename_dialog(&ctx, id, "이름 바꾸기", &mut name);
+            },
+        );
+        output.textures_delta.clear();
+        assert_eq!(committed, Some(true));
+    }
     #[test]
     fn tree_hover_draws_one_glyph_and_the_toggle_still_receives_clicks() {
         let ctx = egui::Context::default();

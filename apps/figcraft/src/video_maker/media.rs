@@ -1,7 +1,10 @@
 use super::model::AssetKind;
 use serde_json::Value;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 pub fn tool(name: &str) -> PathBuf {
     if name == "ffmpeg"
@@ -21,20 +24,73 @@ pub fn tool(name: &str) -> PathBuf {
     filename.into()
 }
 
+#[cfg(test)]
 pub fn probe(path: &Path) -> Result<(AssetKind, f64, bool), String> {
+    probe_cancellable(path, &AtomicBool::new(false))
+}
+fn command(name: &str) -> Command {
+    let mut command = Command::new(tool(name));
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    command.stdin(Stdio::null());
+    command
+}
+pub fn probe_cancellable(path: &Path, cancel: &AtomicBool) -> Result<(AssetKind, f64, bool), String> {
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
     if extension == "figcraft" {
         return Ok((AssetKind::Design, 0.0, false));
     }
-    let output = Command::new(tool("ffprobe"))
+    let mut child = command("ffprobe")
         .args(["-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json"])
         .arg(path)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("ffprobe를 실행할 수 없습니다: {e}"))?;
-    if !output.status.success() {
-        return Err(format!("미디어를 읽을 수 없습니다: {}", String::from_utf8_lossy(&output.stderr)));
+    let stdout = child.stdout.take().map(|pipe| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = pipe.take(2 * 1024 * 1024).read_to_end(&mut bytes);
+            bytes
+        })
+    });
+    let stderr = child.stderr.take().map(|pipe| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = pipe.take(64 * 1024).read_to_end(&mut bytes);
+            bytes
+        })
+    });
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let result = loop {
+        if cancel.load(Ordering::Relaxed) || Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            break Err(if cancel.load(Ordering::Relaxed) {
+                "가져오기를 취소했습니다".into()
+            } else {
+                "파일 분석 시간이 초과되었습니다".into()
+            });
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(error.to_string());
+            }
+        }
+    };
+    let stdout = stdout.and_then(|worker| worker.join().ok()).unwrap_or_default();
+    let stderr = stderr.and_then(|worker| worker.join().ok()).unwrap_or_default();
+    if !result?.success() {
+        return Err(format!("미디어를 읽을 수 없습니다: {}", String::from_utf8_lossy(&stderr)));
     }
-    let info: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    let info: Value = serde_json::from_slice(&stdout).map_err(|e| e.to_string())?;
     let streams = info["streams"].as_array().ok_or("미디어 스트림이 없습니다")?;
     let video = streams.iter().any(|s| s["codec_type"] == "video");
     let audio = streams.iter().any(|s| s["codec_type"] == "audio");
@@ -50,7 +106,7 @@ pub fn probe(path: &Path) -> Result<(AssetKind, f64, bool), String> {
 }
 
 pub fn preview_png(path: &Path, seconds: f64) -> Result<Vec<u8>, String> {
-    let output = Command::new(tool("ffmpeg"))
+    let output = command("ffmpeg")
         .args(["-v", "error", "-nostdin", "-ss"])
         .arg(format!("{:.3}", seconds.max(0.0)))
         .arg("-i")

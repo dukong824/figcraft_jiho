@@ -1,0 +1,67 @@
+//! Human-authored common and channel-specific operating instructions.
+use super::{VideoMaker, navigation::Route, style};
+use egui::{FontFamily, FontId, RichText, TextEdit, vec2};
+impl VideoMaker {
+    pub(super) fn guide_text(&self, video: u64) -> Result<String, String> {
+        let channel = self.store.data.channels.iter().find(|c| c.videos.iter().any(|v| v.id == video)).ok_or("영상의 채널을 찾을 수 없습니다")?;
+        Ok(format!("공통 가이드:\n{}\n\n채널: {}\n채널 가이드:\n{}", self.store.data.codex_guide, channel.name, channel.codex_guide))
+    }
+    pub(super) fn guide_page(&mut self, ui: &mut egui::Ui, selected: Option<u64>) {
+        let width = (ui.available_width() - 80.0).clamp(200.0, 760.0);
+        let left = ((ui.available_width() - width) / 2.0).max(0.0);
+        let mut next = selected;
+        let mut changed = false;
+        egui::ScrollArea::vertical().id_salt(("purpose-guide-scroll", selected)).show(ui, |ui| {
+            ui.add_space(56.0);
+            ui.horizontal(|ui| {
+                ui.add_space(left);
+                ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                    ui.set_width(width);
+                    ui.label(RichText::new("Codex 가이드").font(FontId::new(36.0, FontFamily::Name("purpose-script-bold".into()))));
+                    ui.add_space(18.0);
+                    let label = selected
+                        .and_then(|id| self.store.data.channels.iter().find(|c| c.id == id))
+                        .map_or("모든 채널 · 공통 가이드", |c| c.name.as_str());
+                    egui::ComboBox::from_id_salt("guide-channel").selected_text(label).width(240.0).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut next, None, "모든 채널 · 공통 가이드");
+                        for channel in &self.store.data.channels {
+                            ui.selectable_value(&mut next, Some(channel.id), &channel.name);
+                        }
+                    });
+                    ui.add_space(26.0);
+                    let text = if let Some(id) = selected {
+                        self.store.data.channels.iter_mut().find(|c| c.id == id).map(|c| &mut c.codex_guide)
+                    } else {
+                        Some(&mut self.store.data.codex_guide)
+                    };
+                    if let Some(text) = text {
+                        let mut layout = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| {
+                            let mut job = egui::text::LayoutJob::simple(text.as_str().into(), FontId::proportional(16.0), style::TEXT, wrap);
+                            for section in &mut job.sections {
+                                section.format.line_height = Some(27.0);
+                            }
+                            ui.fonts_mut(|f| f.layout_job(job))
+                        };
+                        changed = TextEdit::multiline(text)
+                            .id(egui::Id::unique(("guide-body", selected)))
+                            .frame(egui::Frame::NONE)
+                            .desired_width(width)
+                            .desired_rows(16)
+                            .lock_focus(true)
+                            .layouter(&mut layout)
+                            .hint_text("채널의 설명, 시청자, 말투, 제작 목표와 편집 원칙을 적어주세요…")
+                            .show(ui)
+                            .response
+                            .changed();
+                    }
+                });
+            });
+        });
+        if changed {
+            self.save();
+        }
+        if next != selected {
+            self.navigate(Route::Guide { channel_id: next });
+        }
+    }
+}

@@ -33,6 +33,11 @@ reasoning and speed controls. Script images resize in place; canvas and UI zoom 
 Settings select an incremental project backup folder. The shell, design tools and FilmCraft editor now share Lucide SVG glyphs with DPI-aware rendering
 and a bounded texture cache; hovered tree rows replace their glyph rather than overpainting it.
 Desktop fonts and popup details are refined without changing the workspace structure.
+Purpose 0.1.9 adds guide-gated, live Codex commands for design, editing and library operations
+while keeping the script suggestion-only; channel/common guides, shared interface font and icon
+settings, logical asset trash, range/marquee selection and copy/paste. File analysis/copy runs off
+the UI thread and verified project manifests recover from corruption without discarding the source.
+Settings, rename and trash share a polished centred dialog; the library fits beside the assistant.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
 The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
 login screen. Library media can be dropped into sidebar destinations, scripts have typography

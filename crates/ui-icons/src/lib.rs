@@ -11,6 +11,7 @@ const CACHE_LIMIT: usize = 192;
 struct Entry {
     name: &'static str,
     pixels: u32,
+    solid: bool,
     texture: TextureHandle,
 }
 #[derive(Clone, Default)]
@@ -28,6 +29,13 @@ pub fn enabled(ctx: &Context) -> bool {
 /// Paint an embedded glyph once, centred and clipped to the supplied box. Returns false only
 /// for unknown assets or a decoding error, allowing the host to retain an existing fallback.
 pub fn paint(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool {
+    paint_variant(painter, rect, name, color, false)
+}
+/// Fill the original closed SVG geometry for an active toggle, without changing its source.
+pub fn paint_solid(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool {
+    paint_variant(painter, rect, name, color, true)
+}
+fn paint_variant(painter: &Painter, rect: Rect, name: &str, color: Color32, solid: bool) -> bool {
     let Some((name, source)) = assets::get(name) else { return false };
     if !rect.is_finite() || !rect.is_positive() || !painter.clip_rect().intersects(rect) {
         return true;
@@ -38,7 +46,7 @@ pub fn paint(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool 
     let key = Id::unique("purpose-lucide-cache");
     let cached = painter.ctx().data_mut(|data| {
         let cache = data.get_temp_mut_or_default::<Cache>(key);
-        let index = cache.entries.iter().position(|entry| entry.name == name && entry.pixels == pixels)?;
+        let index = cache.entries.iter().position(|entry| entry.name == name && entry.pixels == pixels && entry.solid == solid)?;
         let entry = cache.entries.remove(index)?;
         let texture = entry.texture.clone();
         cache.entries.push_back(entry);
@@ -47,11 +55,11 @@ pub fn paint(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool 
     let texture = if let Some(texture) = cached {
         texture
     } else {
-        let Some(image) = rasterize(source, pixels) else { return false };
-        let texture = painter.ctx().load_texture(format!("lucide-{name}-{pixels}"), image, TextureOptions::LINEAR);
+        let Some(image) = rasterize_variant(source, pixels, solid) else { return false };
+        let texture = painter.ctx().load_texture(format!("lucide-{name}-{pixels}-{solid}"), image, TextureOptions::LINEAR);
         painter.ctx().data_mut(|data| {
             let cache = data.get_temp_mut_or_default::<Cache>(key);
-            cache.entries.push_back(Entry { name, pixels, texture: texture.clone() });
+            cache.entries.push_back(Entry { name, pixels, solid, texture: texture.clone() });
             while cache.entries.len() > CACHE_LIMIT {
                 cache.entries.pop_front();
             }
@@ -62,20 +70,24 @@ pub fn paint(painter: &Painter, rect: Rect, name: &str, color: Color32) -> bool 
     true
 }
 
+#[cfg(test)]
 fn rasterize(source: &[u8], pixels: u32) -> Option<egui::ColorImage> {
+    rasterize_variant(source, pixels, false)
+}
+fn rasterize_variant(source: &[u8], pixels: u32, solid: bool) -> Option<egui::ColorImage> {
     let tree = usvg::Tree::from_data(source, &usvg::Options::default()).ok()?;
     let mut pixmap = tiny_skia::Pixmap::new(pixels, pixels)?;
     let scale = tiny_skia::Transform::from_scale(pixels as f32 / tree.size().width(), pixels as f32 / tree.size().height());
-    if !draw(tree.root(), &mut pixmap, scale) {
+    if !draw(tree.root(), &mut pixmap, scale, solid) {
         return None;
     }
     Some(egui::ColorImage::from_rgba_premultiplied([pixels as usize, pixels as usize], pixmap.data()))
 }
-fn draw(group: &usvg::Group, pixmap: &mut tiny_skia::Pixmap, scale: tiny_skia::Transform) -> bool {
+fn draw(group: &usvg::Group, pixmap: &mut tiny_skia::Pixmap, scale: tiny_skia::Transform, solid: bool) -> bool {
     for node in group.children() {
         match node {
             usvg::Node::Group(group) => {
-                if !draw(group, pixmap, scale) {
+                if !draw(group, pixmap, scale, solid) {
                     return false;
                 }
             }
@@ -85,9 +97,9 @@ fn draw(group: &usvg::Group, pixmap: &mut tiny_skia::Pixmap, scale: tiny_skia::T
                 }
                 let transform = scale.pre_concat(path.abs_transform());
                 let mut paint = tiny_skia::Paint { anti_alias: true, ..Default::default() };
-                if let Some(fill) = path.fill() {
-                    paint.set_color_rgba8(255, 255, 255, (fill.opacity().get() * 255.0).round() as u8);
-                    let rule = match fill.rule() {
+                if path.fill().is_some() || solid {
+                    paint.set_color_rgba8(255, 255, 255, path.fill().map_or(255, |fill| (fill.opacity().get() * 255.0).round() as u8));
+                    let rule = match path.fill().map_or(usvg::FillRule::NonZero, |fill| fill.rule()) {
                         usvg::FillRule::NonZero => tiny_skia::FillRule::Winding,
                         usvg::FillRule::EvenOdd => tiny_skia::FillRule::EvenOdd,
                     };
@@ -109,6 +121,14 @@ fn draw(group: &usvg::Group, pixmap: &mut tiny_skia::Pixmap, scale: tiny_skia::T
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn active_lightning_uses_a_filled_mask_without_changing_the_source() {
+        let (_, svg) = assets::get("zap").unwrap();
+        let outline = rasterize_variant(svg, 32, false).unwrap();
+        let solid = rasterize_variant(svg, 32, true).unwrap();
+        assert!(solid.pixels.iter().filter(|p| p.a() > 0).count() > outline.pixels.iter().filter(|p| p.a() > 0).count());
+        assert!(solid.pixels.iter().all(|p| p.r() == p.a() && p.g() == p.a() && p.b() == p.a()));
+    }
     #[test]
     fn every_downloaded_svg_renders_at_small_and_high_dpi_sizes_without_fonts() {
         for name in ALL {

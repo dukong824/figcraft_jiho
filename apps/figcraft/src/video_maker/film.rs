@@ -68,7 +68,7 @@ fn clipboard_media() -> Option<filmcraft_ui_egui::ClipboardMedia> {
     Some(filmcraft_ui_egui::ClipboardMedia::Image { width: image.width, height: image.height, rgba: image.bytes.into_owned() })
 }
 
-fn open_path(path: &str, reveal: bool) -> Result<(), String> {
+pub(super) fn open_path(path: &str, reveal: bool) -> Result<(), String> {
     let mut command = if cfg!(target_os = "windows") {
         let mut cmd = std::process::Command::new("explorer");
         cmd.arg(if reveal { format!("/select,{path}") } else { path.into() });
@@ -124,6 +124,7 @@ fn existing_item(session: &Session, path: &Path) -> Option<ItemId> {
 fn import_asset(session: &mut Session, store: &Store, video: u64, asset: &Asset) -> Result<ItemId, String> {
     let path = store.asset_path(video, asset);
     if let Some(id) = existing_item(session, &path) {
+        sync_item_name(session, id, asset)?;
         return Ok(id);
     }
     let detect = session.prefs.media.import_image_sequences;
@@ -131,12 +132,47 @@ fn import_asset(session: &mut Session, store: &Store, video: u64, asset: &Asset)
     let result = execute(session, "file.import", json!({"paths":[path],"imageSequence":false}));
     session.prefs.media.import_image_sequences = detect;
     let result = result?;
-    result["items"]
+    let id = result["items"]
         .as_array()
         .and_then(|ids| ids.first())
         .and_then(|id| id.as_u64())
         .map(ItemId)
-        .ok_or_else(|| format!("{}: {}", asset.name, result["errors"]))
+        .ok_or_else(|| format!("{}: {}", asset.name, result["errors"]))?;
+    sync_item_name(session, id, asset)?;
+    Ok(id)
+}
+fn sync_item_name(session: &mut Session, id: ItemId, asset: &Asset) -> Result<(), String> {
+    let old = session.project.item(id).map(|item| item.name.clone()).ok_or("편집 소스가 없습니다")?;
+    let clips: Vec<_> = session
+        .project
+        .items
+        .values()
+        .filter_map(|item| item.as_sequence().map(|seq| (item.id, seq)))
+        .flat_map(|(sequence, seq)| {
+            seq.video_tracks.iter().chain(&seq.audio_tracks).flat_map(move |track| track.items.iter().map(move |clip| (sequence, clip)))
+        })
+        .filter(|(_, clip)| clip.item == id && (clip.name == old || clip.name == asset.file) && clip.name != asset.name)
+        .map(|(seq, clip)| (seq, clip.id))
+        .collect();
+    if old != asset.name {
+        execute(session, "clip.rename", json!({"item":id.0,"name":asset.name}))?;
+    }
+    // Use commands for names while preserving the user's active timeline, tabs and selection.
+    let state = session.state.clone();
+    let event_count = session.events.len();
+    let result = (|| {
+        for (sequence, clip) in clips {
+            if session.state.active_sequence != Some(sequence) {
+                execute(session, "sequence.open", json!({"item":sequence.0}))?;
+            }
+            execute(session, "clip.rename", json!({"clip":clip.0,"name":asset.name}))?;
+        }
+        Ok(())
+    })();
+    session.state = state;
+    let generated = session.events.split_off(event_count);
+    session.events.extend(generated.into_iter().filter(|event| !matches!(event, filmcraft_engine::Event::OpenSequence(_))));
+    result
 }
 
 fn new_sequence(session: &mut Session, name: &str) -> Result<(), String> {
@@ -148,7 +184,7 @@ fn new_sequence(session: &mut Session, name: &str) -> Result<(), String> {
 fn legacy_session(store: &Store, video: &Video) -> Result<Session, String> {
     let mut session = Session::default();
     execute(&mut session, "file.newProject", json!({"name":video.name}))?;
-    new_sequence(&mut session, &video.name)?;
+    new_sequence(&mut session, &format!("{} · 편집 시퀀스", video.name))?;
     let mut cursor = Tick::ZERO;
     for clip in &video.clips {
         let asset = video.asset(clip.asset_id).ok_or_else(|| format!("이전 타임라인의 에셋 {}를 찾을 수 없습니다", clip.asset_id))?;
@@ -199,11 +235,31 @@ fn legacy_session(store: &Store, video: &Video) -> Result<Session, String> {
 }
 
 impl VideoMaker {
+    pub(super) fn sync_film_name(&mut self, video_id: u64, asset_id: u64) -> Result<(), String> {
+        let asset = self
+            .store
+            .data
+            .channels
+            .iter()
+            .flat_map(|c| &c.videos)
+            .find(|v| v.id == video_id)
+            .and_then(|v| v.asset(asset_id))
+            .cloned()
+            .ok_or("자료를 찾을 수 없습니다")?;
+        if !asset.kind.can_edit() {
+            return Ok(());
+        }
+        if let Some(editor) = self.film.as_mut().filter(|e| e.video_id == video_id) {
+            import_asset(&mut editor.app.session, &self.store, video_id, &asset)?;
+            self.save_film()?;
+        }
+        Ok(())
+    }
     pub fn section_is_edit(&self) -> bool {
         self.tabs.route().and_then(super::navigation::Route::video).is_some_and(|(_, section)| section == super::model::Section::Edit)
     }
 
-    fn ensure_film(&mut self) -> Result<(), String> {
+    pub(super) fn ensure_film(&mut self) -> Result<(), String> {
         let video = self.video().cloned().ok_or("영상을 먼저 선택하세요")?;
         if let Some(editor) = self.film.as_mut().filter(|editor| editor.video_id == video.id) {
             for asset in video.assets.iter().filter(|a| a.kind.can_edit()) {
@@ -243,6 +299,17 @@ impl VideoMaker {
         } else {
             legacy_session(&self.store, &video)?
         };
+        // A sequence is the editing workspace, never the script document or an imported source.
+        let sequences: Vec<_> = session
+            .project
+            .items
+            .values()
+            .filter(|item| item.as_sequence().is_some() && (item.name == video.name || item.name == format!("{}의 대본", video.name)))
+            .map(|item| item.id)
+            .collect();
+        for id in sequences {
+            execute(&mut session, "clip.rename", json!({"item":id.0,"name":format!("{} · 편집 시퀀스",video.name)}))?;
+        }
         fs::create_dir_all(self.store.video_dir(video.id)).map_err(|e| e.to_string())?;
         let mut config = filmcraft_engine::autosave::AutosaveConfig::new(self.store.video_dir(video.id).join("editor-state"));
         config.journal_debounce = Duration::from_secs(2);
@@ -306,7 +373,7 @@ impl VideoMaker {
         let editor = self.film.as_mut().ok_or("편집기를 열 수 없습니다")?;
         let item = import_asset(&mut editor.app.session, &self.store, video.id, asset)?;
         if editor.app.session.active_sequence().is_none() {
-            new_sequence(&mut editor.app.session, &video.name)?;
+            new_sequence(&mut editor.app.session, &format!("{} · 편집 시퀀스", video.name))?;
         }
         let at = editor.app.session.active_sequence().map(|s| s.duration()).unwrap_or(Tick::ZERO);
         execute(
@@ -466,6 +533,28 @@ mod tests {
         (store, video)
     }
 
+    #[test]
+    fn source_renames_reach_existing_timeline_clips_and_preserve_custom_clip_names() {
+        let (store, video) = fixture("source-names");
+        store.save().unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        let active = maker.film.as_ref().unwrap().app.session.state.active_sequence;
+        let first = maker.film.as_ref().unwrap().app.session.active_sequence().unwrap().video_tracks[0].items[0].id;
+        execute(&mut maker.film.as_mut().unwrap().app.session, "clip.rename", json!({"clip":first.0,"name":"사용자가 붙인 클립 이름"})).unwrap();
+        maker.rename_asset(video.id, 101, "오프닝 그래픽.png").unwrap();
+        let editor = maker.film.as_ref().unwrap();
+        assert_eq!(editor.app.session.state.active_sequence, active);
+        let clips = &editor.app.session.active_sequence().unwrap().video_tracks[0].items;
+        assert_eq!(clips[0].name, "사용자가 붙인 클립 이름");
+        assert_eq!(clips[1].name, "오프닝 그래픽.png");
+        assert!(editor.app.session.project.items.values().any(|item| item.name == "오프닝 그래픽.png"));
+        maker.shutdown_film();
+        maker.ensure_film().unwrap();
+        assert_eq!(maker.film.as_ref().unwrap().app.session.active_sequence().unwrap().video_tracks[0].items[1].name, "오프닝 그래픽.png");
+        maker.shutdown_film();
+        let _ = fs::remove_dir_all(store.root);
+    }
     #[test]
     fn legacy_timeline_preserves_trims_audio_gain_captions_and_native_roundtrip() {
         let (store, video) = fixture("migration");

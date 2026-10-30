@@ -11,10 +11,18 @@ mod settings;
 #[cfg(windows)]
 pub use branding::set_windows_icons;
 pub use branding::window_icon;
+mod agent;
+mod agent_transport;
+mod appearance;
 mod film;
 mod film_audio;
 mod film_audio_in;
+mod guide;
 mod history;
+mod imports;
+mod library;
+mod trash;
+pub use agent_transport::stdio as agent_stdio;
 mod media;
 mod model;
 mod navigation;
@@ -30,7 +38,9 @@ use navigation::{Route, Tabs};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 
 pub struct VideoMaker {
@@ -49,6 +59,21 @@ pub struct VideoMaker {
     catalog_job: Option<Receiver<Result<Vec<codex_options::Model>, String>>>,
     catalog_error: String,
     settings_open: bool,
+    trash_open: bool,
+    trash_query: String,
+    settings_section: usize,
+    font_query: String,
+    font_names: Vec<String>,
+    font_applied: Option<String>,
+    base_fonts: Option<egui::FontDefinitions>,
+    imports: imports::Queue,
+    library_selection: Vec<u64>,
+    library_focused: bool,
+    library_anchor: Option<u64>,
+    library_clipboard: Vec<(u64, u64)>,
+    library_clipboard_marker: String,
+    library_rename: Option<(u64, String)>,
+    library_marquee: Option<(egui::Pos2, Vec<u64>)>,
     backup: backup::Controller,
     toast: Option<(String, std::time::Instant)>,
     design_canvas: Option<egui::Rect>,
@@ -70,8 +95,12 @@ pub struct VideoMaker {
     film: Option<film::Editor>,
     film_ime_ready: bool,
     prompt: String,
+    prompt_video: Option<u64>,
+    drafts: HashMap<u64, String>,
     chats: HashMap<u64, chat::Conversation>,
     chat_job: Option<chat::Job>,
+    agent: Option<agent_transport::Bridge>,
+    ui_context: Option<egui::Context>,
     pending_design_asset: Option<u64>,
     zoom_ready: bool,
     zoom_save_due: Option<std::time::Instant>,
@@ -80,7 +109,6 @@ pub struct VideoMaker {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SideView {
     Codex,
-    Trash,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -112,6 +140,7 @@ impl VideoMaker {
         }
         store.data.checkpoint("프로젝트 열기");
         let initial = store.data.selected_video.map(|video_id| Route::Video { video_id, section: Section::Script });
+        let message = store.recovered.take().unwrap_or_default();
         Ok(Self {
             store,
             section: Section::Script,
@@ -128,6 +157,21 @@ impl VideoMaker {
             catalog_job: None,
             catalog_error: String::new(),
             settings_open: false,
+            trash_open: false,
+            trash_query: String::new(),
+            settings_section: 0,
+            font_query: String::new(),
+            font_names: figcraft_text::family_names(),
+            font_applied: None,
+            base_fonts: None,
+            imports: Default::default(),
+            library_selection: Vec::new(),
+            library_focused: false,
+            library_anchor: None,
+            library_clipboard: Vec::new(),
+            library_clipboard_marker: String::new(),
+            library_rename: None,
+            library_marquee: None,
             backup: Default::default(),
             toast: None,
             design_canvas: None,
@@ -143,14 +187,18 @@ impl VideoMaker {
             thumbnail_recent: Vec::new(),
             thumbnail_jobs: HashMap::new(),
             thumbnail_failed: HashSet::new(),
-            message: String::new(),
+            message,
             fonts_ready: false,
             design_loaded: None,
             film: None,
             film_ime_ready: false,
             prompt: String::new(),
+            prompt_video: None,
+            drafts: HashMap::new(),
             chats: HashMap::new(),
             chat_job: None,
+            agent: None,
+            ui_context: None,
             pending_design_asset: None,
             zoom_ready: false,
             zoom_save_due: None,
@@ -161,6 +209,9 @@ impl VideoMaker {
         if self.tabs.route() == Some(Route::History) {
             return "수정 기록 — Purpose video maker".into();
         }
+        if matches!(self.tabs.route(), Some(Route::Guide { .. })) {
+            return "Codex 가이드 — Purpose video maker".into();
+        }
         self.tabs
             .route()
             .and_then(|route| route.video())
@@ -169,6 +220,20 @@ impl VideoMaker {
     }
 
     fn sync_route(&mut self) {
+        if matches!(self.tabs.route(), Some(Route::Guide { .. } | Route::History)) {
+            self.side_view = None;
+        }
+        let next = self.tabs.route().and_then(Route::video).map(|(id, _)| id);
+        if self.prompt_video != next {
+            if let Some(id) = self.prompt_video {
+                self.drafts.insert(id, std::mem::take(&mut self.prompt));
+            }
+            self.prompt = next.and_then(|id| self.drafts.remove(&id)).unwrap_or_default();
+            self.prompt_video = next;
+            self.library_selection.clear();
+            self.library_anchor = None;
+            self.library_marquee = None;
+        }
         if self.section == Section::Edit {
             // Keep the unsaved editor alive on an I/O error. Opening another editor and
             // closing the window both retry this save before dropping its session.
@@ -240,6 +305,7 @@ impl VideoMaker {
         self.store.data.selected_video
     }
 
+    #[cfg(test)]
     fn import_path(&mut self, source: &Path) -> Result<(), String> {
         let video_id = self.video_id().ok_or("영상을 먼저 선택하세요")?;
         if !source.is_file() {
@@ -388,6 +454,7 @@ impl VideoMaker {
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
+        self.poll_imports(ctx);
         self.poll_auth(ctx);
         self.poll_catalog(ctx);
         self.backup.poll(&self.store.root, self.store.data.backup_directory.as_deref(), &self.store.data.backup_id, ctx);
@@ -483,8 +550,8 @@ impl VideoMaker {
             .map(|f| f.app.session.project.to_json().to_string())
             .unwrap_or_else(|| "편집 파일: edit.fcproj".into());
         let prompt = format!(
-            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 파일을 수정하지 말고 요청에 대한 제안이나 수정된 대본을 답변으로만 제시하세요.\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n이전 타임라인:\n{clips}\nFilmCraft 프로젝트:\n{native_edit}",
-            video.name, script, assets
+            "당신은 이 영상 프로젝트의 제작 보조자입니다. 한국어로 답하세요. 첫 행동으로 purpose MCP의 read_guide를 호출해 공통·채널 가이드를 읽고 준수하세요. 디자인·FilmCraft 편집·라이브러리는 purpose 도구로 직접 수정하고 결과를 확인하세요. 대본은 읽기 전용이며 수정안을 답변으로만 제안하세요. 대본 파일이나 workspace.json을 직접 쓰지 마세요. 현재 탭: {:?}\n영상: {}\n대본:\n{}\n라이브러리:\n{}\n이전 타임라인:\n{clips}\nFilmCraft 프로젝트:\n{native_edit}",
+            self.section, video.name, script, assets
         );
         self.start_chat(request, prompt);
     }

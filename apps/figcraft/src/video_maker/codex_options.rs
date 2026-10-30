@@ -99,7 +99,7 @@ pub fn catalog(cli: &Path) -> Result<Vec<Model>, String> {
                 }
             }
         });
-        writeln!(input,"{}",json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"purpose_video_maker","title":"Purpose video maker","version":"0.1.7"},"capabilities":{"experimentalApi":true}}})).map_err(|e|e.to_string())?;
+        writeln!(input,"{}",json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"purpose_video_maker","title":"Purpose video maker","version":"0.1.9"},"capabilities":{"experimentalApi":true}}})).map_err(|e|e.to_string())?;
         input.flush().map_err(|e| e.to_string())?;
         let deadline = Instant::now() + Duration::from_secs(8);
         while let Some(wait) = deadline.checked_duration_since(Instant::now()) {
