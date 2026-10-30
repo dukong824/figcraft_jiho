@@ -38,7 +38,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $dist = 'dist/purpose-video-maker'
-          $stage = Join-Path $dist 'Purpose-video-maker-0.1.9-windows-x64'
+          $stage = Join-Path $dist 'Purpose-video-maker-0.1.10-windows-x64'
           & (Join-Path $stage 'codex/codex.exe') --version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Codex failed' }
           $ffmpeg = Join-Path $stage 'ffmpeg/bin/ffmpeg.exe'
@@ -48,7 +48,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled H.264 encoder failed' }
           $codec = (& $ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $sample).Trim()
           if ($codec -ne 'h264') { throw "Unexpected codec: $codec" }
-          $setup = Join-Path $dist 'Purpose-video-maker-0.1.9-windows-x64-setup.exe'
+          $setup = Join-Path $dist 'Purpose-video-maker-0.1.10-windows-x64-setup.exe'
           $installed = Join-Path $env:RUNNER_TEMP 'purpose-installed'
           $process = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$installed") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
@@ -98,7 +98,7 @@ jobs:
           @"
           Windows x64 설치 파일입니다. 아래 setup.exe를 다운로드해 실행하세요.
           FFmpeg와 Codex CLI가 포함되어 있습니다.
-          Codex의 디자인·편집·라이브러리 직접 조작, 공통·채널 가이드, 앱 글꼴·아이콘 설정, 라이브러리 다중 선택·메뉴, 비동기 파일 가져오기와 프로젝트 목록 복구를 추가했습니다. 대본은 제안 방식으로 유지합니다. 설정·이름 변경·휴지통은 공통 스타일의 독립 창으로 개선했습니다.
+          수정 기록의 인라인 펼침·30일 보관, 글자 크기 설정, Codex 소스 첨부, 라이브러리와 편집기의 소스 동기화를 추가했습니다. 페이지·메뉴·팝업의 여백·글꼴·제목·경계선과 정렬을 통일했습니다.
 
           Commit: $env:GITHUB_SHA
           SHA-256: $sha256

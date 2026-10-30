@@ -87,7 +87,7 @@ impl VideoMaker {
         });
         if (zoom - before).abs() > 0.001 {
             self.store.data.ui_zoom = zoom;
-            ctx.set_zoom_factor(zoom);
+            ctx.set_zoom_factor(zoom * self.store.data.ui_font_size / 14.0);
             self.zoom_save_due = Some(Instant::now());
             ctx.request_repaint();
         }

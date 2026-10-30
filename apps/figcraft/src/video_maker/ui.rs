@@ -54,21 +54,16 @@ impl VideoMaker {
         if self.tabs.route().is_none() {
             self.empty_tab(ui);
         } else if self.tabs.route() == Some(Route::History) {
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(32.0)).show(ui, |ui| self.history_page(ui));
+            egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.history_page(ui));
         } else if let Some(Route::Guide { channel_id }) = self.tabs.route() {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(32.0))
-                .show(ui, |ui| self.guide_page(ui, channel_id));
+            egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| self.guide_page(ui, channel_id));
         } else if !matches!(self.section, Section::Design | Section::Edit) {
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(32, 12))).show(
-                ui,
-                |ui| match self.section {
-                    Section::Library => self.library(ui),
-                    Section::Script => self.script(ui),
-                    Section::Edit => {}
-                    Section::Design => {}
-                },
-            );
+            egui::CentralPanel::default().frame(style::page_frame()).show(ui, |ui| match self.section {
+                Section::Library => self.library(ui),
+                Section::Script => self.script(ui),
+                Section::Edit => {}
+                Section::Design => {}
+            });
         }
         if let Some(payload) = egui::DragAndDrop::payload::<super::interactions::AssetDrag>(&ctx)
             && let Some(pos) = ctx.pointer_hover_pos()
@@ -164,10 +159,10 @@ impl VideoMaker {
         let mut forward = shortcut_forward;
         egui::Panel::top("purpose-browser-bar")
             .exact_size(47.0)
-            .frame(egui::Frame::NONE.fill(style::SIDEBAR).stroke(Stroke::new(1.0, style::BORDER)).inner_margin(egui::Margin::symmetric(12, 5)))
+            .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 5)))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
-                ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(ui.available_width(), 37.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     if style::icon_button(ui, Icon::Sidebar, 31.0, "사이드바 접기/펼치기").clicked() {
                         self.sidebar_open = !self.sidebar_open;
                     }
@@ -181,56 +176,63 @@ impl VideoMaker {
                     ui.add_space(13.0);
                     let tabs_width = (ui.available_width() - 104.0).max(80.0);
                     ui.allocate_ui_with_layout(vec2(tabs_width, 35.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        egui::ScrollArea::horizontal().id_salt("purpose-open-tabs").auto_shrink([false, true]).show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                for (index, label, active) in &labels {
-                                    let fill = if *active { style::SURFACE } else { style::SIDEBAR };
-                                    egui::Frame::NONE
-                                        .fill(fill)
-                                        .corner_radius(CornerRadius::same(6))
-                                        .inner_margin(egui::Margin::symmetric(4, 2))
-                                        .show(ui, |ui| {
-                                            ui.horizontal(|ui| {
-                                                let tab = ui
-                                                    .add_sized(
-                                                        [162.0, 29.0],
-                                                        egui::Button::new(
-                                                            RichText::new(label).color(if *active { style::TEXT } else { style::MUTED }).size(13.0),
+                        egui::ScrollArea::horizontal()
+                            .id_salt("purpose-open-tabs")
+                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    for (index, label, active) in &labels {
+                                        let fill = if *active { style::SURFACE } else { style::SIDEBAR };
+                                        egui::Frame::NONE
+                                            .fill(fill)
+                                            .corner_radius(CornerRadius::same(6))
+                                            .inner_margin(egui::Margin::symmetric(4, 2))
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let tab = ui
+                                                        .add_sized(
+                                                            [162.0, 29.0],
+                                                            egui::Button::new(
+                                                                RichText::new(label)
+                                                                    .color(if *active { style::TEXT } else { style::MUTED })
+                                                                    .size(14.0),
+                                                            )
+                                                            .truncate()
+                                                            .frame(false)
+                                                            .sense(Sense::click_and_drag()),
                                                         )
-                                                        .frame(false)
-                                                        .sense(Sense::click_and_drag()),
-                                                    )
-                                                    .on_hover_text(label);
-                                                if tab.clicked() {
-                                                    select = Some(*index);
-                                                }
-                                                if tab.drag_started() {
-                                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                                                }
-                                                if tab.double_clicked() {
-                                                    let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
-                                                }
-                                                if style::icon_button(ui, Icon::Close, 22.0, "탭 닫기 (Ctrl+W)").clicked() {
-                                                    close = Some(*index);
-                                                }
+                                                        .on_hover_text(label);
+                                                    if tab.clicked() {
+                                                        select = Some(*index);
+                                                    }
+                                                    if tab.drag_started() {
+                                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                                                    }
+                                                    if tab.double_clicked() {
+                                                        let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+                                                    }
+                                                    if style::icon_button(ui, Icon::Close, 22.0, "탭 닫기 (Ctrl+W)").clicked() {
+                                                        close = Some(*index);
+                                                    }
+                                                });
                                             });
-                                        });
-                                }
-                                if style::icon_button(ui, Icon::Plus, 30.0, "새 탭 (Ctrl+T)").clicked() {
-                                    new_tab = true;
-                                }
-                                let blank_width = (tabs_width - labels.len() as f32 * 206.0 - 35.0).max(60.0);
-                                let blank = ui.allocate_response(vec2(blank_width, 32.0), Sense::click_and_drag());
-                                if blank.drag_started() {
-                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                                }
-                                if blank.double_clicked() {
-                                    let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
-                                }
+                                    }
+                                    if style::icon_button(ui, Icon::Plus, 30.0, "새 탭 (Ctrl+T)").clicked() {
+                                        new_tab = true;
+                                    }
+                                    let blank_width = (tabs_width - labels.len() as f32 * 206.0 - 35.0).max(60.0);
+                                    let blank = ui.allocate_response(vec2(blank_width, 32.0), Sense::click_and_drag());
+                                    if blank.drag_started() {
+                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                                    }
+                                    if blank.double_clicked() {
+                                        let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+                                    }
+                                });
                             });
-                        });
                     });
                     let max = ui.input(|i| i.viewport().maximized.unwrap_or(false));
                     if style::icon_button(ui, Icon::Minimize, 30.0, "최소화").clicked() {
@@ -245,6 +247,8 @@ impl VideoMaker {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
+                let r = ui.max_rect().expand2(vec2(12.0, 5.0));
+                ui.painter().line_segment([r.left_bottom(), r.right_bottom()], style::border(ui.ctx()));
             });
         if shortcut_close {
             close = self.tabs.items().find(|(_, _, _, active)| *active).map(|(index, _, _, _)| index);
@@ -306,12 +310,12 @@ impl VideoMaker {
         let mut collapsed = self.store.data.collapsed_channels.clone();
         let active_route = self.tabs.route().and_then(Route::video);
         let mut expanded = self.store.data.expanded_videos.clone();
-        egui::Panel::left("purpose-sidebar")
+        let panel = egui::Panel::left("purpose-sidebar")
             .default_size(252.0)
             .min_size(210.0)
             .max_size(330.0)
             .resizable(true)
-            .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 10)).stroke(Stroke::new(1.0, style::BORDER)))
+            .frame(egui::Frame::NONE.fill(style::SIDEBAR).inner_margin(egui::Margin::symmetric(12, 10)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if let Some(logo) = super::branding::texture(ui.ctx()) {
@@ -445,7 +449,7 @@ impl VideoMaker {
                 ui.separator();
                 if style::nav_row(ui, "수정 기록", Icon::History, self.tabs.route() == Some(Route::History), 0.0).clicked() {
                     self.checkpoint();
-                    self.history_video = None;
+                    self.history_expanded.clear();
                     self.navigate(Route::History);
                 }
                 if style::nav_row(ui, "휴지통", Icon::Trash, self.trash_open, 0.0).clicked() {
@@ -481,6 +485,7 @@ impl VideoMaker {
             self.store.data.expanded_videos = expanded;
             dirty = true;
         }
+        ui.painter().line_segment([panel.response.rect.right_top(), panel.response.rect.right_bottom()], style::border(ui.ctx()));
         if new_channel {
             self.store.data.add_channel();
             dirty = true;
@@ -547,12 +552,12 @@ impl VideoMaker {
             });
         egui::Panel::top("purpose-header")
             .exact_size(45.0)
-            .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(22, 7)).stroke(Stroke::new(1.0, style::BORDER)))
+            .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin::symmetric(22, 7)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(17.0, 24.0), Sense::hover());
                     style::paint_icon(ui.painter(), Rect::from_center_size(rect.center(), vec2(17.0, 17.0)), Icon::Channel, style::MUTED);
-                    ui.add(egui::Label::new(RichText::new(crumb).size(13.0)).truncate());
+                    ui.add(egui::Label::new(RichText::new(crumb).size(15.0)).truncate());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !self.sidebar_open && style::icon_button(ui, Icon::Sparkle, 28.0, "Codex 열기").clicked() {
                             self.side_view = Some(SideView::Codex);
@@ -560,6 +565,8 @@ impl VideoMaker {
                         }
                     });
                 });
+                let r = ui.max_rect().expand2(vec2(22.0, 7.0));
+                ui.painter().line_segment([r.left_bottom(), r.right_bottom()], style::border(ui.ctx()));
             });
         export
     }

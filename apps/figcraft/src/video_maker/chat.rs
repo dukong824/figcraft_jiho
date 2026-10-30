@@ -26,9 +26,17 @@ pub(super) struct Activity {
     pub detail: String,
     pub elapsed_ms: u64,
 }
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub(super) struct Attachment {
+    pub video: u64,
+    pub id: u64,
+    pub name: String,
+}
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct Message {
     pub role: Role,
+    #[serde(default)]
+    pub attachments: Vec<Attachment>,
     pub text: String,
     pub at: String,
     #[serde(default)]
@@ -125,6 +133,7 @@ struct RunOptions {
     settings: super::codex_options::Settings,
     fast_tier: Option<String>,
     connection: super::agent_transport::Connection,
+    images: Vec<PathBuf>,
 }
 fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, cancel: Arc<AtomicBool>, options: RunOptions) -> Result<String, String> {
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
@@ -160,6 +169,9 @@ fn run(cli: PathBuf, root: PathBuf, prompt: String, tx: mpsc::Sender<Event>, can
     options.settings.configure(&mut command, options.fast_tier.as_deref());
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
     options.connection.configure(&mut command, &executable);
+    for image in options.images {
+        command.arg("--image").arg(image);
+    }
     command.arg("-");
     #[cfg(unix)]
     {
@@ -269,6 +281,14 @@ impl VideoMaker {
         if self.chat_job.is_some() || self.authenticated != Some(true) || request.trim().is_empty() {
             return;
         }
+        let attachments = self.chat_attachments.get(&video).cloned().unwrap_or_default();
+        let (attachment_context, images) = match self.attachment_context(&attachments) {
+            Ok(value) => value,
+            Err(error) => {
+                self.message = error;
+                return;
+            }
+        };
         let bridge = match super::agent_transport::Bridge::start(video, self.ui_context.clone().unwrap_or_default()) {
             Ok(bridge) => bridge,
             Err(error) => {
@@ -289,12 +309,20 @@ impl VideoMaker {
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
-            .map(|m| format!("{}: {}", if m.role == Role::User { "사용자" } else { "Codex" }, m.text.chars().take(12000).collect::<String>()))
+            .map(|m| {
+                format!(
+                    "{}: {}\n첨부: {}",
+                    if m.role == Role::User { "사용자" } else { "Codex" },
+                    m.text.chars().take(12000).collect::<String>(),
+                    m.attachments.iter().map(|a| format!("{} (영상 {}, 자료 {})", a.name, a.video, a.id)).collect::<Vec<_>>().join(", ")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n\n");
         let now = chrono::Local::now().format("%H:%M").to_string();
         chat.messages.push(Message {
             role: Role::User,
+            attachments,
             text: request.clone(),
             at: now.clone(),
             elapsed_ms: 0,
@@ -306,6 +334,7 @@ impl VideoMaker {
         let reply = chat.messages.len();
         chat.messages.push(Message {
             role: Role::Assistant,
+            attachments: Vec::new(),
             text: String::new(),
             at: now,
             elapsed_ms: 0,
@@ -316,17 +345,20 @@ impl VideoMaker {
         });
         self.save_chat(video);
         let guide = self.guide_text(video).unwrap_or_default();
-        let prompt = format!("{context}\n\n작업 전에 반드시 읽고 준수할 가이드:\n{guide}\n이전 대화:\n{history}\n사용자 요청:\n{request}");
+        let prompt = format!(
+            "{context}\n\n작업 전에 반드시 읽고 준수할 가이드:\n{guide}\n이전 대화:\n{history}\n사용자 요청:\n{request}\n첨부한 라이브러리 소스:{attachment_context}"
+        );
         let (tx, events) = mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let stop = cancel.clone();
         let root = self.store.video_dir(video);
         let worker = std::thread::spawn(move || {
-            let result = run(cli, root, prompt, tx.clone(), stop.clone(), RunOptions { settings, fast_tier, connection });
+            let result = run(cli, root, prompt, tx.clone(), stop.clone(), RunOptions { settings, fast_tier, connection, images });
             let _ = tx.send(Event::Finished(result, stop.load(Ordering::Relaxed)));
         });
         self.chat_job = Some(Job { video_id: video, reply, started: Instant::now(), events, cancel, worker: Some(worker) });
         self.prompt.clear();
+        self.chat_attachments.remove(&video);
     }
     pub fn shutdown_chat(&mut self) {
         self.agent = None;

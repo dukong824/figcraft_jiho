@@ -428,7 +428,7 @@ fn dock_style(ui: &egui::Ui, t: &Tokens) -> DockStyle {
     style.float_group_label = "Undock Panel Group".into();
     style.close_group_label = "Close Panel Group".into();
     style.tab_height = t.tab_h;
-    style.gap = t.gap;
+    style.gap = if figcraft_ui_icons::enabled(ui.ctx()) { 1.0 / ui.ctx().pixels_per_point() } else { t.gap };
     style.background = t.panel_bg;
     style.tab_background = t.tab_bg;
     style.active_background = t.panel_bg;
@@ -479,7 +479,12 @@ impl DockContent<PanelKind> for FilmContent<'_> {
         ui.allocate_rect(ui.max_rect(), Sense::hover());
         // Painted after the body so child backgrounds cannot hide the focus outline (#1075).
         if self.app.ui.focused == *panel {
-            ui.painter().rect_stroke(frame, 0.0, Stroke::new(1.0, t.focus), StrokeKind::Inside);
+            ui.painter().rect_stroke(
+                frame,
+                0.0,
+                Stroke::new(if figcraft_ui_icons::enabled(ui.ctx()) { 1.0 / ui.ctx().pixels_per_point() } else { 1.0 }, t.focus),
+                StrokeKind::Inside,
+            );
         }
     }
 

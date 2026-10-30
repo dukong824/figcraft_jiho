@@ -7,25 +7,29 @@ impl VideoMaker {
         Ok(format!("공통 가이드:\n{}\n\n채널: {}\n채널 가이드:\n{}", self.store.data.codex_guide, channel.name, channel.codex_guide))
     }
     pub(super) fn guide_page(&mut self, ui: &mut egui::Ui, selected: Option<u64>) {
-        let width = (ui.available_width() - 80.0).clamp(200.0, 760.0);
-        let left = ((ui.available_width() - width) / 2.0).max(0.0);
+        let (width, left) = style::page_width(ui, true);
         let mut next = selected;
         let mut changed = false;
         egui::ScrollArea::vertical().id_salt(("purpose-guide-scroll", selected)).show(ui, |ui| {
-            ui.add_space(56.0);
+            ui.add_space(style::PAGE_TOP);
             ui.horizontal(|ui| {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.set_width(width);
-                    ui.label(RichText::new("Codex 가이드").font(FontId::new(36.0, FontFamily::Name("purpose-script-bold".into()))));
-                    ui.add_space(18.0);
+                    ui.label(RichText::new("Codex 가이드").font(FontId::new(style::PAGE_TITLE, FontFamily::Name("purpose-script-bold".into()))));
+                    ui.add_space(style::TITLE_GAP);
                     let label = selected
                         .and_then(|id| self.store.data.channels.iter().find(|c| c.id == id))
                         .map_or("모든 채널 · 공통 가이드", |c| c.name.as_str());
-                    egui::ComboBox::from_id_salt("guide-channel").selected_text(label).width(240.0).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut next, None, "모든 채널 · 공통 가이드");
+                    let response = style::dropdown(ui, label, 240.0);
+                    egui::Popup::menu(&response).show(|ui| {
+                        if ui.selectable_value(&mut next, None, "모든 채널 · 공통 가이드").clicked() {
+                            ui.close();
+                        }
                         for channel in &self.store.data.channels {
-                            ui.selectable_value(&mut next, Some(channel.id), &channel.name);
+                            if ui.selectable_value(&mut next, Some(channel.id), &channel.name).clicked() {
+                                ui.close();
+                            }
                         }
                     });
                     ui.add_space(26.0);

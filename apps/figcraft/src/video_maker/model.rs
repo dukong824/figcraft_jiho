@@ -190,6 +190,8 @@ pub struct Workspace {
     pub codex_guide: String,
     #[serde(default)]
     pub ui_font: String,
+    #[serde(default = "default_font_size")]
+    pub ui_font_size: f32,
     #[serde(default = "default_video_icon")]
     pub video_icon: String,
     #[serde(default)]
@@ -223,6 +225,7 @@ impl Default for Workspace {
         Self {
             codex_guide: String::new(),
             ui_font: String::new(),
+            ui_font_size: default_font_size(),
             video_icon: default_video_icon(),
             trashed_channels: Vec::new(),
             codex_settings: Default::default(),
@@ -321,15 +324,14 @@ fn now() -> String {
 
 impl Workspace {
     pub fn checkpoint(&mut self, label: &str) {
+        self.prune_revisions(chrono::Utc::now());
         let Some((_, video)) = self.selected() else { return };
         if self.revisions.iter().rev().find(|r| r.video.id == video.id).is_some_and(|r| r.video == *video) {
             return;
         }
         let video = video.clone();
         self.revisions.push(Revision { at: now(), label: label.into(), video });
-        if self.revisions.len() > 100 {
-            self.revisions.remove(0);
-        }
+        self.prune_revisions(chrono::Utc::now());
     }
 
     pub fn rename(&mut self, item: Item, name: &str) -> bool {
@@ -514,6 +516,10 @@ fn default_line_height() -> f32 {
 }
 fn default_zoom() -> f32 {
     1.0
+}
+
+fn default_font_size() -> f32 {
+    14.0
 }
 fn default_video_icon() -> String {
     "clapperboard".into()

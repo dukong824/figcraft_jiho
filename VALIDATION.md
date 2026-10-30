@@ -1,3 +1,29 @@
+## Purpose consistent UI and shared sources — 2026-10-30
+
+- 136 desktop tests passed. Added age-bucket retention per video, 30-day expiry and clock-skew
+  coverage, current/backup snapshot protection and symlink refusal, installed-font bold/variable
+  weight preservation, production CLI image arguments + attachment prompt/message persistence,
+  stored-relative-path source reuse, repeated native reopens, library removal/restore and native
+  clear/undo/redo, asynchronous native import ownership and source relinking.
+- 824 shared UI tests passed (1 ignored). Workspace/all-target Clippy with warnings denied,
+  dependency layers, asset attribution, WASM and all four plugin builds passed. Workflow
+  PowerShell syntax passed. Final app checks run again after the small layout refinements.
+- A native execution exposed reentrant Context locking in the new shared-style configuration;
+  border metrics are now computed before taking the style lock and a regression test covers it.
+- Inspected native Vulkan execution with synthetic data: inline expanded history, shared
+  document/collection headings, real Noto Sans bold titles, persisted 18pt base text size while
+  UI zoom remains 1.0, library-to-Codex thumbnail drag/drop and typing with attachments, backup
+  controls grouped in one card, and an editor library bin showing the same 10 active sources.
+  The original fullscreen button, restore, F11 and Esc also passed from a 921×729 native window;
+  fullscreen client geometry is exactly 1920×1080 at (0,0). Automatic bin/relink bookkeeping does
+  not add native undo entries. Copied fixtures are rebased
+  to their new test root; original project/media data is not used.
+- The known engine board-table row-growth failure is excluded from this task at the owner's
+  explicit request. A clean full `cargo xtask ci` result is not claimed or required for that
+  excluded engine issue; no engine implementation was changed.
+- Windows 0.1.10 publication remains gated on installation, media tools, installed MCP protocol
+  and original FilmCraft fullscreen/restore/F11/Esc/icon/clean-exit probes in the release workflow.
+
 ## Purpose guided editing and desktop workflows — 2026-10-30
 
 - 125 desktop tests passed. New coverage exercises the actual loopback capability channel,

@@ -6,7 +6,7 @@ use super::{
     model::{Asset, AssetKind, Store, Video},
 };
 use filmcraft_engine::Session;
-use filmcraft_project::{ItemId, MediaRef};
+use filmcraft_project::{BinEntry, BinId, ItemId, MediaRef};
 use filmcraft_time::Tick;
 use filmcraft_ui_egui::FilmcraftApp;
 use serde_json::json;
@@ -24,7 +24,11 @@ pub(super) struct Editor {
     seen_epoch: u64,
     save_due: Option<Instant>,
     gpu_ready: bool,
-    library_assets: std::collections::HashSet<u64>,
+    library_signature: Vec<(u64, String)>,
+    library_sync_after: Instant,
+    library_bin: BinId,
+    source_observation: std::collections::HashMap<ItemId, (PathBuf, bool, bool)>,
+    history_position: (usize, usize),
 }
 
 fn execute(session: &mut Session, id: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
@@ -115,7 +119,9 @@ fn existing_item(session: &Session, path: &Path) -> Option<ItemId> {
     session.project.items.values().find_map(|item| {
         let media = item.as_media()?;
         match &media.media {
-            MediaRef::File { path: source } if Path::new(source) == path => Some(item.id),
+            MediaRef::File { path: source } if Path::new(source) == path || session.media.follow(source).is_ok_and(|p| Path::new(&p) == path) => {
+                Some(item.id)
+            }
             _ => None,
         }
     })
@@ -124,6 +130,9 @@ fn existing_item(session: &Session, path: &Path) -> Option<ItemId> {
 fn import_asset(session: &mut Session, store: &Store, video: u64, asset: &Asset) -> Result<ItemId, String> {
     let path = store.asset_path(video, asset);
     if let Some(id) = existing_item(session, &path) {
+        if session.project.item(id).and_then(|i| i.as_media()).is_some_and(|m| m.offline) {
+            execute(session, "media.relink", json!({"item":id.0,"path":path,"force":true,"relinkOthers":false}))?;
+        }
         sync_item_name(session, id, asset)?;
         return Ok(id);
     }
@@ -173,6 +182,79 @@ fn sync_item_name(session: &mut Session, id: ItemId, asset: &Asset) -> Result<()
     let generated = session.events.split_off(event_count);
     session.events.extend(generated.into_iter().filter(|event| !matches!(event, filmcraft_engine::Event::OpenSequence(_))));
     result
+}
+
+fn library_bin(session: &mut Session, name: &str) -> Result<BinId, String> {
+    if let Some(id) = session.project.root.children.iter().find_map(|c| match c {
+        BinEntry::Bin(b) if b.name == name => Some(b.id),
+        _ => None,
+    }) {
+        return Ok(id);
+    }
+    execute(session, "file.newBin", json!({"name":name}))?["bin"].as_u64().map(BinId).ok_or_else(|| "소스 폴더를 만들 수 없습니다".into())
+}
+fn observe_sources(session: &Session, bin: BinId) -> std::collections::HashMap<ItemId, (PathBuf, bool, bool)> {
+    let mut members = Vec::new();
+    if let Some(bin) = session.project.root.find_bin(bin) {
+        bin.all_items(&mut members);
+    }
+    session
+        .project
+        .items
+        .values()
+        .filter_map(|item| {
+            let media = item.as_media()?;
+            let MediaRef::File { path } = &media.media else {
+                return None;
+            };
+            Some((item.id, (PathBuf::from(session.media.follow(path).ok()?), !media.offline, members.contains(&item.id))))
+        })
+        .collect()
+}
+fn reconcile_library(session: &mut Session, store: &Store, video: &Video) -> Result<BinId, String> {
+    // Automatic bookkeeping must not consume the user's native undo/redo steps.
+    let history = session.history.clone();
+    let result = reconcile_library_inner(session, store, video);
+    session.history = history;
+    result
+}
+fn reconcile_library_inner(session: &mut Session, store: &Store, video: &Video) -> Result<BinId, String> {
+    let bin = library_bin(session, "라이브러리")?;
+    let mut active = Vec::new();
+    let mut errors = Vec::new();
+    for asset in video.assets.iter().filter(|a| a.kind.can_edit()) {
+        match import_asset(session, store, video.id, asset) {
+            Ok(id) => active.push(id),
+            Err(error) => errors.push(format!("{}: {error}", asset.name)),
+        }
+    }
+    let moved: Vec<_> = active.iter().filter(|id| session.project.root.parent_of(**id) != Some(bin)).map(|id| id.0).collect();
+    if !moved.is_empty() {
+        execute(session, "project.moveToBin", json!({"items":moved,"bin":bin.0}))?;
+    }
+    // Keep removed/duplicate media outside the library without offlining existing timeline clips.
+    let managed: std::collections::HashSet<_> = video.assets.iter().chain(&video.removed_assets).map(|a| store.asset_path(video.id, a)).collect();
+    let archive: Vec<_> = session
+        .project
+        .items
+        .values()
+        .filter(|item| !active.contains(&item.id))
+        .filter_map(|item| {
+            let MediaRef::File { path } = &item.as_media()?.media else {
+                return None;
+            };
+            let path = session.media.follow(path).unwrap_or_else(|_| path.clone());
+            managed.contains(Path::new(&path)).then_some(item.id)
+        })
+        .collect();
+    if !archive.is_empty() {
+        let folder = library_bin(session, "보관 소스")?;
+        let moved: Vec<_> = archive.iter().filter(|id| session.project.root.parent_of(**id) != Some(folder)).map(|id| id.0).collect();
+        if !moved.is_empty() {
+            execute(session, "project.moveToBin", json!({"items":moved,"bin":folder.0}))?;
+        }
+    }
+    if errors.is_empty() { Ok(bin) } else { Err(format!("편집 소스 동기화 실패: {}", errors.join(" · "))) }
 }
 
 fn new_sequence(session: &mut Session, name: &str) -> Result<(), String> {
@@ -255,6 +337,131 @@ impl VideoMaker {
         }
         Ok(())
     }
+    fn sync_native_source_actions(&mut self) {
+        let mut actions = Vec::new();
+        let video;
+        {
+            let Some(editor) = &mut self.film else {
+                return;
+            };
+            video = editor.video_id;
+            let session = &editor.app.session;
+            let position = (session.history.undo.len(), session.history.redo.len());
+            let label = if position.0 < editor.history_position.0 && position.1 > editor.history_position.1 {
+                session.history.redo.last().map(|(label, _)| label.as_str())
+            } else {
+                session.history.undo.last().map(|(label, _)| label.as_str())
+            };
+            let observed = observe_sources(session, editor.library_bin);
+            if matches!(label, Some("Clear" | "Import")) && (position != editor.history_position || observed != editor.source_observation) {
+                for (id, (path, present, member)) in &editor.source_observation {
+                    if *member && *present && observed.get(id).is_none_or(|(_, present, _)| !*present) {
+                        actions.push((path.clone(), false));
+                    }
+                }
+                for (id, (path, present, member)) in &observed {
+                    if *member && *present && editor.source_observation.get(id).is_none_or(|(_, present, _)| !*present) {
+                        actions.push((path.clone(), true));
+                    }
+                }
+            }
+            editor.source_observation = observed;
+            editor.history_position = position;
+        }
+        if actions.is_empty() {
+            return;
+        }
+        if let Some(target) = self.store.data.channels.iter_mut().flat_map(|c| &mut c.videos).find(|v| v.id == video) {
+            let directory = self.store.root.join("videos").join(video.to_string()).join("assets");
+            for (path, present) in actions {
+                if present {
+                    if let Some(index) = target.removed_assets.iter().position(|a| directory.join(&a.file) == path) {
+                        target.assets.push(target.removed_assets.remove(index));
+                    }
+                } else if let Some(index) = target.assets.iter().position(|a| directory.join(&a.file) == path) {
+                    target.removed_assets.push(target.assets.remove(index));
+                }
+            }
+        }
+        self.save();
+    }
+    fn sync_native_imports(&mut self) {
+        let Some(editor) = &self.film else {
+            return;
+        };
+        let video_id = editor.video_id;
+        let Some(video) = self.store.data.channels.iter().flat_map(|c| &c.videos).find(|v| v.id == video_id) else {
+            return;
+        };
+        let managed: std::collections::HashSet<_> =
+            video.assets.iter().chain(&video.removed_assets).map(|a| self.store.asset_path(video_id, a)).collect();
+        let files: Vec<_> = editor
+            .app
+            .session
+            .project
+            .items
+            .values()
+            .filter_map(|item| {
+                let MediaRef::File { path } = &item.as_media()?.media else {
+                    return None;
+                };
+                let path = PathBuf::from(editor.app.session.media.follow(path).ok()?);
+                (!managed.contains(&path) && !self.film_import_paths.contains(&(video_id, item.id, path.clone()))).then_some((
+                    item.id,
+                    path,
+                    item.name.clone(),
+                ))
+            })
+            .collect();
+        for (item, path, name) in files {
+            self.film_import_paths.insert((video_id, item, path.clone()));
+            match self.queue_import(video_id, path, Some(name)) {
+                Ok(id) => {
+                    self.film_imports.insert(id, (video_id, item));
+                }
+                Err(error) => self.message = error,
+            }
+        }
+    }
+    pub(super) fn complete_film_import(&mut self, asset: &Asset) -> Result<(), String> {
+        let Some((video, item)) = self.film_imports.remove(&asset.id) else {
+            return Ok(());
+        };
+        let path = self.store.asset_path(video, asset);
+        let params = json!({"item":item.0,"path":path,"force":true,"relinkOthers":false});
+        if let Some(editor) = self.film.as_mut().filter(|e| e.video_id == video) {
+            if editor.app.session.project.item(item).is_some() {
+                let history = editor.app.session.history.clone();
+                let result =
+                    execute(&mut editor.app.session, "media.relink", params).and_then(|_| sync_item_name(&mut editor.app.session, item, asset));
+                editor.app.session.history = history;
+                result?;
+            }
+            self.save_film()?;
+        } else {
+            let project = project_path(&self.store, video);
+            if project.exists() {
+                let mut session = Session::default();
+                execute(&mut session, "file.open", json!({"path":project}))?;
+                if session.project.item(item).is_some() {
+                    execute(&mut session, "media.relink", params)?;
+                    sync_item_name(&mut session, item, asset)?;
+                }
+                execute(&mut session, "file.save", json!({"path":project}))?;
+                let name = format!("edit-{}.fcproj", SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos());
+                let snapshot = revision_path(&self.store, video, &name)?;
+                if let Some(dir) = snapshot.parent() {
+                    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+                }
+                fs::copy(project, snapshot).map_err(|e| e.to_string())?;
+                if let Some(v) = self.store.data.channels.iter_mut().flat_map(|c| &mut c.videos).find(|v| v.id == video) {
+                    v.film_revision = Some(name);
+                }
+                session.shutdown();
+            }
+        }
+        Ok(())
+    }
     pub fn section_is_edit(&self) -> bool {
         self.tabs.route().and_then(super::navigation::Route::video).is_some_and(|(_, section)| section == super::model::Section::Edit)
     }
@@ -262,11 +469,25 @@ impl VideoMaker {
     pub(super) fn ensure_film(&mut self) -> Result<(), String> {
         let video = self.video().cloned().ok_or("영상을 먼저 선택하세요")?;
         if let Some(editor) = self.film.as_mut().filter(|editor| editor.video_id == video.id) {
-            for asset in video.assets.iter().filter(|a| a.kind.can_edit()) {
-                if editor.library_assets.insert(asset.id)
-                    && let Err(error) = import_asset(&mut editor.app.session, &self.store, video.id, asset)
-                {
-                    log::warn!("{error}");
+            let signature: Vec<_> = video
+                .assets
+                .iter()
+                .map(|a| (a.id, format!("active:{}", a.name)))
+                .chain(video.removed_assets.iter().map(|a| (a.id, format!("removed:{}", a.name))))
+                .collect();
+            if editor.library_signature != signature && Instant::now() >= editor.library_sync_after {
+                match reconcile_library(&mut editor.app.session, &self.store, &video) {
+                    Ok(bin) => {
+                        editor.library_signature = signature;
+                        editor.library_sync_after = Instant::now();
+                        editor.library_bin = bin;
+                        editor.source_observation = observe_sources(&editor.app.session, bin);
+                        editor.history_position = (editor.app.session.history.undo.len(), editor.app.session.history.redo.len());
+                    }
+                    Err(error) => {
+                        editor.library_sync_after = Instant::now() + Duration::from_secs(5);
+                        self.message = error;
+                    }
                 }
             }
             return Ok(());
@@ -319,16 +540,16 @@ impl VideoMaker {
             session.prefs.appearance.light_theme = "light".into();
         }
         session.prefs.general.interface_language = "ko".into();
-        for asset in video.assets.iter().filter(|a| a.kind.can_edit()) {
-            if let Err(error) = import_asset(&mut session, &self.store, video.id, asset) {
-                log::warn!("{error}");
-            }
+        let library_bin = library_bin(&mut session, "라이브러리")?;
+        if let Err(error) = reconcile_library(&mut session, &self.store, &video) {
+            self.message = error;
         }
         session.voiceover.input = Some(Box::new(CpalIn::new(&session.prefs.audio_hardware.device_class)));
         let seen_revision = session.revision;
         let seen_epoch = session.document_epoch;
         let mut app = FilmcraftApp::new(session);
         app.embedded = true;
+        app.ui.project_panel.bin = Some(library_bin.0);
         app.set_startup_update_check(false);
         app.audio = Some(Box::new(CpalOut::new()));
         app.hooks.open_url = Some(Box::new(|url| webbrowser::open(url).map(|_| ()).map_err(|e| e.to_string())));
@@ -352,13 +573,17 @@ impl VideoMaker {
         app.hooks.pick_file_for_relink = Some(Box::new(|_, _| rfd::FileDialog::new().pick_file().map(|p| p.to_string_lossy().into_owned())));
         app.hooks.cursor_screen_position = Some(Box::new(filmcraft_platform::cursor::cursor_screen_position));
         self.film = Some(Editor {
-            app,
             video_id: video.id,
             seen_revision,
             seen_epoch,
             save_due: None,
             gpu_ready: false,
-            library_assets: video.assets.iter().map(|a| a.id).collect(),
+            source_observation: observe_sources(&app.session, library_bin),
+            history_position: (app.session.history.undo.len(), app.session.history.redo.len()),
+            library_bin,
+            library_signature: Vec::new(),
+            library_sync_after: Instant::now(),
+            app,
         });
         if !path.exists() || video.film_revision.is_none() {
             self.save_film()?;
@@ -443,6 +668,10 @@ impl VideoMaker {
                 editor.app.session.pump_jobs(Duration::from_millis(3));
                 editor.app.session.poll_persistence();
             }
+            if editor.seen_epoch != editor.app.session.document_epoch {
+                editor.library_signature.clear();
+                editor.library_sync_after = Instant::now();
+            }
             if editor.seen_revision != editor.app.session.revision || editor.seen_epoch != editor.app.session.document_epoch {
                 editor.seen_revision = editor.app.session.revision;
                 editor.seen_epoch = editor.app.session.document_epoch;
@@ -456,6 +685,8 @@ impl VideoMaker {
                 }
             }
         }
+        self.sync_native_source_actions();
+        self.sync_native_imports();
         if save && let Err(error) = self.save_film() {
             self.message = error;
         }
@@ -533,6 +764,141 @@ mod tests {
         (store, video)
     }
 
+    fn library_count(maker: &VideoMaker) -> usize {
+        let app = &maker.film.as_ref().unwrap().app;
+        let bin = app.ui.project_panel.bin.unwrap();
+        app.session.project.root.find_bin(BinId(bin)).unwrap().children.iter().filter(|c| matches!(c, BinEntry::Item(_))).count()
+    }
+    #[test]
+    fn library_counts_survive_reopens_removal_restore_and_duplicate_native_imports() {
+        let (store, video) = fixture("library-sync");
+        store.save().unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 2);
+        let path = store.asset_path(video.id, &video.assets[0]);
+        execute(&mut maker.film.as_mut().unwrap().app.session, "file.import", json!({"paths":[path],"imageSequence":false})).unwrap();
+        maker.save_film().unwrap();
+        maker.shutdown_film();
+        for _ in 0..3 {
+            maker.ensure_film().unwrap();
+            assert_eq!(library_count(&maker), 2);
+            maker.save_film().unwrap();
+            maker.shutdown_film();
+        }
+        maker.ensure_film().unwrap();
+        let media_count = maker.film.as_ref().unwrap().app.session.project.items.values().filter(|i| i.as_media().is_some()).count();
+        maker.remove_assets(video.id, &[101]).unwrap();
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 1);
+        let session = &maker.film.as_ref().unwrap().app.session;
+        assert!(session.active_sequence().unwrap().video_tracks[0].items.iter().all(|c| session.project.item(c.item).is_some()));
+        assert!(!session.project.item(existing_item(session, &path).unwrap()).unwrap().as_media().unwrap().offline);
+        let asset = maker.store.data.selected_mut().unwrap().removed_assets.remove(0);
+        maker.store.data.selected_mut().unwrap().assets.push(asset);
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 2);
+        assert_eq!(maker.film.as_ref().unwrap().app.session.project.items.values().filter(|i| i.as_media().is_some()).count(), media_count);
+        maker.shutdown_film();
+        fs::remove_dir_all(store.root).unwrap();
+    }
+    #[test]
+    fn stored_relative_media_paths_reuse_the_original_native_item() {
+        let (store, video) = fixture("relative-media");
+        store.save().unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        maker.save_film().unwrap();
+        let path = store.asset_path(video.id, &video.assets[0]);
+        let original = existing_item(&maker.film.as_ref().unwrap().app.session, &path).unwrap();
+        maker.shutdown_film();
+        let project = project_path(&store, video.id);
+        let mut data: serde_json::Value = serde_json::from_slice(&fs::read(&project).unwrap()).unwrap();
+        fn relative(value: &mut serde_json::Value, absolute: &str) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    if map.get("path").and_then(|p| p.as_str()) == Some(absolute) {
+                        map.insert("path".into(), json!("assets/image.png"));
+                    }
+                    for v in map.values_mut() {
+                        relative(v, absolute);
+                    }
+                }
+                serde_json::Value::Array(values) => {
+                    for v in values {
+                        relative(v, absolute);
+                    }
+                }
+                _ => {}
+            }
+        }
+        relative(&mut data, path.to_str().unwrap());
+        fs::write(project, serde_json::to_vec(&data).unwrap()).unwrap();
+        maker.ensure_film().unwrap();
+        assert_eq!(existing_item(&maker.film.as_ref().unwrap().app.session, &path), Some(original));
+        assert_eq!(library_count(&maker), 2);
+        maker.shutdown_film();
+        fs::remove_dir_all(store.root).unwrap();
+    }
+    #[test]
+    fn native_clear_undo_and_redo_move_library_metadata_without_losing_source_files() {
+        let (store, video) = fixture("clear-sync");
+        store.save().unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        let path = store.asset_path(video.id, &video.assets[0]);
+        let item = existing_item(&maker.film.as_ref().unwrap().app.session, &path).unwrap();
+        execute(&mut maker.film.as_mut().unwrap().app.session, "project.delete", json!({"items":[item.0]})).unwrap();
+        maker.sync_native_source_actions();
+        assert_eq!(maker.video().unwrap().assets.len(), 1);
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 1);
+        assert!(path.exists());
+        maker.film.as_mut().unwrap().app.session.undo().unwrap();
+        maker.sync_native_source_actions();
+        assert_eq!(maker.video().unwrap().assets.len(), 2);
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 2);
+        maker.film.as_mut().unwrap().app.session.redo().unwrap();
+        maker.sync_native_source_actions();
+        assert_eq!(maker.video().unwrap().assets.len(), 1);
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 1);
+        assert!(path.exists());
+        maker.shutdown_film();
+        fs::remove_dir_all(store.root).unwrap();
+    }
+    #[test]
+    fn native_imports_are_copied_to_library_and_relink_existing_timeline_sources() {
+        let (store, video) = fixture("native-import");
+        store.save().unwrap();
+        let external = store.root.join("external.png");
+        image::RgbaImage::from_pixel(20, 20, image::Rgba([45, 50, 55, 255])).save(&external).unwrap();
+        let mut maker = VideoMaker::at(store.root.clone()).unwrap();
+        maker.ensure_film().unwrap();
+        let result =
+            execute(&mut maker.film.as_mut().unwrap().app.session, "file.import", json!({"paths":[external],"imageSequence":false})).unwrap();
+        let item = ItemId(result["items"][0].as_u64().unwrap());
+        maker.sync_native_imports();
+        let ctx = egui::Context::default();
+        for _ in 0..200 {
+            maker.poll_imports(&ctx);
+            if !maker.imports.busy() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(maker.video().unwrap().assets.len(), 3);
+        let asset = maker.video().unwrap().assets.iter().find(|a| a.name == "external.png").unwrap();
+        let owned = maker.store.asset_path(video.id, asset);
+        assert!(owned.exists() && external.exists());
+        let session = &maker.film.as_ref().unwrap().app.session;
+        assert_eq!(existing_item(session, &owned), Some(item));
+        maker.ensure_film().unwrap();
+        assert_eq!(library_count(&maker), 3);
+        maker.shutdown_film();
+        fs::remove_dir_all(store.root).unwrap();
+    }
     #[test]
     fn source_renames_reach_existing_timeline_clips_and_preserve_custom_clip_names() {
         let (store, video) = fixture("source-names");

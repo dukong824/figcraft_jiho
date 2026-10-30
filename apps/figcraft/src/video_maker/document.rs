@@ -241,10 +241,12 @@ fn floating_menu(ctx: &egui::Context, selection: &Selection, video: &super::mode
             ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
             ui.horizontal(|ui| {
                 let kind = video.script_rich.kind(&video.script_body, selection.range.start);
-                egui::ComboBox::from_id_salt("text-kind").height(260.0).selected_text(kind.label()).width(115.0).show_ui(ui, |ui| {
+                let response = style::dropdown(ui, kind.label(), 115.0);
+                egui::Popup::menu(&response).show(|ui| {
                     for candidate in TextKind::ALL {
                         if ui.selectable_label(kind == candidate, candidate.label()).clicked() {
                             action = Some(Format::Kind(candidate));
+                            ui.close();
                         }
                     }
                 });
@@ -347,9 +349,8 @@ impl VideoMaker {
         }
         ui.visuals_mut().selection.stroke.color = egui::Color32::BLACK;
         egui::ScrollArea::vertical().id_salt(("purpose-script-scroll", video.id)).auto_shrink([false, false]).show(ui, |ui| {
-            let width = (ui.available_width() - 104.0).clamp(180.0, 760.0);
-            let left = ((ui.available_width() - width) / 2.0).max(0.0);
-            ui.add_space(60.0);
+            let (width, left) = style::page_width(ui, true);
+            ui.add_space(style::PAGE_TOP);
             ui.horizontal(|ui| {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
@@ -357,12 +358,13 @@ impl VideoMaker {
                     ui.spacing_mut().item_spacing.y = 4.0;
                     ui.add(
                         TextEdit::singleline(&mut video.name)
-                            .font(FontId::new(38.0, egui::FontFamily::Name("purpose-script-bold".into())))
+                            .margin(egui::Margin::ZERO)
+                            .font(FontId::new(style::PAGE_TITLE, egui::FontFamily::Name("purpose-script-bold".into())))
                             .desired_width(width)
                             .frame(egui::Frame::NONE)
                             .hint_text("제목 없음"),
                     );
-                    ui.add_space(22.0);
+                    ui.add_space(style::TITLE_GAP);
                     let images = video.script_rich.images.clone();
                     let mut start = 0;
                     for slot in 0..=images.len() {

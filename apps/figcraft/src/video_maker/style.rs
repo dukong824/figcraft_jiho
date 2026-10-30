@@ -11,6 +11,22 @@ pub const BORDER: Color32 = Color32::from_rgb(231, 231, 228);
 pub const THUMB: Color32 = Color32::from_rgb(244, 244, 242);
 pub const BLUE: Color32 = Color32::from_rgb(35, 131, 226);
 
+pub const PAGE_TOP: f32 = 48.0;
+pub const PAGE_TITLE: f32 = 36.0;
+pub const TITLE_GAP: f32 = 24.0;
+pub const DOCUMENT_WIDTH: f32 = 760.0;
+pub const COLLECTION_WIDTH: f32 = 1120.0;
+pub fn page_width(ui: &Ui, document: bool) -> (f32, f32) {
+    let width = (ui.available_width() - 48.0).max(1.0).min(if document { DOCUMENT_WIDTH } else { COLLECTION_WIDTH });
+    (width, ((ui.available_width() - width) / 2.0).max(0.0))
+}
+pub fn page_frame() -> egui::Frame {
+    egui::Frame::NONE.fill(SURFACE).inner_margin(egui::Margin::symmetric(32, 0))
+}
+pub fn border(ctx: &Context) -> Stroke {
+    Stroke::new(1.0 / ctx.pixels_per_point(), BORDER)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
     Sidebar,
@@ -57,14 +73,14 @@ pub fn configure(ctx: &egui::Context) {
     visuals.override_text_color = Some(TEXT);
     visuals.panel_fill = SURFACE;
     visuals.window_fill = SURFACE;
-    visuals.window_stroke = Stroke::new(1.0, BORDER);
+    visuals.window_stroke = border(ctx);
     visuals.window_corner_radius = CornerRadius::same(10);
     visuals.menu_corner_radius = CornerRadius::same(8);
     visuals.window_highlight_topmost = false;
     visuals.popup_shadow = egui::epaint::Shadow { offset: [0, 4], blur: 18, spread: 0, color: Color32::from_black_alpha(24) };
     visuals.window_shadow = egui::epaint::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(30) };
     visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT);
-    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, TEXT);
+    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, FAINT);
     visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, TEXT);
     visuals.widgets.active.fg_stroke = Stroke::new(1.0, TEXT);
     visuals.widgets.noninteractive.corner_radius = CornerRadius::same(5);
@@ -83,6 +99,7 @@ pub fn configure(ctx: &egui::Context) {
     visuals.selection.bg_fill = Color32::from_rgb(196, 220, 244);
     visuals.selection.stroke = Stroke::new(1.0, BLUE);
     ctx.set_visuals(visuals);
+    let border = border(ctx);
     ctx.global_style_mut(|style| {
         style.spacing.item_spacing = vec2(8.0, 7.0);
         style.spacing.button_padding = vec2(9.0, 5.0);
@@ -92,6 +109,7 @@ pub fn configure(ctx: &egui::Context) {
         style.spacing.icon_width = 15.0;
         style.spacing.icon_spacing = 8.0;
         style.spacing.scroll.bar_width = 6.0;
+        style.visuals.widgets.noninteractive.bg_stroke = border;
         style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
         style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
         style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
@@ -106,7 +124,7 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, size: f32, tip: &str) -> Response {
     }
     paint_icon(
         ui.painter(),
-        rect.shrink((size - 18.0) / 2.0),
+        rect.shrink((size - if matches!(icon, Icon::Sidebar | Icon::Back | Icon::Forward) { 22.0 } else { 18.0 }) / 2.0),
         icon,
         if !ui.is_enabled() {
             FAINT
@@ -126,6 +144,15 @@ pub fn icon_toggle(ui: &mut Ui, icon: Icon, selected: bool, size: f32, tip: &str
     }
     paint_icon(ui.painter(), rect.shrink((size - 18.0) / 2.0), icon, if selected { TEXT } else { MUTED });
     response.on_hover_text(tip)
+}
+
+pub fn filter_tab(ui: &mut Ui, label: &str, selected: bool) -> Response {
+    ui.add(
+        egui::Button::new(egui::RichText::new(label).size(14.0).color(if selected { TEXT } else { MUTED }))
+            .fill(if selected { SELECTED } else { Color32::TRANSPARENT })
+            .corner_radius(5)
+            .min_size(vec2(78.0, 30.0)),
+    )
 }
 
 pub fn nav_row(ui: &mut Ui, label: &str, icon: Icon, selected: bool, indent: f32) -> Response {
@@ -240,12 +267,16 @@ pub fn menu_item(ui: &mut Ui, label: &str, icon: Icon, destructive: bool) -> Res
         icon,
         if destructive { color } else { MUTED },
     );
-    ui.painter().text(pos2(rect.left() + 35.0, rect.center().y), egui::Align2::LEFT_CENTER, label, FontId::proportional(13.0), color);
+    let mut job = egui::text::LayoutJob::simple(label.into(), FontId::proportional(14.0), color, (width - 48.0).max(20.0));
+    job.wrap.max_rows = 1;
+    job.wrap.break_anywhere = true;
+    let text = ui.fonts_mut(|f| f.layout_job(job));
+    ui.painter().galley(pos2(rect.left() + 35.0, rect.center().y - text.size().y / 2.0), text, color);
     response
 }
 
 pub fn dropdown(ui: &mut Ui, label: &str, max_text_width: f32) -> Response {
-    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(11.0), TEXT, max_text_width);
+    let mut job = egui::text::LayoutJob::simple(label.to_owned(), FontId::proportional(13.0), TEXT, max_text_width);
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     let text = ui.fonts_mut(|f| f.layout_job(job));
@@ -284,7 +315,7 @@ pub fn modal_frame() -> egui::Frame {
 }
 pub fn action_button(ui: &mut Ui, label: &str, primary: bool) -> Response {
     ui.add(
-        egui::Button::new(egui::RichText::new(label).size(13.0).color(if primary { Color32::WHITE } else { TEXT }))
+        egui::Button::new(egui::RichText::new(label).size(14.0).color(if primary { Color32::WHITE } else { TEXT }))
             .fill(if primary { TEXT } else { SURFACE })
             .stroke(Stroke::new(1.0, if primary { TEXT } else { BORDER }))
             .corner_radius(6)
@@ -297,7 +328,7 @@ pub fn rename_dialog(ctx: &Context, id: Id, heading: &str, name: &mut String) ->
     let output = egui::Modal::new(id).frame(modal_frame()).backdrop_color(Color32::from_black_alpha(38)).show(ctx, |ui| {
         ui.set_width(360.0);
         ui.horizontal(|ui| {
-            ui.label(self::heading(heading, 18.0));
+            ui.label(self::heading(heading, 22.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 cancel = icon_button(ui, Icon::Close, 26.0, "닫기").clicked();
             });
@@ -394,6 +425,13 @@ pub fn search_field(ui: &mut Ui, text: &mut String, width: f32, hint: &str) -> R
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shared_style_configuration_does_not_reenter_the_context_style_lock() {
+        let ctx = egui::Context::default();
+        super::configure(&ctx);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, 30.0);
+    }
+
     use super::*;
     #[test]
     fn rename_enter_commits_even_when_the_single_line_editor_releases_focus() {

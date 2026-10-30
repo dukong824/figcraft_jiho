@@ -10,7 +10,8 @@ impl VideoMaker {
         let mut disable = false;
         let mut now = false;
         let mut reveal = None;
-        let before = (self.store.data.ui_font.clone(), self.store.data.video_icon.clone());
+        let content_height = (ctx.content_rect().height() - 150.0).clamp(140.0, 400.0);
+        let before = (self.store.data.ui_font.clone(), self.store.data.video_icon.clone(), self.store.data.ui_font_size);
         let output = egui::Modal::new(egui::Id::unique("purpose-settings"))
             .frame(style::modal_frame())
             .backdrop_color(egui::Color32::from_black_alpha(38))
@@ -24,9 +25,9 @@ impl VideoMaker {
                 });
                 ui.add_space(20.0);
                 ui.horizontal_top(|ui| {
-                    ui.allocate_ui_with_layout(vec2(144.0, 365.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+                    ui.allocate_ui_with_layout(vec2(144.0, content_height), egui::Layout::top_down(egui::Align::Min), |ui| {
                         ui.set_width(144.0);
-                        ui.set_min_height(340.0);
+                        ui.set_min_height((content_height - 20.0).max(100.0));
                         for (index, label, icon) in [(0, "모양", style::Icon::Grid), (1, "저장 및 백업", style::Icon::History)] {
                             if style::nav_row(ui, label, icon, self.settings_section == index, 0.0).clicked() {
                                 self.settings_section = index;
@@ -37,10 +38,10 @@ impl VideoMaker {
                     ui.separator();
                     ui.add_space(16.0);
                     let width = ui.available_width();
-                    egui::ScrollArea::vertical().id_salt("settings-content").max_height(365.0).show(ui, |ui| {
+                    egui::ScrollArea::vertical().id_salt("settings-content").max_height(content_height).show(ui, |ui| {
                         ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                             ui.set_width(width);
-                            ui.set_min_height(340.0);
+                            ui.set_min_height((content_height - 20.0).max(100.0));
                             if self.settings_section == 0 {
                                 section_title(ui, "인터페이스");
                                 ui.add_space(18.0);
@@ -67,8 +68,20 @@ impl VideoMaker {
                                         }
                                     });
                                 });
+                                ui.add_space(14.0);
+                                ui.horizontal(|ui| {
+                                    ui.label("글자 크기");
+                                    let response = style::dropdown(ui, &format!("{} pt", self.store.data.ui_font_size), 96.0);
+                                    egui::Popup::menu(&response).show(|ui| {
+                                        for size in [12.0, 13.0, 14.0, 15.0, 16.0, 18.0, 20.0] {
+                                            if ui.selectable_value(&mut self.store.data.ui_font_size, size, format!("{size} pt")).clicked() {
+                                                ui.close();
+                                            }
+                                        }
+                                    });
+                                });
                                 ui.add_space(9.0);
-                                ui.label(RichText::new("가나다 ABC 123 · 선택한 글꼴로 표시됩니다").size(14.0).color(style::MUTED));
+                                ui.label(RichText::new("가나다 ABC 123").size(14.0).color(style::MUTED));
                                 ui.add_space(18.0);
                                 ui.separator();
                                 ui.add_space(14.0);
@@ -127,6 +140,7 @@ impl VideoMaker {
                                         choose = style::action_button(ui, "폴더 선택…", false).clicked();
                                         if self.store.data.backup_directory.is_some() {
                                             now = style::action_button(ui, "지금 백업", true).clicked();
+                                            disable = style::action_button(ui, "자동 백업 끄기", false).clicked();
                                         }
                                     });
                                 });
@@ -147,9 +161,6 @@ impl VideoMaker {
                                 if !self.backup.error.is_empty() {
                                     ui.label(RichText::new(&self.backup.error).color(egui::Color32::from_rgb(180, 55, 45)));
                                 }
-                                if self.store.data.backup_directory.is_some() {
-                                    disable = ui.small_button("자동 백업 끄기").clicked();
-                                }
                                 ui.add_space(24.0);
                                 ui.separator();
                                 ui.add_space(17.0);
@@ -169,7 +180,7 @@ impl VideoMaker {
             self.settings_open = false;
             style::release_focus(ctx);
         }
-        if before != (self.store.data.ui_font.clone(), self.store.data.video_icon.clone()) {
+        if before != (self.store.data.ui_font.clone(), self.store.data.video_icon.clone(), self.store.data.ui_font_size) {
             self.save();
         }
         if choose && let Some(path) = rfd::FileDialog::new().set_title("자동 백업 폴더 선택").pick_folder() {

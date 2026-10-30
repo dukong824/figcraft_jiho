@@ -13,12 +13,7 @@ impl VideoMaker {
             .min_size(310.0)
             .max_size(650.0)
             .resizable(true)
-            .frame(egui::Frame::NONE.fill(style::SURFACE).stroke(egui::Stroke::new(1.0, style::BORDER)).inner_margin(egui::Margin {
-                left: 18,
-                right: 18,
-                top: 6,
-                bottom: 16,
-            }))
+            .frame(egui::Frame::NONE.fill(style::SURFACE).inner_margin(egui::Margin { left: 18, right: 18, top: 6, bottom: 16 }))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -33,15 +28,15 @@ impl VideoMaker {
                         if view == SideView::Codex {
                             let more = style::icon_button(ui, Icon::More, 26.0, "Codex 메뉴");
                             egui::Popup::menu(&more).show(|ui| {
-                                if ui.button("연결 다시 확인").clicked() {
+                                if style::menu_item(ui, "연결 다시 확인", Icon::History, false).clicked() {
                                     self.refresh_auth();
                                     ui.close();
                                 }
-                                if ui.button("실행 파일 선택…").clicked() {
+                                if style::menu_item(ui, "실행 파일 선택…", Icon::Settings, false).clicked() {
                                     self.select_codex();
                                     ui.close();
                                 }
-                                if self.authenticated == Some(true) && ui.button("로그아웃").clicked() {
+                                if self.authenticated == Some(true) && style::menu_item(ui, "로그아웃", Icon::Close, true).clicked() {
                                     if let Some(path) = codex::executable(self.store.data.codex_path.as_deref()) {
                                         let (tx, rx) = std::sync::mpsc::channel();
                                         std::thread::spawn(move || {
@@ -64,6 +59,9 @@ impl VideoMaker {
                 match view {
                     SideView::Codex => self.codex_contents(ui),
                 }
+                let r = ui.max_rect();
+                let x = r.left() - 18.0;
+                ui.painter().line_segment([egui::pos2(x, r.top() - 6.0), egui::pos2(x, r.bottom() + 16.0)], style::border(ui.ctx()));
             });
         if close {
             self.side_view = None;
@@ -85,7 +83,10 @@ impl VideoMaker {
         let running = self.chat_job.as_ref().filter(|job| job.video_id == video_id).map(|job| job.reply);
         let rect = ui.available_rect_before_wrap();
         let text_height = ui.fonts_mut(|f| f.layout_job(composer_text(&self.prompt, (rect.width() - 32.0).max(60.0)))).size().y;
-        let composer = composer_rect(rect, text_height);
+        let drop_hover = self.attachment_drop(ui, video_id, rect);
+        let has_attachments = self.chat_attachments.get(&video_id).is_some_and(|a| !a.is_empty());
+        let attachment_height = if has_attachments { 44.0 } else { 0.0 };
+        let composer = composer_rect(rect, text_height.max(44.0) + attachment_height);
         let conversation = egui::Rect::from_min_max(rect.min, egui::pos2(rect.right(), (composer.top() - 12.0).max(rect.top())));
         let mut append = None;
         ui.scope_builder(egui::UiBuilder::new().max_rect(conversation), |ui| {
@@ -105,7 +106,15 @@ impl VideoMaker {
                             let mut job = egui::text::LayoutJob::default();
                             job.wrap.max_width = max_width;
                             job.append(
-                                &message.text,
+                                &format!(
+                                    "{}{}",
+                                    message.text,
+                                    if message.attachments.is_empty() {
+                                        String::new()
+                                    } else {
+                                        format!("\n\n첨부 · {}", message.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(" · "))
+                                    }
+                                ),
                                 0.0,
                                 egui::TextFormat {
                                     font_id: egui::FontId::proportional(14.0),
@@ -217,10 +226,19 @@ impl VideoMaker {
         });
         let mut send = false;
         ui.painter().rect_filled(composer, 12, style::SURFACE);
-        ui.painter().rect_stroke(composer, 12, egui::Stroke::new(1.0, style::BORDER), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(
+            composer,
+            12,
+            egui::Stroke::new(1.0, if drop_hover { style::BLUE } else { style::BORDER }),
+            egui::StrokeKind::Inside,
+        );
         let inner = composer.shrink(12.0);
         let controls = egui::Rect::from_min_max(egui::pos2(inner.left(), inner.bottom() - 30.0), inner.max);
-        let input = egui::Rect::from_min_max(inner.min, egui::pos2(inner.right(), controls.top() - 12.0));
+        let input = egui::Rect::from_min_max(inner.min + vec2(0.0, attachment_height), egui::pos2(inner.right(), controls.top() - 12.0));
+        if has_attachments {
+            let chips = egui::Rect::from_min_size(inner.min, vec2(inner.width(), 36.0));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(chips), |ui| self.attachment_chips(ui, video_id));
+        }
         let id = egui::Id::unique(("codex-composer", video_id));
         let enter = self.chat_job.is_none()
             && ui.memory(|m| m.has_focus(id))
@@ -249,8 +267,9 @@ impl VideoMaker {
         });
         ui.scope_builder(egui::UiBuilder::new().max_rect(controls), |ui| {
             ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(vec2((controls.width() - 40.0).max(80.0), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    ui.set_min_width((controls.width() - 40.0).max(80.0));
+                self.attachment_picker(ui, video_id);
+                ui.allocate_ui_with_layout(vec2((controls.width() - 76.0).max(80.0), 30.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.set_min_width((controls.width() - 76.0).max(80.0));
                     self.codex_controls(ui);
                 });
                 if let Some(job) = &self.chat_job {
@@ -262,7 +281,7 @@ impl VideoMaker {
                         style::round_button(ui, Icon::Stop, false, "다른 영상에서 작업 중");
                     }
                 } else {
-                    let enabled = !self.prompt.trim().is_empty();
+                    let enabled = !self.prompt.trim().is_empty() || has_attachments;
                     send = style::round_button(ui, Icon::Send, enabled, "보내기 · Enter / 줄바꿈 · Shift+Enter").clicked() && enabled
                         || enter && enabled;
                 }
@@ -278,7 +297,7 @@ impl VideoMaker {
             self.save();
         }
         if send {
-            self.ask_codex(self.prompt.clone());
+            self.ask_codex(if self.prompt.trim().is_empty() { "첨부한 자료를 확인해 주세요.".into() } else { self.prompt.clone() });
         }
     }
 

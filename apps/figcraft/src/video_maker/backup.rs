@@ -158,6 +158,9 @@ fn mirror(root: &Path, target: &Path) -> Result<PathBuf, String> {
     walk(&root, &root, &target, &mut index)?;
     copy(&root.join("workspace.json"), &target.join("workspace.json"), Path::new("workspace.json"), &mut index)?;
     super::model::write_json(&manifest, &index)?;
+    if let Err(error) = super::retention::collect_snapshots(&target) {
+        log::warn!("백업 기록 정리 보류: {error}");
+    }
     Ok(target)
 }
 #[cfg(test)]

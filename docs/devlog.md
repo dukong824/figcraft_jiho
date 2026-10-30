@@ -307,3 +307,21 @@ unsupported exchange formats report the omission. See `paper-liquid-metal.md` fo
 provenance, resampling differences and the native-only GPU limitation.
 
 Verification results are recorded in the delivered `VALIDATION.md`.
+
+
+## 2026-10-30 · Purpose 0.1.10
+
+Reworked history into expandable inline rows with paginated previews and restore, per-video time
+buckets (5 minutes / 1 hour / 1 day over 7 / 14 / 30 days), protected restore points, and conservative
+background collection of unreferenced native snapshots. Current, trash and recovery manifest refs
+remain protected; media is never collected. The same cleanup runs in the owned backup directory.
+
+Added persisted base text size, shared page/heading/menu metrics and single-edge physical-pixel
+panel dividers. Bold selections use real bold or variable weight 700 and retain bold fallbacks.
+Codex accepts library drag/drop, multiselection context attachment and a source picker, renders
+removable thumbnail chips, persists message attachment refs and supplies CLI image inputs.
+
+Fixed stored-relative-path source reuse and duplicate bin entries; the native editor defaults to
+a reconciled library bin, retains archived timeline media, owns new imports through the background
+copy service, and mirrors native source clear/undo/redo. Automatic bookkeeping preserves native
+undo history. Ignored the previously recorded engine board-table test as requested by the owner.

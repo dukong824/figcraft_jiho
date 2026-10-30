@@ -38,6 +38,10 @@ while keeping the script suggestion-only; channel/common guides, shared interfac
 settings, logical asset trash, range/marquee selection and copy/paste. File analysis/copy runs off
 the UI thread and verified project manifests recover from corruption without discarding the source.
 Settings, rename and trash share a polished centred dialog; the library fits beside the assistant.
+Purpose 0.1.10 adds inline, age-thinned 30-day history; source attachments in Codex; selectable
+base text size and robust bold faces; consistent page typography, spacing, menus and thin dividers.
+The editor reconciles a dedicated library bin, resolves stored relative paths, asynchronously owns
+native imports and mirrors source clear/undo/redo without consuming user undo steps.
 Future video maker builds publish only the tested Windows installer on GitHub Releases.
 The Codex pane now retains conversations and real public CLI progress/time, with a disconnected
 login screen. Library media can be dropped into sidebar destinations, scripts have typography

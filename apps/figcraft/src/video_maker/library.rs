@@ -15,6 +15,7 @@ enum Action {
     Copy,
     Paste,
     Open(u64),
+    Attach(u64),
 }
 impl VideoMaker {
     pub(super) fn library(&mut self, ui: &mut egui::Ui) {
@@ -50,27 +51,39 @@ impl VideoMaker {
             }
         }
         egui::ScrollArea::vertical().id_salt("purpose-library-scroll").auto_shrink([false, false]).show(ui, |ui| {
-            let width = ui.available_width().min(1120.0);
-            ui.set_width(ui.available_width());
-            let left = ((ui.available_width() - width) / 2.0).max(0.0);
+            let (width, left) = style::page_width(ui, false);
+            ui.add_space(style::PAGE_TOP);
             ui.horizontal(|ui| {
                 ui.add_space(left);
                 ui.allocate_ui_with_layout(vec2(width, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.set_width(width);
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("라이브러리").font(FontId::new(30.0, egui::FontFamily::Name("purpose-script-bold".into()))));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if style::action_button(ui, "파일 가져오기", true).clicked()
-                                && let Some(files) = rfd::FileDialog::new().pick_files()
-                            {
-                                imported.extend(files);
-                            }
-                        });
-                    });
-                    ui.add_space(14.0);
+                    let choose = if width >= 360.0 {
+                        ui.horizontal(|ui| {
+                            ui.label(style::heading("라이브러리", style::PAGE_TITLE));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                style::action_button(ui, "파일 가져오기", true).clicked()
+                            })
+                            .inner
+                        })
+                        .inner
+                    } else {
+                        ui.label(style::heading("라이브러리", style::PAGE_TITLE));
+                        ui.add_space(12.0);
+                        style::action_button(ui, "파일 가져오기", true).clicked()
+                    };
+                    if choose && let Some(files) = rfd::FileDialog::new().pick_files() {
+                        imported.extend(files);
+                    }
+                    ui.add_space(style::TITLE_GAP);
                     ui.horizontal_wrapped(|ui| {
                         let count = self.video().map_or(0, |v| v.assets.len());
-                        ui.label(RichText::new(format!("모든 파일 · {count}")).size(13.0).color(style::MUTED));
+                        let editable = self.video().map_or(0, |v| v.assets.iter().filter(|a| a.kind.can_edit()).count());
+                        let counts = if editable == count {
+                            format!("모든 파일 · {count}")
+                        } else {
+                            format!("모든 파일 · {count} / 편집 소스 · {editable}")
+                        };
+                        ui.label(RichText::new(counts).size(13.0).color(style::MUTED));
                         if !self.library_selection.is_empty() {
                             ui.label(RichText::new(format!("{}개 선택", self.library_selection.len())).size(12.0).color(style::BLUE));
                         }
@@ -142,6 +155,10 @@ impl VideoMaker {
                                         }
                                         if style::menu_item(ui, "이름 바꾸기", Icon::Rename, false).clicked() {
                                             action = Some(Action::Rename(asset.id));
+                                            ui.close();
+                                        }
+                                        if style::menu_item(ui, "Codex에 첨부", Icon::Sparkle, false).clicked() {
+                                            action = Some(Action::Attach(asset.id));
                                             ui.close();
                                         }
                                         ui.separator();
@@ -363,6 +380,12 @@ impl VideoMaker {
                     self.message = error;
                 }
                 self.library_selection.clear();
+            }
+            Action::Attach(id) => {
+                let ids = if self.library_selection.contains(&id) { self.library_selection.clone() } else { vec![id] };
+                for id in ids {
+                    self.attach_source(video, video, id);
+                }
             }
             Action::Open(id) => {
                 if let Some(asset) = self.video().and_then(|v| v.asset(id))

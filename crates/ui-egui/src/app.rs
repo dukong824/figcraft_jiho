@@ -278,10 +278,18 @@ impl FigApp {
             egui::Panel::left("left_rail")
                 .exact_size(56.0)
                 .resizable(false)
-                .frame(egui::Frame::NONE.fill(t.panel).stroke(egui::Stroke::new(1.0, t.border)))
+                .frame(egui::Frame::NONE.fill(t.panel).stroke(if figcraft_ui_icons::enabled(ui.ctx()) {
+                    egui::Stroke::NONE
+                } else {
+                    egui::Stroke::new(1.0, t.border)
+                }))
                 .show(ui, |ui| {
                     a11y::region(&mut self.ui.nav, ui, a11y::Region::Layers, egui::accesskit::Role::Navigation, i18n::tr("Sidebar"));
-                    layers::rail(self, ui)
+                    layers::rail(self, ui);
+                    if figcraft_ui_icons::enabled(ui.ctx()) {
+                        let r = ui.max_rect();
+                        ui.painter().line_segment([r.right_top(), r.right_bottom()], egui::Stroke::new(1.0 / ui.ctx().pixels_per_point(), t.border));
+                    }
                 });
         }
         // The panels are as wide as asked, less in a window too small for them and the canvas.
@@ -301,7 +309,11 @@ impl FigApp {
             egui::Panel::left("left_panel")
                 .resizable(false)
                 .exact_size(left_w)
-                .frame(egui::Frame::NONE.fill(t.panel).stroke(egui::Stroke::new(1.0, t.border)))
+                .frame(egui::Frame::NONE.fill(t.panel).stroke(if figcraft_ui_icons::enabled(ui.ctx()) {
+                    egui::Stroke::NONE
+                } else {
+                    egui::Stroke::new(1.0, t.border)
+                }))
                 .show(ui, |ui| {
                     let label = match self.ui.left_tab {
                         _ if self.ui.versions.open => i18n::tr("Version history"),
@@ -309,7 +321,11 @@ impl FigApp {
                         LeftTab::Assets => i18n::tr("Assets"),
                     };
                     a11y::region(&mut self.ui.nav, ui, a11y::Region::Layers, egui::accesskit::Role::Pane, label);
-                    layers::left_panel(self, ui)
+                    layers::left_panel(self, ui);
+                    if figcraft_ui_icons::enabled(ui.ctx()) {
+                        let r = ui.max_rect();
+                        ui.painter().line_segment([r.right_top(), r.right_bottom()], egui::Stroke::new(1.0 / ui.ctx().pixels_per_point(), t.border));
+                    }
                 });
         }
         if right_open {
@@ -319,7 +335,11 @@ impl FigApp {
             egui::Panel::right("right_panel")
                 .resizable(false)
                 .exact_size(right_w)
-                .frame(egui::Frame::NONE.fill(t.panel).stroke(egui::Stroke::new(1.0, t.border)))
+                .frame(egui::Frame::NONE.fill(t.panel).stroke(if figcraft_ui_icons::enabled(ui.ctx()) {
+                    egui::Stroke::NONE
+                } else {
+                    egui::Stroke::new(1.0, t.border)
+                }))
                 .show(ui, |ui| {
                     let label = match self.ui.right_tab {
                         RightTab::Design => i18n::tr("Design"),
@@ -327,7 +347,11 @@ impl FigApp {
                         RightTab::Inspect => i18n::tr("Dev Mode"),
                     };
                     a11y::region(&mut self.ui.nav, ui, a11y::Region::Properties, egui::accesskit::Role::Pane, label);
-                    right::right_panel(self, ui)
+                    right::right_panel(self, ui);
+                    if figcraft_ui_icons::enabled(ui.ctx()) {
+                        let r = ui.max_rect();
+                        ui.painter().line_segment([r.left_top(), r.left_bottom()], egui::Stroke::new(1.0 / ui.ctx().pixels_per_point(), t.border));
+                    }
                 });
         }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {

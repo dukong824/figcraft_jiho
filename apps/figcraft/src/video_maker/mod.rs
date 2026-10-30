@@ -14,6 +14,7 @@ pub use branding::window_icon;
 mod agent;
 mod agent_transport;
 mod appearance;
+mod attachments;
 mod film;
 mod film_audio;
 mod film_audio_in;
@@ -21,6 +22,7 @@ mod guide;
 mod history;
 mod imports;
 mod library;
+mod retention;
 mod trash;
 pub use agent_transport::stdio as agent_stdio;
 mod media;
@@ -65,6 +67,7 @@ pub struct VideoMaker {
     font_query: String,
     font_names: Vec<String>,
     font_applied: Option<String>,
+    font_size_applied: Option<f32>,
     base_fonts: Option<egui::FontDefinitions>,
     imports: imports::Queue,
     library_selection: Vec<u64>,
@@ -82,7 +85,10 @@ pub struct VideoMaker {
     rename_video: Option<(model::Item, String)>,
     history_all: bool,
     history_query: String,
-    history_video: Option<u64>,
+    history_expanded: HashSet<u64>,
+    history_visible: HashMap<u64, usize>,
+    retention_at: Option<std::time::Instant>,
+    retention_job: Option<Receiver<Result<usize, String>>>,
     library_query: String,
     library_view: LibraryView,
     thumbnails: HashMap<u64, egui::TextureHandle>,
@@ -94,9 +100,13 @@ pub struct VideoMaker {
     design_loaded: Option<u64>,
     film: Option<film::Editor>,
     film_ime_ready: bool,
+    film_imports: HashMap<u64, (u64, filmcraft_project::ItemId)>,
+    film_import_paths: HashSet<(u64, filmcraft_project::ItemId, PathBuf)>,
     prompt: String,
     prompt_video: Option<u64>,
     drafts: HashMap<u64, String>,
+    chat_attachments: HashMap<u64, Vec<chat::Attachment>>,
+    attachment_query: String,
     chats: HashMap<u64, chat::Conversation>,
     chat_job: Option<chat::Job>,
     agent: Option<agent_transport::Bridge>,
@@ -163,6 +173,7 @@ impl VideoMaker {
             font_query: String::new(),
             font_names: figcraft_text::family_names(),
             font_applied: None,
+            font_size_applied: None,
             base_fonts: None,
             imports: Default::default(),
             library_selection: Vec::new(),
@@ -180,7 +191,10 @@ impl VideoMaker {
             rename_video: None,
             history_all: false,
             history_query: String::new(),
-            history_video: None,
+            history_expanded: HashSet::new(),
+            history_visible: HashMap::new(),
+            retention_at: None,
+            retention_job: None,
             library_query: String::new(),
             library_view: LibraryView::Tiles,
             thumbnails: HashMap::new(),
@@ -192,9 +206,13 @@ impl VideoMaker {
             design_loaded: None,
             film: None,
             film_ime_ready: false,
+            film_imports: HashMap::new(),
+            film_import_paths: HashSet::new(),
             prompt: String::new(),
             prompt_video: None,
             drafts: HashMap::new(),
+            chat_attachments: HashMap::new(),
+            attachment_query: String::new(),
             chats: HashMap::new(),
             chat_job: None,
             agent: None,
@@ -454,6 +472,7 @@ impl VideoMaker {
     }
 
     fn poll_jobs(&mut self, ctx: &egui::Context) {
+        self.poll_retention(ctx);
         self.poll_imports(ctx);
         self.poll_auth(ctx);
         self.poll_catalog(ctx);

@@ -178,6 +178,9 @@ impl VideoMaker {
         for (id, result) in self.imports.poll(ctx) {
             match result {
                 Ok(asset) => {
+                    if let Err(error) = self.complete_film_import(&asset) {
+                        self.message = error;
+                    }
                     if let Some(video) = self.store.data.channels.iter_mut().flat_map(|c| &mut c.videos).find(|v| v.id == id) {
                         video.assets.push(asset);
                         self.save();
