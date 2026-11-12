@@ -6,14 +6,32 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $version = '0.1.13'
-$ffmpegName = 'ffmpeg-n8.1.3-24-g92611900bb-win64-lgpl-8.1.zip'
-$ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-27-18-38/$ffmpegName"
-$ffmpegSha256 = '4b999c5b938ee20dc1bd7be68cb09381ac425520e363a58b67e787402cb96022'
+$ffmpegName = 'ffmpeg-n8.1.3-35-gf1acb0a266-win64-lgpl-8.1.zip'
+$ffmpegUrl = "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-11-12-39/$ffmpegName"
+$ffmpegSha256 = 'bb72a907fa5d6ef0793f46710284e6a55164716317bacb0ab2db1632964c7332'
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repoRoot 'dist/purpose-video-maker' }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $stage = Join-Path $OutputDirectory "Purpose-video-maker-$version-windows-x64"
 if (Test-Path -LiteralPath $stage) { throw "Package staging folder already exists: $stage" }
+
+# Verify external inputs before spending time compiling the application.
+$temporary = Join-Path $OutputDirectory '.ffmpeg-download'
+New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+if (-not $FfmpegArchive) {
+    $FfmpegArchive = Join-Path $temporary $ffmpegName
+    Invoke-WebRequest -Uri $ffmpegUrl -OutFile $FfmpegArchive
+}
+$actualSha256 = (Get-FileHash -LiteralPath $FfmpegArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actualSha256 -ne $ffmpegSha256) { throw "FFmpeg archive checksum mismatch: $actualSha256" }
+$expanded = Join-Path $temporary 'expanded'
+Expand-Archive -LiteralPath $FfmpegArchive -DestinationPath $expanded
+$ffmpegBinary = Get-ChildItem -LiteralPath $expanded -Recurse -File -Filter ffmpeg.exe | Select-Object -First 1
+if (-not $ffmpegBinary) { throw 'FFmpeg archive has no ffmpeg.exe' }
+$ffmpegRoot = $ffmpegBinary.Directory.Parent.FullName
+$ffmpegLicense = Join-Path $ffmpegRoot 'LICENSE.txt'
+if (-not (Test-Path -LiteralPath $ffmpegLicense)) { throw 'FFmpeg archive has no license' }
+
 
 if (-not $BinaryDirectory) {
     Push-Location $repoRoot
@@ -32,21 +50,6 @@ if ([BitConverter]::ToUInt16($bytes, $pe + 0x5C) -ne 2) { throw 'Application bin
 & $binary --version
 if ($LASTEXITCODE -ne 0) { throw 'Application version smoke test failed' }
 
-$temporary = Join-Path $OutputDirectory '.ffmpeg-download'
-New-Item -ItemType Directory -Path $temporary -Force | Out-Null
-if (-not $FfmpegArchive) {
-    $FfmpegArchive = Join-Path $temporary $ffmpegName
-    Invoke-WebRequest -Uri $ffmpegUrl -OutFile $FfmpegArchive
-}
-$actualSha256 = (Get-FileHash -LiteralPath $FfmpegArchive -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($actualSha256 -ne $ffmpegSha256) { throw "FFmpeg archive checksum mismatch: $actualSha256" }
-$expanded = Join-Path $temporary 'expanded'
-Expand-Archive -LiteralPath $FfmpegArchive -DestinationPath $expanded
-$ffmpegBinary = Get-ChildItem -LiteralPath $expanded -Recurse -File -Filter ffmpeg.exe | Select-Object -First 1
-if (-not $ffmpegBinary) { throw 'FFmpeg archive has no ffmpeg.exe' }
-$ffmpegRoot = $ffmpegBinary.Directory.Parent.FullName
-$ffmpegLicense = Join-Path $ffmpegRoot 'LICENSE.txt'
-if (-not (Test-Path -LiteralPath $ffmpegLicense)) { throw 'FFmpeg archive has no license' }
 
 New-Item -ItemType Directory -Path (Join-Path $stage 'ffmpeg/bin') -Force | Out-Null
 Copy-Item -LiteralPath $binary -Destination $stage
@@ -83,9 +86,9 @@ The setup EXE installs to your user profile and creates a Start menu shortcut.
 Your projects are saved in the FigCraft configuration folder, outside the install directory.
 
 FFmpeg, ffprobe and ffplay are included in ffmpeg/bin. FFmpeg comes from the
-BtbN/FFmpeg-Builds LGPL 3.0 build dated 2026-10-27. Its license is in
+FFmpeg-Builds/FFmpeg-Builds LGPL 3.0 build dated 2026-11-11. Its license is in
 ffmpeg/LICENSE.txt. Source and build instructions:
-https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-10-27-18-38
+https://github.com/FFmpeg-Builds/FFmpeg-Builds/tree/autobuild-2026-11-11-12-39
 https://ffmpeg.org/download.html
 
 OpenAI Codex CLI is included in codex/. Sign in with ChatGPT in the app sidebar.

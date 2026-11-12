@@ -1,5 +1,13 @@
 # Local extension devlog
 
+## 2026-11-12 — M-PURPOSE-PACKAGE: refresh the expired media archive
+
+The first Windows run compiled the updated app successfully, then the old FFmpeg daily-build
+URL returned 404. Pin the available 2026-11-11 LGPL 8.1.3 archive from the renamed upstream
+repository and verify its downloaded SHA-256 against the release asset digest. Retain the LGPL
+variant, bundled tools and licence. Verify the archive before compiling so a retired URL fails
+early. Application source and engine pins remain unchanged.
+
 ## 2026-11-11 — M-PURPOSE-ENGINES: update upstream engines and retain the host
 
 Merge official FigCraft 0.15.0 at be991533b0cc1891447d8ea48198abc87fdbc609 into the

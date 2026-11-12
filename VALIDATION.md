@@ -38,6 +38,11 @@
 - Windows publication remains gated on clean installation and the installed helper/MCP,
   app-server initialization, media/downloader, exact fullscreen/restore, icon and clean-exit
   checks. The release contains the installer EXE only.
+- The first Windows run compiled the application successfully; packaging then stopped on the
+  retired FFmpeg daily-build URL (404). The replacement 2026-11-11 LGPL 8.1.3 archive was
+  downloaded and matched release digest `bb72a907fa5d6ef0793f46710284e6a55164716317bacb0ab2db1632964c7332`;
+  all three tools and the original LGPL licence are present. Archive verification now precedes
+  application compilation. PowerShell syntax passed.
 
 ## Purpose approvals, clipboard and page details — 2026-10-31
 
