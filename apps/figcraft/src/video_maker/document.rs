@@ -286,6 +286,20 @@ fn floating_menu(ctx: &egui::Context, selection: &Selection, video: &super::mode
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique(("script-format-rect", video.id)), popup.response.rect));
     action
 }
+fn migrate_images(video: &mut super::model::Video) {
+    if !video.script_rich.images_migrated {
+        for id in &video.script_assets {
+            if video.asset(*id).is_some_and(|a| a.kind == super::model::AssetKind::Image)
+                && !video.script_rich.images.iter().any(|i| i.asset_id == *id)
+            {
+                video.script_rich.insert_image(*id, video.script_body.chars().count());
+            }
+        }
+        video.script_rich.images_migrated = true;
+    }
+    video.script_rich.normalize(&video.script_body);
+}
+
 impl VideoMaker {
     pub(super) fn script(&mut self, ui: &mut egui::Ui) {
         let Some(mut video) = self.video().cloned() else { return };
@@ -322,17 +336,7 @@ impl VideoMaker {
                 history.typed_at = None;
             }
         }
-        if !video.script_rich.images_migrated {
-            for id in &video.script_assets {
-                if video.asset(*id).is_some_and(|a| a.kind == super::model::AssetKind::Image)
-                    && !video.script_rich.images.iter().any(|i| i.asset_id == *id)
-                {
-                    video.script_rich.insert_image(*id, video.script_body.chars().count());
-                }
-            }
-            video.script_rich.images_migrated = true;
-        }
-        video.script_rich.normalize(&video.script_body);
+        migrate_images(&mut video);
         let dragged = egui::DragAndDrop::payload::<ImageDrag>(ui.ctx()).filter(|d| d.video == video.id);
         let mut destination = None;
         let mut remove = None;

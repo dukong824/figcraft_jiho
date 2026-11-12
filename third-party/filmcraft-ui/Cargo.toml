@@ -1,7 +1,7 @@
 [package]
 name = "filmcraft-ui-egui"
 description = "The FilmCraft egui frontend (swappable): panels, docking, timeline, monitors, control channel"
-version = "0.14.0"
+version = "0.17.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -11,23 +11,25 @@ unsafe_code = "forbid"
 
 [dependencies]
 figcraft-ui-icons = { path = "../../crates/ui-icons" }
-craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0", features = ["serde", "native-windows"] }
-filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-geom = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-color = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-frame = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-media = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-project = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-tts = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-edit = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-text = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-scopes = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "1b34eba41e62138fc2438d2734523b302840b45d", features = ["serde", "native-windows"] }
+filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-geom = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-color = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-frame = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-media = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-project = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-tts = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-edit = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-text = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-captions = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-scopes = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
 egui = { version = "0.37" }
+egui_extras = { version = "0.37", default-features = false }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu", "accesskit", "clipboard"] }
 serde = { version = "1" }
 serde_json = { version = "1" }
@@ -47,12 +49,13 @@ rustix = { version = "1", default-features = false, features = ["std", "time"] }
 cpu-time = "1"
 
 [dev-dependencies]
+filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04", features = ["test-util"] }
 pollster = "1"
-filmcraft-codecs = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-codecs = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
 # the bench registers OS hardware decoders as the desktop app does (dev-dependency only: ui-egui
 # itself stays OS-independent and web-portable)
-filmcraft-platform = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-interchange = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-platform = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-interchange = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
 # A dependency's dev-dependencies do not propagate through egui_kittest: name the fonts this
 # test root needs explicitly so glyph and accessibility assertions run against the bundled faces.
 egui = { version = "0.37", features = ["default_fonts", "monochrome_emoji_fonts"] }
@@ -65,6 +68,6 @@ serde_json = { version = "1" }
 toml = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-craft-update = { git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0", features = ["egui"] }
+craft-update = { git = "https://github.com/storytold/craft-libs", rev = "1b34eba41e62138fc2438d2734523b302840b45d", features = ["egui"] }
 
 [workspace]

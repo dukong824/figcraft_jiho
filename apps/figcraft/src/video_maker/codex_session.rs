@@ -180,7 +180,7 @@ fn drive(
 ) -> Result<String, String> {
     send(
         input,
-        json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"purpose_video_maker","version":"0.1.12"},"capabilities":{"experimentalApi":true}}}),
+        json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"purpose_video_maker","version":"0.1.13"},"capabilities":{"experimentalApi":true}}}),
     )?;
     let mut phase = 1;
     let mut phase_at = Instant::now();

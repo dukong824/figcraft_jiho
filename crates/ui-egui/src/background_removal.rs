@@ -1,5 +1,5 @@
 //! Local inference is a platform service. Only the completed command edits the captured image.
-use crate::*;
+use crate::{FigApp, NodeId, json, services};
 use services::{BackgroundEvent, BackgroundJob};
 
 pub(crate) struct Pending {

@@ -1,7 +1,10 @@
 # figcraft_jiho 유지보수
 
 이 저장소는 `storytold/figcraft`의 실제 Git 이력을 이어받은 공개 Fork입니다.
-공식 기반 커밋은 `43af145a12eacd1e87f5f5e6984c49b7da040288`이며, 그 위에 Paper 이식과 개인 배포 변경을 별도 커밋으로 관리합니다.
+공식 기반은 FigCraft 0.15.0 `be991533b0cc1891447d8ea48198abc87fdbc609`입니다.
+기존 Paper 이식과 개인 배포 변경을 보존한 병합이며, FilmCraft 0.17.0은
+`25ceb25f3e30659a04ade27727083b9932d97c04`로 고정합니다. 자세한 절차와 보존 범위는
+[엔진 업데이트](engine-updates.md)를 참고하세요.
 
 ## 공식 업데이트 받기
 
@@ -12,7 +15,9 @@ GitHub의 **Actions → Propose Upstream Update → Run workflow**를 실행합�
 PR의 코드와 Jiho CI를 확인한 후 직접 병합합니다. 자동 승인·자동 병합·주기적 실행은 없습니다.
 
 원본에서 새 workflow가 생겼는지도 검토하세요. 기존 공식 workflow는 `.github/upstream-workflows/`에 보관하고,
-개인 배포에는 `.github/workflows/jiho-*.yml`만 사용합니다.
+개인 배포에는 `.github/workflows/jiho-*.yml`과 `purpose-video-maker-*.yml`만 사용합니다.
+Purpose는 `purpose-video-maker/**` 빌드 브랜치에서 설치 후 검사를 통과한 installer EXE만
+게시합니다. 아래 Jiho ZIP 배포 절차는 독립 FigCraft 빌드용입니다.
 
 로컬에서 처리할 때:
 

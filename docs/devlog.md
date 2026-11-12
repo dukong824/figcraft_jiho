@@ -1,5 +1,31 @@
 # Local extension devlog
 
+## 2026-11-11 — M-PURPOSE-ENGINES: update upstream engines and retain the host
+
+Merge official FigCraft 0.15.0 at be991533b0cc1891447d8ea48198abc87fdbc609 into the
+Purpose branch, preserving its original custom commits. Upgrade all FilmCraft Git dependencies
+and the vendored frontend to 0.17.0 at 25ceb25f3e30659a04ade27727083b9932d97c04.
+Merge the frontend against its previous official revision after normalizing formatting; retain
+host-managed window lifecycle, fullscreen requests, fonts/zoom, Lucide icons and owner branding.
+
+Combine upstream stacked blur/shadow bounds with transformed outward paper reach. Keep all
+custom effect serialization, validation, preview animation time and native background-removal
+hooks. Carry the read-only/non-installing personal update channel across the new updater APIs.
+Adapt the FilmCraft history tuple and GPU renderer capabilities, update desktop audio adapters
+and connect the threaded scrub output. The shell and library synchronization behavior is retained.
+
+Keep original Paper shader files and formulas, adapting CMYK inout channels to scalar locals
+for Naga and replacing the undefined zero-width Liquid Metal frame with an explicit hard clip.
+Real Vulkan probes verify all seven filters, Water animation, exact neutral colour/alpha and
+visible animated Liquid Metal in image, silhouette and procedural modes. Retain upstream's
+outside-click colour-picker dismissal and complete canonical locale keys. Make the existing
+Codex cancellation fixture wait for its started event instead of a fixed process-start delay.
+
+Record exact pins and the preservation procedure in docs/engine-updates.md. Generate a synthetic
+legacy design containing metal and paper effects and a FilmCraft schema-15 project with the
+previous installer binary for reopen validation. Detailed checks are recorded in VALIDATION.md.
+
+
 ## 2026-10-31 — M-PURPOSE-VIDEO: approvals, clipboard and consistent page details
 
 Replace one-way `codex exec` output with official app-server stdio JSON-RPC. Initialize a fresh

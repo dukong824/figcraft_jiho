@@ -447,8 +447,12 @@ mod tests {
         maker.ask_codex("중지 테스트".into());
         let id = maker.video_id().unwrap();
         let ctx = egui::Context::default();
-        std::thread::sleep(Duration::from_millis(150));
-        maker.poll_chat(&ctx);
+        // Wait for the fixture's started event instead of assuming process startup takes 150ms.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while maker.conversation(id).messages[1].activities.is_empty() && std::time::Instant::now() < deadline {
+            maker.poll_chat(&ctx);
+            std::thread::sleep(Duration::from_millis(10));
+        }
         assert!(!maker.conversation(id).messages[1].activities.is_empty());
         maker.chat_job.as_ref().unwrap().cancel();
         for _ in 0..100 {

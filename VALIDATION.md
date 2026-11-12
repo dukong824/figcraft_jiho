@@ -1,3 +1,44 @@
+## Purpose engine update — 2026-11-11
+
+- FigCraft 0.15.0 (`be991533b0cc1891447d8ea48198abc87fdbc609`) is merged with its
+  official history. FilmCraft 0.17.0 (`25ceb25f3e30659a04ade27727083b9932d97c04`)
+  supplies the engine/project/renderer dependencies and the three-way-merged embedded frontend.
+  Protected host interaction/library/script, effect math/shaders and Purpose brand files were
+  compared with the previous release: 26 of 28 checked files remain byte-for-byte identical.
+  The two GPU adapters receive the compatibility changes described below; original shader
+  files, preprocessing formulas, host interaction/library/script and brand files are unchanged.
+- Native application build, workspace/all-target Clippy with warnings denied and formatting
+  passed. All 357 embedded FilmCraft frontend unit tests passed (1 ignored), using the parent
+  profiles, lockfile dependencies and egui/winit patches. Packaging PowerShell syntax passed.
+- Desktop tests passed in both entry points (178 each); 1,902 engine, 258 renderer and 1,121
+  shared UI tests passed. The full workspace run first stopped at the previously excluded
+  board-table row-growth test (122 to 122). That exact test alone was skipped for the remaining
+  workspace run. A final native UI run passed after the catalog fix, including all 28 locale
+  checks. A clean unfiltered full-CI result is not claimed for that known engine failure.
+- Final workspace/all-target Clippy, doctests, translation report, dependency layers, asset
+  attribution, documentation checks, WASM and all four plugin gates passed. A missing optional
+  craft-fonts checkout and upstream WASM dead-code warnings do not prevent those builds.
+- The actual 0.1.12 executable created synthetic design and edit projects. The updated native app
+  reopened both; the old design's serialized effect parameters survived save/reopen unchanged.
+  Native Vulkan screenshots show Liquid Metal, the outward torn-paper border, the Custom panel
+  and export-to-library. Exported PNGs preserve the page name, enter the library/native editor
+  once and retain that display name on the timeline; the monitor displays the rendered effects.
+- Integration exposed the latest renderer's tighter isolated-layer bounds clipping the local
+  torn-paper margin. Both document bounds and actual render-layer bounds now reserve the local
+  margin while retaining upstream's cumulative blur/shadow reach. A transformed stacked-blur
+  regression test accompanies this adaptation.
+- Native GPU checks exposed a Naga SPIR-V panic on CMYK inout vector components and Vulkan's
+  undefined zero-width smoothstep making image-mode Liquid Metal transparent. Scalar channel
+  locals and an explicit hard frame in the adapters resolve them without editing original GLSL.
+  Direct GPU probes verify opaque, alpha-silhouette and procedural modes are visible and animate.
+- In the final native executable the editor's own fullscreen button covers exactly (0,0),
+  1920×1080 with no border. Esc restores the original (0,19), 1918×1059 client and border.
+  F11 and the Design breadcrumb fullscreen button were also exercised. The cloud machine has
+  no audio output device, so real hardware audio playback is not claimed.
+- Windows publication remains gated on clean installation and the installed helper/MCP,
+  app-server initialization, media/downloader, exact fullscreen/restore, icon and clean-exit
+  checks. The release contains the installer EXE only.
+
 ## Purpose approvals, clipboard and page details — 2026-10-31
 
 - 148 desktop tests passed, 1 ignored subprocess-fixture entry point. Workspace/all-target Clippy

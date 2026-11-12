@@ -1,6 +1,6 @@
 //! Continuous custom-effect controls: direct number entry plus an accessible slider.
 use super::menu::{block, row};
-use super::*;
+use super::{FieldEdit, Id, Lead, Ui, tr, widgets};
 
 pub(super) fn number(ui: &mut Ui, id: Id, label: &str, value: f64, range: std::ops::RangeInclusive<f64>, step: f64) -> Option<FieldEdit> {
     let mut typed = None;

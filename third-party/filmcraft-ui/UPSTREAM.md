@@ -1,7 +1,7 @@
 # FilmCraft embedded frontend
 
-Source: https://github.com/storytold/filmcraft/tree/8d925e9df32d8755f22bd2635e400a6b3e93f69c/crates/ui-egui
-Revision: `8d925e9df32d8755f22bd2635e400a6b3e93f69c` (0.14.0), MIT OR Apache-2.0. Original notices and contributor credits retained.
+Source: https://github.com/storytold/filmcraft/tree/25ceb25f3e30659a04ade27727083b9932d97c04/crates/ui-egui
+Revision: `25ceb25f3e30659a04ade27727083b9932d97c04` (0.17.0), MIT OR Apache-2.0. Original notices and contributor credits retained.
 The engine, codecs, renderers and project model are pinned Git dependencies from the same revision.
 Local adaptations: host-managed fonts/zoom/window lifecycle and branding; embedded editor entry point; compact header while the host side view is open.
 No upstream trademark artwork or font files are copied into this directory.
@@ -22,3 +22,11 @@ reserving its hit area; other compact-header quick actions remain in their menus
 Purpose mode uses the host-enabled, shared Lucide SVG icon renderer (ISC / Feather MIT).
 The original standalone drawings and icon action identifiers remain available. Lucide sources
 and notices are pinned in `assets/ui/lucide/` and shipped in the installer.
+
+Updated by a three-way merge of the 0.14 frontend, the Purpose adaptations, and upstream 0.17.
+Host lifecycle/fullscreen, font scaling, Lucide glyphs, branded assets and library integration
+remain local adaptations; the latest upstream engine, project and frontend logic are retained.
+
+When running this frontend as a standalone test workspace, use the parent Cargo.toml
+`patch.crates-io` entries and dev profiles, and seed its temporary lockfile from the parent
+Cargo.lock. This exercises the same egui/winit fork and dependency versions as the app.

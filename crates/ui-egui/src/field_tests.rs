@@ -148,6 +148,33 @@ fn id(v: serde_json::Value) -> NodeId {
     NodeId(v["id"].as_u64().unwrap())
 }
 
+#[test]
+fn layout_add_button_requires_every_selected_container_to_have_no_layout() {
+    let mut s = Session::new();
+    let rect = id(s.execute("shape.rectangle", &json!({"width": 40, "height": 20})).unwrap());
+    let group = id(s.execute("object.group", &json!({"ids": [rect]})).unwrap());
+    let frame = id(s.execute("frame.create", &json!({"x": 200, "width": 100, "height": 60})).unwrap());
+    let mut u = Ui::new(s);
+    u.ctx.enable_accesskit();
+    for (selection, layout, expected) in [
+        (vec![group], false, true),
+        (vec![frame, group], false, true),
+        (vec![frame, group], true, false),
+        (vec![frame], true, false),
+        (vec![], true, false),
+    ] {
+        if layout {
+            u.app.session.execute("node.set", &json!({"id": frame, "props": {"layout": "horizontal"}})).unwrap();
+        }
+        u.app.session.execute("select.set", &json!({"ids": selection})).unwrap();
+        u.frame(vec![]);
+        let output = u.frame_output(vec![]);
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        let has_add = nodes.iter().any(|(_, n)| n.role() == Role::Button && n.label() == Some("Add auto layout"));
+        assert_eq!(has_add, expected, "selection: {selection:?}, frame has layout: {layout}");
+    }
+}
+
 /// Rectangles A (10, 20, 40×30) and B (100, 50, 20×20); A is selected.
 fn setup() -> (Ui, NodeId, NodeId) {
     let mut s = Session::new();
@@ -160,13 +187,18 @@ fn setup() -> (Ui, NodeId, NodeId) {
     (u, a, b)
 }
 
-/// The field named `name` in the Design panel: the middle of its value, and what it shows.
+/// The topmost field named `name` in the Design panel: its value centre and displayed text.
+/// Layer opacity precedes the equally named opacity fields in paint rows.
 fn field(u: &mut Ui, name: &str) -> (Pos2, String) {
     u.frame(vec![]);
     let out = u.frame_output(vec![]);
     let nodes = out.platform_output.accesskit_update.expect("an AccessKit update").nodes;
-    let n =
-        nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::SpinButton && n.label() == Some(name)).unwrap_or_else(|| panic!("no field {name:?}"));
+    let n = nodes
+        .iter()
+        .map(|(_, n)| n)
+        .filter(|n| n.role() == Role::SpinButton && n.label() == Some(name))
+        .min_by(|a, b| a.bounds().map_or(f64::INFINITY, |r| r.y0).total_cmp(&b.bounds().map_or(f64::INFINITY, |r| r.y0)))
+        .unwrap_or_else(|| panic!("no field {name:?}"));
     let b = n.bounds().expect("bounds");
     (pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32), n.value().unwrap_or_default().to_string())
 }
@@ -176,9 +208,24 @@ fn label(u: &mut Ui, name: &str) -> Pos2 {
     u.frame(vec![]);
     let out = u.frame_output(vec![]);
     let nodes = out.platform_output.accesskit_update.expect("an AccessKit update").nodes;
-    let n = nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::SpinButton && n.label() == Some(name)).unwrap();
+    let n = nodes
+        .iter()
+        .map(|(_, n)| n)
+        .filter(|n| n.role() == Role::SpinButton && n.label() == Some(name))
+        .min_by(|a, b| a.bounds().map_or(f64::INFINITY, |r| r.y0).total_cmp(&b.bounds().map_or(f64::INFINITY, |r| r.y0)))
+        .unwrap();
     let b = n.bounds().unwrap();
     pos2(b.x0 as f32 - 12.0, ((b.y0 + b.y1) / 2.0) as f32)
+}
+
+/// Layer and fill opacity are both named for assistive technology, even without a visible lead.
+#[test]
+fn paint_opacity_has_an_accessible_name() {
+    let (mut u, _, _) = setup();
+    let output = u.frame_output(vec![]);
+    let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+    let opacity_fields = nodes.iter().filter(|(_, n)| n.role() == Role::SpinButton && n.label() == Some("Opacity")).count();
+    assert_eq!(opacity_fields, 2, "both layer and fill opacity must have an accessible name");
 }
 
 fn geom(u: &Ui, n: NodeId) -> (f64, f64, f64, f64) {
@@ -219,6 +266,25 @@ fn scrub(u: &mut Ui, name: &str, dx: f32, modifiers: Modifiers) {
     drag(u, from, dx, modifiers);
 }
 
+/// Press at field `name`'s label, move `rise` points up (down when negative), then `dx` sideways
+/// in small steps at that height, and let go.
+fn scrub_at_height(u: &mut Ui, name: &str, rise: f32, dx: f32) {
+    let from = label(u, name);
+    let m = Modifiers::NONE;
+    let press = |pressed, pos| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: m };
+    u.frame_with(vec![Event::PointerMoved(from), press(true, from)], m);
+    for k in 1..=5 {
+        u.frame_with(vec![Event::PointerMoved(pos2(from.x, from.y - rise * k as f32 / 5.0))], m);
+    }
+    let up = pos2(from.x, from.y - rise);
+    for k in 1..=10 {
+        u.frame_with(vec![Event::PointerMoved(pos2(up.x + dx * k as f32 / 10.0, up.y))], m);
+    }
+    let to = pos2(up.x + dx, up.y);
+    u.frame_with(vec![Event::PointerMoved(to), press(false, to)], m);
+    u.frame(vec![]);
+}
+
 /// Press at `from`, move `dx` points sideways in small steps with `modifiers` held, then let go.
 fn drag(u: &mut Ui, from: Pos2, dx: f32, modifiers: Modifiers) {
     let press = |pressed| Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed, modifiers };
@@ -233,6 +299,64 @@ fn drag(u: &mut Ui, from: Pos2, dx: f32, modifiers: Modifiers) {
         modifiers,
     );
     u.frame(vec![]);
+}
+
+/// Scrub speed follows the pointer's height, with a notice of the speed (#1837): more than 100
+/// points above where the scrub began is 2x, that far below 1/2, twice as far 1/4.
+#[test]
+fn moving_up_or_down_while_scrubbing_changes_the_speed_and_says_so() {
+    let (mut u, a, _) = setup();
+    let toast = |u: &Ui| u.app.ui.toast.clone().map(|t| t.0).unwrap_or_default();
+    // (rise in points, how far 40 points of scrub move X, the notice)
+    for (rise, want, notice) in [(150.0, 80.0, "2x"), (0.0, 40.0, ""), (-150.0, 20.0, "1/2"), (-300.0, 10.0, "1/4"), (40.0, 40.0, "")] {
+        let x0 = geom(&u, a).0;
+        u.app.ui.toast = None;
+        scrub_at_height(&mut u, "X", rise, 40.0);
+        assert_eq!(geom(&u, a).0 - x0, want, "rise {rise}");
+        if notice.is_empty() {
+            assert!(toast(&u).is_empty(), "no notice at the usual speed: {}", toast(&u));
+        } else {
+            assert!(toast(&u).contains(notice), "rise {rise}: the notice says {}", toast(&u));
+        }
+    }
+    // Speeds compose with the modifiers' rates: 2x with Shift is twenty steps a point.
+    let x0 = geom(&u, a).0;
+    let from = label(&mut u, "X");
+    let shift = Modifiers { shift: true, ..Modifiers::NONE };
+    let press = |pressed, pos| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: shift };
+    u.frame_with(vec![Event::PointerMoved(from), press(true, from)], shift);
+    let up = pos2(from.x, from.y - 150.0);
+    u.frame_with(vec![Event::PointerMoved(up)], shift);
+    for k in 1..=5 {
+        u.frame_with(vec![Event::PointerMoved(pos2(up.x + 2.0 * k as f32, up.y))], shift);
+    }
+    let to = pos2(up.x + 10.0, up.y);
+    u.frame_with(vec![Event::PointerMoved(to), press(false, to)], shift);
+    u.frame(vec![]);
+    assert_eq!(geom(&u, a).0 - x0, 200.0, "ten points at 2x with Shift");
+    // The pointer reported gone from the window (egui's PointerGone) with the button still down
+    // keeps the speed it had: no notice of 1x, and the scrub goes on at 2x once it is back.
+    let x0 = geom(&u, a).0;
+    let from = label(&mut u, "X");
+    let m = Modifiers::NONE;
+    let press = |pressed, pos| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: m };
+    u.frame_with(vec![Event::PointerMoved(from), press(true, from)], m);
+    let up = pos2(from.x, from.y - 150.0);
+    u.frame_with(vec![Event::PointerMoved(up)], m);
+    u.frame_with(vec![Event::PointerMoved(pos2(up.x + 10.0, up.y))], m);
+    assert!(toast(&u).contains("2x"), "{}", toast(&u));
+    u.app.ui.toast = None;
+    u.frame_with(vec![Event::PointerGone], m);
+    u.frame_with(vec![Event::PointerMoved(pos2(up.x + 20.0, up.y))], m);
+    u.frame_with(vec![Event::PointerMoved(pos2(up.x + 30.0, up.y))], m);
+    assert!(toast(&u).is_empty(), "no notice while the pointer was gone or back at the same height: {}", toast(&u));
+    // Back down to the press height and gone in the same frame: that last position counts (1x).
+    u.frame_with(vec![Event::PointerMoved(pos2(up.x + 30.0, from.y)), Event::PointerGone], m);
+    assert!(toast(&u).contains("1x"), "{}", toast(&u));
+    let to = pos2(up.x + 30.0, up.y);
+    u.frame_with(vec![Event::PointerMoved(to), press(false, to)], m);
+    u.frame(vec![]);
+    assert_eq!(geom(&u, a).0 - x0, 40.0, "ten points before and ten after the pointer was gone, at 2x both");
 }
 
 #[test]
@@ -476,14 +600,18 @@ fn scrubbing_colour_picker_fields_is_live_and_one_undo_step() {
     let [r0, .., a0] = rgba(&u);
     u.ctx.data_mut(|d| d.insert_temp(Id::unique("cp_model"), 1usize));
     u.app.ui.picker = Some(crate::colorpicker::PickerTarget::Paint { fills: true, index: 0, ids: vec![a] });
-    // The picker window takes a frame to size itself.
-    for _ in 0..3 {
+    // Settle sizing and the anchored position before reading field hit rectangles.
+    for _ in 0..5 {
         u.frame(vec![]);
     }
     let steps = undo_steps(&u);
     let from = lead(&u, Id::unique(("cp_f", "r")));
     drag(&mut u, from, -20.0, Modifiers::NONE);
     assert_eq!((rgba(&u)[0], undo_steps(&u)), (r0 - 20, steps + 1), "R");
+    // Committing adds a recent colour row and can lift the anchored picker. Settle its layout.
+    for _ in 0..3 {
+        u.frame(vec![]);
+    }
     // The alpha field: a scrub moves it too.
     let from = lead(&u, Id::unique("cp_a"));
     drag(&mut u, from, -30.0, Modifiers::NONE);
@@ -504,7 +632,7 @@ fn lch_and_oklch_picker_fields_edit_lightness_keeping_hue() {
         assert_eq!(before.to_hex(), "0D99FF");
         u.ctx.data_mut(|d| d.insert_temp(Id::unique("cp_model"), model));
         u.app.ui.picker = Some(crate::colorpicker::PickerTarget::Paint { fills: true, index: 0, ids: vec![a] });
-        for _ in 0..3 {
+        for _ in 0..5 {
             u.frame(vec![]);
         }
         let steps = undo_steps(&u);
@@ -524,14 +652,16 @@ fn type_into_picker(u: &mut Ui, id: &str, text: &str) {
     click(u, rect.center());
     u.frame(vec![Event::Text(text.into())]);
     key(u, Key::Enter, Modifiers::NONE);
-    u.frame(vec![]);
+    for _ in 0..3 {
+        u.frame(vec![]);
+    }
 }
 
 /// A picker on layer `a` in model `model` (an index into the model menu), drawn and settled.
 fn open_picker(u: &mut Ui, a: NodeId, model: usize) {
     u.ctx.data_mut(|d| d.insert_temp(Id::unique("cp_model"), model));
     u.app.ui.picker = Some(crate::colorpicker::PickerTarget::Paint { fills: true, index: 0, ids: vec![a] });
-    for _ in 0..3 {
+    for _ in 0..5 {
         u.frame(vec![]);
     }
 }
@@ -634,29 +764,31 @@ fn the_glass_light_intensity_field_has_a_label() {
     u.ctx.data_mut(|d| d.insert_temp(Id::unique(("fx_open", 0usize)), true));
     u.frame(vec![]);
     let shapes = u.frame_output(vec![]).shapes;
-    let lead = u.ctx.read_response(Id::unique(("fx_gi", 0usize)).with("lead")).expect("the intensity field is shown").rect;
+    let lead = u.ctx.read_response(Id::unique(("fx", "lightIntensity", 0usize)).with("lead")).expect("the intensity field is shown").rect;
     let labels: Vec<(String, bool)> =
         painted_texts(&shapes).into_iter().filter(|(_, _, at)| lead.contains(at.center())).map(|(text, cut, _)| (text, cut)).collect();
     assert_eq!(labels, [("Intensity".to_string(), false)], "labelled, and not cut short");
-    let field = u.ctx.read_response(Id::unique(("fx_gi", 0usize)).with("field")).expect("its value").rect;
+    let field = u.ctx.read_response(Id::unique(("fx", "lightIntensity", 0usize)).with("field")).expect("its value").rect;
     assert_eq!(field.max.x - lead.min.x, GLASS_FIELD_W, "the width the next test measures against");
 }
 
 /// A glass settings field's width in the Design panel at its default width.
-const GLASS_FIELD_W: f32 = 98.5;
+const GLASS_FIELD_W: f32 = 87.5;
 
-/// The light intensity label this fix adds fits whole beside its value in every language (#256).
-/// Other glass labels may end in "…" in some languages (es "Profundidad"); a longer
-/// "Intensity" translation fails here.
+/// The light intensity label this fix adds fits whole beside its value (#256): at the default
+/// width the grid's column leaves 47.5 pt for it, and "Intensity" is 46.2. Longer translations
+/// (de "Intensit\u00e4t", es "Intensidad") end in "…" — whole on hover — rather than run into the
+/// value.
 #[test]
-fn the_intensity_label_fits_whole_in_every_language() {
-    use crate::i18n::{self, Text};
+fn the_intensity_label_fits_whole_beside_its_value() {
+    use crate::i18n::{self, Forms, Text};
     let ctx = egui::Context::default();
     let mut out = ctx.run_ui(Default::default(), |ui| {
         let width = |s: &str| ui.painter().layout_no_wrap(s.to_string(), crate::theme::regular(11.0), egui::Color32::WHITE).size().x;
+        let mut english = 0.0;
         for lang in i18n::languages() {
             let label = lang.ui.iter().find(|(k, _)| *k == "Intensity").map_or("Intensity", |(_, t)| match t {
-                Text::Plain(s) | Text::Plural { other: s, .. } => s,
+                Text::Plain(s) | Text::Plural(Forms { other: s, .. }) => s,
             });
             // The test's context has only egui's own font: a label it can't draw (Vietnamese
             // diacritics, CJK) can't be measured here, and the app draws it with a system font.
@@ -664,8 +796,14 @@ fn the_intensity_label_fits_whole_in_every_language() {
                 continue;
             }
             let lead = crate::widgets::text_lead_width(ui, label, GLASS_FIELD_W);
-            assert!(lead >= 12.0 + width(label), "{}: {label:?} would end in \"…\"", lang.code);
+            if lang.code == "en" {
+                english = width(label);
+                assert!(lead >= 8.0 + english, "en: {label:?} would end in \"…\"");
+            }
+            // The value keeps its room at the field's end whatever the label's length.
+            assert!(lead <= GLASS_FIELD_W - 32.0, "{}: {label:?} leaves the value its room", lang.code);
         }
+        assert!(english > 0.0, "the English label is in the table");
     });
     out.textures_delta.clear();
 }
@@ -968,6 +1106,25 @@ fn a_prepared_field_save_cannot_commit_into_a_same_pass_replacement_document() {
     }
 }
 
+/// The save shortcut's key events (and, routing by tab, a click on the tab at `tab_at`), with the modifiers held.
+fn save_events(route: &str, save_as: bool, tab_at: egui::Pos2) -> (Vec<Event>, Modifiers) {
+    let mut modifiers = if cfg!(target_os = "macos") { Modifiers::COMMAND } else { Modifiers::COMMAND.plus(Modifiers::CTRL) };
+    if save_as {
+        modifiers = modifiers.plus(Modifiers::SHIFT);
+    }
+    let mut events = vec![
+        Event::Key { key: Key::S, physical_key: Some(Key::S), pressed: true, repeat: false, modifiers },
+        Event::Key { key: Key::S, physical_key: Some(Key::S), pressed: false, repeat: false, modifiers },
+    ];
+    if route == "tab" {
+        events.push(Event::PointerMoved(tab_at));
+        for pressed in [true, false] {
+            events.push(Event::PointerButton { pos: tab_at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
+    }
+    (events, modifiers)
+}
+
 /// One route/save-as/discard combination of the same-pass replacement test: a save prepared for A
 /// must not commit A's cached X editor into B when routing presents B before the fields draw,
 /// even though both panels use the same widget ID.
@@ -1031,21 +1188,9 @@ fn prepared_save_cannot_enter_a_replacement(route: &str, save_as: bool, discard:
     } else {
         None
     };
-    let mut modifiers = if cfg!(target_os = "macos") { Modifiers::COMMAND } else { Modifiers::COMMAND.plus(Modifiers::CTRL) };
-    if save_as {
-        modifiers = modifiers.plus(Modifiers::SHIFT);
-    }
-    let mut events = vec![
-        Event::Key { key: Key::S, physical_key: Some(Key::S), pressed: true, repeat: false, modifiers },
-        Event::Key { key: Key::S, physical_key: Some(Key::S), pressed: false, repeat: false, modifiers },
-    ];
-    if route == "tab" {
-        events.push(Event::PointerMoved(tab_at));
-        for pressed in [true, false] {
-            events.push(Event::PointerButton { pos: tab_at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
-        }
-    }
+    let (events, modifiers) = save_events(route, save_as, tab_at);
     if discard {
+        let mut events = events;
         events.insert(0, Event::ModifiersChanged(modifiers));
         u.frame_raw_with_discard(egui::RawInput { events, ..Default::default() });
     } else {
@@ -1104,4 +1249,157 @@ fn prepared_save_cannot_enter_a_replacement(route: &str, save_as: bool, discard:
     assert_eq!(asked.get(), usize::from(save_as));
     assert!(u.app.ui.after_field.is_none());
     std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Replacing a painted value with its editor must preserve its baseline, including inside
+/// the horizontal rows used by the sidebar.
+#[test]
+fn sidebar_field_text_stays_in_place_on_focus() {
+    for numeric in [true, false] {
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx, crate::theme::Tokens::light());
+        let id = Id::unique("baseline_field");
+        let draw = |events| {
+            let mut out = ctx.run_ui(
+                egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 200.0))), events, ..Default::default() },
+                |ui| {
+                    ui.horizontal(|ui| {
+                        if numeric {
+                            crate::widgets::number_field(ui, id, crate::widgets::Lead::None, Some(123.0), "", 100.0, 1.0);
+                        } else {
+                            crate::widgets::text_field(ui, id, "123", 100.0, "");
+                        }
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        draw(vec![]);
+        let before = draw(vec![]);
+        let bounds = |out: &egui::FullOutput| painted_texts(&out.shapes).into_iter().find(|(text, _, _)| text == "123").expect("field text").2;
+        let before = bounds(&before);
+        let p = before.center();
+        for pressed in [true, false] {
+            draw(vec![
+                Event::PointerMoved(p),
+                Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE },
+            ]);
+        }
+        assert!(ctx.memory(|m| m.has_focus(id.with("te"))), "editor is focused");
+        let after = bounds(&draw(vec![]));
+        assert!((before.center().y - after.center().y).abs() <= 0.5, "numeric={numeric}: before={before:?}, after={after:?}");
+    }
+}
+
+/// The Page section's opacity field edits the page background's alpha (#1748; it was a label),
+/// one undo step per commit, and the hex field keeps that opacity unless the typed colour
+/// carries its own.
+#[test]
+fn the_page_background_opacity_field_sets_the_page_colour_alpha() {
+    let mut u = Ui::new(Session::new());
+    u.ctx.enable_accesskit();
+    u.frame(vec![]);
+    let page_bg = |u: &Ui| {
+        let page = u.app.session.page().unwrap();
+        match &u.app.session.doc().unwrap().node(page).unwrap().kind {
+            figcraft_doc::NodeKind::Page { background, .. } => *background,
+            _ => panic!("the page"),
+        }
+    };
+    // Within an 8-bit step: the colour travels as RRGGBBAA.
+    let near = |a: f32, b: f32| (a - b).abs() < 1.0 / 255.0;
+    assert!(near(page_bg(&u).a, 1.0));
+    let steps = undo_steps(&u);
+    type_into(&mut u, "Opacity", "50", Key::Enter);
+    assert!(near(page_bg(&u).a, 0.5), "{:?}", page_bg(&u));
+    assert_eq!(undo_steps(&u), steps + 1, "one undo step for the commit");
+    // No label is drawn, so the field's leading strip scrubs it: a percent a point, live, and one
+    // undo step for the whole drag.
+    let edge = lead(&u, Id::unique("pagebg_a"));
+    drag(&mut u, edge, -25.0, Modifiers::NONE);
+    assert!(near(page_bg(&u).a, 0.25), "{:?}", page_bg(&u));
+    assert_eq!(undo_steps(&u), steps + 2, "one undo step for the whole scrub");
+    u.app.run("edit.undo", json!({}));
+    assert!(near(page_bg(&u).a, 0.5), "undo takes back the scrub alone");
+    // The hex field keeps the opacity when the typed colour has none, and takes one it carries.
+    let hex = |u: &mut Ui| u.ctx.read_response(Id::unique("pagebg").with("click")).expect("the hex field").rect.center();
+    let at = hex(&mut u);
+    click(&mut u, at);
+    u.frame(vec![Event::Text("FF0000".into())]);
+    key(&mut u, Key::Enter, Modifiers::NONE);
+    let c = page_bg(&u);
+    assert!(near(c.r, 1.0) && near(c.g, 0.0) && near(c.a, 0.5), "{c:?}");
+    let at = hex(&mut u);
+    click(&mut u, at);
+    u.frame(vec![Event::Text("00FF0080".into())]);
+    key(&mut u, Key::Enter, Modifiers::NONE);
+    let c = page_bg(&u);
+    assert!(near(c.g, 1.0) && near(c.a, 128.0 / 255.0), "{c:?}");
+    // Eight digits asking for opaque set 100 %: an alpha of 1 in the text is not "no alpha".
+    let at = hex(&mut u);
+    click(&mut u, at);
+    u.frame(vec![Event::Text("0000FFFF".into())]);
+    key(&mut u, Key::Enter, Modifiers::NONE);
+    let c = page_bg(&u);
+    assert!(near(c.b, 1.0) && near(c.a, 1.0), "{c:?}");
+    assert_eq!(undo_steps(&u), steps + 4);
+    u.app.run("edit.undo", json!({}));
+    assert!(near(page_bg(&u).g, 1.0) && near(page_bg(&u).a, 128.0 / 255.0), "undo takes back the last colour alone");
+}
+
+/// "You can also hover the input field itself and hold down the modifier key: Mac: ⌥ Option
+/// Windows: Alt" to scrub it (Adjust alignment, rotation, position, and dimensions). Alt is what
+/// makes the drag a scrub there, not the fine rate: a point moves a step, as on the label. Without
+/// Alt a drag on the field is no click, so it neither edits nor moves anything.
+#[test]
+fn alt_held_over_a_field_scrubs_it() {
+    let (mut u, a, _) = setup();
+    let (at, _) = field(&mut u, "X");
+    let steps = undo_steps(&u);
+    // Alt is held as the pointer arrives over the field, a frame before the press (the field takes
+    // a drag only once it has seen Alt; egui assigns a press by the frame before it).
+    let alt = Modifiers { alt: true, ..Modifiers::NONE };
+    u.frame_with(vec![Event::PointerMoved(at)], alt);
+    drag(&mut u, at, 25.0, alt);
+    assert_eq!(geom(&u, a).0, 35.0, "a step a point: X from 10");
+    assert_eq!(undo_steps(&u), steps + 1, "one undo step for the whole scrub");
+    assert_eq!(field(&mut u, "X").1, "35", "the field shows it and isn't editing");
+    let (at, _) = field(&mut u, "X");
+    drag(&mut u, at, 25.0, Modifiers::NONE);
+    assert_eq!(geom(&u, a).0, 35.0, "without Alt the field doesn't scrub");
+    assert_eq!(undo_steps(&u), steps + 1);
+    // Alt let go before the button still ends the scrub with its undo step.
+    let (at, _) = field(&mut u, "X");
+    let press = |pressed: bool, m: Modifiers, p: Pos2| Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed, modifiers: m };
+    u.frame_with(vec![Event::PointerMoved(at)], alt);
+    u.frame_with(vec![press(true, alt, at)], alt);
+    for k in 1..=10 {
+        u.frame_with(vec![Event::PointerMoved(pos2(at.x + 2.0 * k as f32, at.y))], alt);
+    }
+    let to = pos2(at.x + 20.0, at.y);
+    u.frame_with(vec![Event::PointerMoved(to), press(false, Modifiers::NONE, to)], Modifiers::NONE);
+    u.frame(vec![]);
+    assert_eq!(geom(&u, a).0, 55.0, "twenty more");
+    assert_eq!(undo_steps(&u), steps + 2, "committed when the button went up, without Alt");
+    // Without Alt the field doesn't take the drag at all (a touch swipe over it is the panel's to
+    // scroll): the press is a click of the field's, not a drag.
+    let (at, _) = field(&mut u, "X");
+    let field_id = Id::unique("pos_x").with("field");
+    u.frame_with(vec![Event::PointerMoved(at)], Modifiers::NONE);
+    u.frame_with(vec![press(true, Modifiers::NONE, at)], Modifiers::NONE);
+    u.frame_with(vec![Event::PointerMoved(pos2(at.x + 10.0, at.y))], Modifiers::NONE);
+    assert!(!u.ctx.is_being_dragged(field_id), "a plain press on the field isn't a drag of the field's");
+    u.frame_with(vec![Event::PointerMoved(pos2(at.x + 10.0, at.y)), press(false, Modifiers::NONE, pos2(at.x + 10.0, at.y))], Modifiers::NONE);
+    u.frame(vec![]);
+    assert_eq!(geom(&u, a).0, 55.0, "nothing scrubbed");
+    // With Alt held over it, the field does take the drag.
+    let (at, _) = field(&mut u, "X");
+    u.frame_with(vec![Event::PointerMoved(at)], alt);
+    u.frame_with(vec![press(true, alt, at)], alt);
+    u.frame_with(vec![Event::PointerMoved(pos2(at.x + 10.0, at.y))], alt);
+    assert!(u.ctx.is_being_dragged(field_id), "with Alt the drag is the field's");
+    u.frame_with(vec![Event::PointerMoved(pos2(at.x + 10.0, at.y)), press(false, alt, pos2(at.x + 10.0, at.y))], alt);
+    u.frame(vec![]);
+    assert_eq!(geom(&u, a).0, 65.0, "ten more");
 }

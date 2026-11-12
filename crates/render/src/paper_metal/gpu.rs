@@ -96,6 +96,12 @@ vec4 viewport; vec4 motion; vec4 material; vec4 sizing; vec4 position; vec4 flag
             .replace("blurEdge3x3(u_image, ", "blurEdge3x3(")
             .replace("textureSize(tex, ", "textureSize(paperImage, ")
             .replace("textureGrad(tex, ", "textureGrad(u_image, ");
+        // GLSL leaves smoothstep(a, a, x) undefined. The original zero-width image frame
+        // must be a hard clip; Vulkan otherwise makes every image-mode pixel transparent.
+        result = result.replace(
+            "getImgFrame(v_imageUV, 0.)",
+            "(step(0., v_imageUV.x) * step(0., v_imageUV.y) * (1. - step(1., v_imageUV.x)) * (1. - step(1., v_imageUV.y)))",
+        );
     }
     result
 }
@@ -337,6 +343,7 @@ mod tests {
         let p = PaperLiquidMetal::default();
         let first = render(&source, &p, 0.0).unwrap();
         let later = render(&source, &p, 2.0).unwrap();
+        assert!(first.data().chunks_exact(4).any(|pixel| pixel[3] > 0), "image mode must remain visible");
         assert_ne!(first.data(), later.data());
         let stopped = PaperLiquidMetal { speed: 0.0, ..p };
         assert_eq!(render(&source, &stopped, 0.0).unwrap().data(), render(&source, &stopped, 4.0).unwrap().data());

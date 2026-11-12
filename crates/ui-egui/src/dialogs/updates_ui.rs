@@ -14,14 +14,25 @@ impl FigApp {
     /// The fork uses manually downloaded releases until it has its own signed updater.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn set_startup_update_check(&mut self, _on: bool) {}
+
+    /// The fork installs updates manually from its own release channel.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn start_pending_update(&mut self) {}
 }
 
 pub(crate) fn check(app: &mut FigApp) {
     app.updates_rt.manual_window_open = true;
-    app.updates_rt.status_message = Some(format!(
-        "figcraft_jiho · FigCraft {}\nDownload this personal build's updates from its GitHub Releases page. Close the app before replacing its files.",
-        env!("CARGO_PKG_VERSION")
-    ));
+    #[cfg(target_arch = "wasm32")]
+    {
+        app.updates_rt.status_message = Some(tr("Update check is not supported in the web browser.").to_owned());
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        app.updates_rt.status_message = Some(format!(
+            "figcraft_jiho · FigCraft {}\nDownload this personal build's updates from its GitHub Releases page. Close the app before replacing its files.",
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
 }
 
 pub(crate) fn tick(_app: &mut FigApp, _ctx: &egui::Context) {}

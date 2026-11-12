@@ -1,7 +1,7 @@
 //! Embedded FilmCraft editor, one native project per video.
 use super::{
     VideoMaker,
-    film_audio::CpalOut,
+    film_audio::{CpalOut, CpalScrubOut},
     film_audio_in::CpalIn,
     model::{Asset, AssetKind, Store, Video},
 };
@@ -95,6 +95,10 @@ pub(super) fn open_path(path: &str, reveal: bool) -> Result<(), String> {
 
 struct GpuFrameRenderer(filmcraft_gpu::ExportRenderer);
 impl filmcraft_export::FrameRenderer for GpuFrameRenderer {
+    fn caps(&self) -> filmcraft_render::plan::DeviceCaps {
+        self.0.caps()
+    }
+
     fn render(
         &mut self,
         project: &filmcraft_project::Project,
@@ -353,13 +357,19 @@ impl VideoMaker {
             video = editor.video_id;
             let session = &editor.app.session;
             let position = (session.history.undo.len(), session.history.redo.len());
-            let label = if position.0 < editor.history_position.0 && position.1 > editor.history_position.1 {
-                session.history.redo.last().map(|(label, _)| label.as_str())
+            let step = if position.0 < editor.history_position.0 && position.1 > editor.history_position.1 {
+                session.history.redo.last()
             } else {
-                session.history.undo.last().map(|(label, _)| label.as_str())
+                session.history.undo.last()
             };
+            // New FilmCraft history carries command IDs: keep synchronization independent of
+            // localized/changed display labels, with the old label fallback for direct edits.
+            let source_action = step.is_some_and(|(label, _, command)| {
+                matches!(command.as_deref(), Some("project.delete" | "file.import" | "mediaBrowser.import"))
+                    || matches!(label.as_str(), "Clear" | "Import")
+            });
             let observed = observe_sources(session, editor.library_bin);
-            if matches!(label, Some("Clear" | "Import")) && (position != editor.history_position || observed != editor.source_observation) {
+            if source_action && (position != editor.history_position || observed != editor.source_observation) {
                 for (id, (path, present, member)) in &editor.source_observation {
                     if *member && *present && observed.get(id).is_none_or(|(_, present, _)| !*present) {
                         actions.push((path.clone(), false));
@@ -570,6 +580,8 @@ impl VideoMaker {
         app.ui.project_panel.bin = Some(library_bin.0);
         app.set_startup_update_check(false);
         app.audio = Some(Box::new(CpalOut::new()));
+        let document_rate = app.session.active_sequence().map(|q| q.settings.sample_rate);
+        app.scrub_out = Some(Box::new(CpalScrubOut::new(&app.session.prefs.audio_hardware, document_rate)));
         app.hooks.open_url = Some(Box::new(|url| webbrowser::open(url).map(|_| ()).map_err(|e| e.to_string())));
         app.hooks.open_path = Some(Box::new(open_path));
         app.hooks.clipboard_media = Some(Box::new(clipboard_media));
@@ -882,6 +894,9 @@ mod tests {
         let path = store.asset_path(video.id, &video.assets[0]);
         let item = existing_item(&maker.film.as_ref().unwrap().app.session, &path).unwrap();
         execute(&mut maker.film.as_mut().unwrap().app.session, "project.delete", json!({"items":[item.0]})).unwrap();
+        let step = maker.film.as_mut().unwrap().app.session.history.undo.last_mut().unwrap();
+        assert_eq!(step.2.as_deref(), Some("project.delete"));
+        step.0 = "자료 삭제".into();
         maker.sync_native_source_actions();
         assert_eq!(maker.video().unwrap().assets.len(), 1);
         maker.ensure_film().unwrap();

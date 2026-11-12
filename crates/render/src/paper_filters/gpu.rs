@@ -117,6 +117,15 @@ fn adapt(source: &str, kind: PaperFilterKind, fragment: bool) -> String {
         .replace("samplePremultiplied(tex, ", "samplePremultiplied(")
         .replace("getBlur(u_image, ", "getBlur(")
         .replace("texture(tex, ", "texture(u_image, ");
+    if fragment && kind == PaperFilterKind::HalftoneCmyk {
+        // Naga cannot pass a vector component as an inout pointer on every backend.
+        // Four scalar accumulators keep the original CMYK samples and arithmetic intact.
+        result =
+            result.replace("vec4 outMask = vec4(0.);", "float paperMask0 = 0.; float paperMask1 = 0.; float paperMask2 = 0.; float paperMask3 = 0.;");
+        for channel in 0..4 {
+            result = result.replace(&format!("outMask[{channel}]"), &format!("paperMask{channel}"));
+        }
+    }
     if fragment && result.contains("gl_FragCoord") {
         result = result.replace("gl_FragCoord", "paperFragCoord").replace(
             "void main() {",
@@ -420,5 +429,21 @@ impl Gpu {
         drop(mapped);
         buffer.unmap();
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cmyk_inout_channels_compile_to_native_spirv_without_a_gpu() {
+        use wgpu::naga::{ShaderStage, back::spv, front::glsl, valid};
+        let kind = PaperFilterKind::HalftoneCmyk;
+        let source = adapt(fragment(kind), kind, true);
+        let module = glsl::Frontend::default().parse(&glsl::Options::from(ShaderStage::Fragment), &source).unwrap();
+        let info = valid::Validator::new(valid::ValidationFlags::all(), valid::Capabilities::all()).validate(&module).unwrap();
+        let options = spv::PipelineOptions { shader_stage: ShaderStage::Fragment, entry_point: "main".into() };
+        assert!(!spv::write_vec(&module, &info, &Default::default(), Some(&options)).unwrap().is_empty());
     }
 }

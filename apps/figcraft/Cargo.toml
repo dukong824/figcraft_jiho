@@ -32,6 +32,8 @@ figcraft-text = { workspace = true }
 # bespoke Wayland xdg-decoration probe. See `[workspace.dependencies]`: pinned to the unmerged
 # craft-libs#217 branch and must be repointed to a merged `rev` before this PR is mergeable.
 craft-window = { workspace = true }
+# The suite's settings folder: `FIGCRAFT_CONFIG_DIR`, a portable marker, then the platform folder.
+craft-settings = { workspace = true }
 egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "clipboard", "wayland", "x11"] }
 serde_json = { workspace = true }
@@ -49,15 +51,15 @@ env_logger = { version = "0.11", default-features = false, features = ["auto-col
 
 
 filmcraft-ui-egui = { path = "../../third-party/filmcraft-ui" }
-filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-project = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-text = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-platform = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-codecs = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
-filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "8d925e9df32d8755f22bd2635e400a6b3e93f69c" }
+filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-project = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-time = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-text = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-platform = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-codecs = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-gpu = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-export = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
+filmcraft-render = { git = "https://github.com/storytold/filmcraft", rev = "25ceb25f3e30659a04ade27727083b9932d97c04" }
 cpal = "0.16"
 pulldown-cmark = { version = "0.13", default-features = false }
 winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
@@ -84,6 +86,13 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 # unsafe, which the workspace forbids). Pinned exactly: review the diff before bumping.
 [target.'cfg(target_os = "macos")'.dependencies]
 fmv-macos-events = "=0.1.0"
+# Paste reads the clipboard's public.png as is, keeping the screen density a screenshot records.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSString"] }
+# A macOS app menu whose Quit (⌘Q) asks the app first (sends the root window a close request, the
+# same guarded path as the close button); winit's default Quit ends the process through
+# `terminate:`, losing unsaved changes without a word (issue #857).
+craft-menu = { workspace = true }
 
 [dev-dependencies]
 wat = { workspace = true }
